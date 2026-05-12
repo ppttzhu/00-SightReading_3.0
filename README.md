@@ -9,7 +9,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 - **Smart Difficulty**: Auto-grades questions L1–L10 based on pitch range, accidentals, symbol rarity
 - **Auto Stage Generation**: Groups questions into stages (5 per stage) by type and difficulty
 - **Custom Stages**: Teachers can manually curate stage content
-- **Cloud Sync**: Teacher publishes questions to cloud; students see them instantly on any device
+- **Cloud Sync**: Teacher publishes questions via Vercel Blob; students see them instantly on any device
 - **Progress Tracking**: Student progress persisted locally with sequential stage unlocking
 
 ## Tech Stack
@@ -20,6 +20,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 - Zustand (state management with localStorage persistence)
 - React Router 7
 - Lucide React (icons)
+- Vercel Blob (cloud storage)
 
 ## Requirements
 
@@ -35,7 +36,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 npm install
 ```
 
-### 2. Configure cloud sync (GitHub Gist)
+### 2. Configure cloud sync (Vercel Blob)
 
 ```bash
 cp .env.example .env
@@ -44,25 +45,16 @@ cp .env.example .env
 Edit `.env` and fill in:
 
 ```
-VITE_GIST_ID=your_gist_id
-VITE_GIST_TOKEN=your_github_pat
-VITE_GIST_OWNER=your_github_username
+VITE_CMS_SECRET=your_cms_secret
 ```
 
-#### How to set up the Gist:
+#### Vercel Blob Setup:
 
-1. Go to https://gist.github.com (logged in)
-2. Set filename to `stages.json`, content to `{}`
-3. Click **"Create public gist"**
-4. Copy the Gist ID from the URL (the long string after your username)
-
-#### How to generate a PAT:
-
-1. Go to https://github.com/settings/tokens
-2. Click **"Generate new token (classic)"** (not fine-grained — it doesn't support gist scope)
-3. Name it (e.g. `sight-reading-gist`)
-4. Check only the **`gist`** scope
-5. Generate and copy the token
+1. Deploy the project to Vercel (connect your GitHub repo)
+2. In Vercel dashboard → **Storage** → **Create** → **Blob** → Connect to your project
+   - This auto-adds `BLOB_READ_WRITE_TOKEN` to your project environment variables
+3. (Optional) Add `CMS_SECRET` in Vercel **Settings → Environment Variables** to protect write access
+4. Set `VITE_CMS_SECRET` in your local `.env` to the same value (for teacher CMS auth)
 
 ### 3. Run the dev server
 
@@ -70,16 +62,34 @@ VITE_GIST_OWNER=your_github_username
 npm run dev
 ```
 
+> Note: Cloud sync requires deployment to Vercel since the API route (`/api/stages`) runs as a serverless function. In local dev, the student side will fall back to local data.
+
+## Deployment
+
+This project is deployed on **Vercel** with automatic CI/CD:
+
+- Push to `main` → production deployment
+- Push to other branches → preview deployment with unique URL
+- Pull requests get automatic preview links
+
+### Deploy Steps:
+
+1. Connect your GitHub repo to Vercel
+2. Vercel auto-detects Vite and configures build settings
+3. Create a Blob store in Vercel Storage and connect it to the project
+4. (Optional) Set `CMS_SECRET` environment variable for write protection
+5. Push to `main` — done!
+
 ## Usage
 
-### Teacher (CMS): `http://localhost:5173/cms`
+### Teacher (CMS): `/cms`
 
 1. Upload MusicXML files via **文件解析器**, or add questions manually via **手动出题器**
 2. Manage the question pool in **题库管理** (adjust difficulty, delete items)
 3. Optionally create custom stages in **关卡编排**
-4. Click **"🚀 发布到云端"** in the sidebar to publish to the Gist
+4. Click **"🚀 发布到云端"** in the sidebar to publish
 
-### Student: `http://localhost:5173/client`
+### Student: `/client`
 
 1. Opens and auto-fetches the latest questions from the cloud
 2. Select a module (Notes, Symbols, Theory, Patterns)
@@ -89,18 +99,22 @@ npm run dev
 ## Cloud Sync Architecture
 
 ```
-Teacher (CMS) → clicks "发布到云端" → GitHub Gist (stages.json)
-Student (any browser) → auto-fetches on page load ← GitHub Gist
+Teacher (CMS) → clicks "发布到云端" → POST /api/stages → Vercel Blob
+Student (any browser) → auto-fetches on page load ← GET /api/stages ← Vercel Blob
 ```
 
 The storage layer is abstracted via a `StorageProvider` interface:
 
 ```
 src/core/storage/
-├── types.ts                # StorageProvider interface
-├── GistStorageProvider.ts  # GitHub Gist implementation
-├── index.ts                # Provider factory (swap backends here)
-└── useRemoteSync.ts        # React hooks: usePublish() + useFetchRemote()
+├── types.ts                  # StorageProvider interface
+├── VercelStorageProvider.ts  # Vercel Blob implementation (current)
+├── GistStorageProvider.ts    # GitHub Gist implementation (legacy)
+├── index.ts                  # Provider factory (swap backends here)
+└── useRemoteSync.ts          # React hooks: usePublish() + useFetchRemote()
+
+api/
+└── stages.ts                 # Vercel serverless function (GET/POST)
 ```
 
 To switch to Firebase, Supabase, or any other backend: implement the `StorageProvider` interface and change one line in `index.ts`.
@@ -112,18 +126,19 @@ npm run build    # outputs to ./dist
 npm run preview  # preview production build locally
 ```
 
-Deploy the `dist/` folder to any static hosting (Vercel, Netlify, GitHub Pages, S3, etc.). Since it uses `BrowserRouter`, configure your host to redirect all paths to `index.html`.
-
 ## Project Structure
 
 ```
 src/
 ├── core/
 │   ├── engine/          # MusicXML parser & 4-dimension extractor
-│   └── store/           # Zustand state management
+│   ├── store/           # Zustand state management
 │   └── storage/         # Cloud sync abstraction layer
 ├── pages/
 │   ├── client/          # Student-facing quiz UI
 │   └── cms/             # Teacher-facing content management
 └── main.tsx
+
+api/
+└── stages.ts            # Vercel serverless function for Blob storage
 ```
