@@ -1,4 +1,4 @@
-import { put, list } from '@vercel/blob';
+import { put, list, head } from '@vercel/blob';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const BLOB_FILENAME = 'stages.json';
@@ -22,9 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json(null);
       }
 
-      // Fetch the latest blob content
+      // Fetch the blob content using the download URL (works for private stores)
       const latestBlob = blobs[blobs.length - 1];
-      const response = await fetch(latestBlob.url);
+      const response = await fetch(latestBlob.downloadUrl);
       const data = await response.json();
       return res.status(200).json(data);
     } catch (e: any) {
@@ -45,10 +45,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const data = req.body;
 
-      // Upload to Vercel Blob (overwrites if same name)
+      // Upload to Vercel Blob (private access, overwrite existing)
       const blob = await put(BLOB_FILENAME, JSON.stringify(data, null, 2), {
-        access: 'public',
         addRandomSuffix: false,
+        allowOverwrite: true,
       });
 
       return res.status(200).json({ success: true, url: blob.url });
