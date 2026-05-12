@@ -161,7 +161,7 @@ export default function InteractiveQuiz() {
         const note = new StaveNote({ keys: [key], duration: "w" });
         if (accidental) note.addModifier(new Accidental(accidental));
 
-        const voice = new Voice({ num_beats: 4, beat_value: 4 });
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
         voice.setMode(2); // SOFT mode
         voice.addTickables([note]);
         new Formatter().joinVoices([voice]).format([voice], 350);
@@ -180,7 +180,7 @@ export default function InteractiveQuiz() {
           });
 
           const beats = vfNotes.length * 2;
-          const voice = new Voice({ num_beats: beats, beat_value: 4 });
+          const voice = new Voice({ numBeats: beats, beatValue: 4 });
           voice.setMode(2); // SOFT mode
           voice.addTickables(vfNotes);
           new Formatter().joinVoices([voice]).format([voice], 160);
@@ -230,7 +230,7 @@ export default function InteractiveQuiz() {
 
         const totalBeats = vfNotes.length;
         // SOFT 模式：不严格校验总拍数，避免静默失败
-        const voice = new Voice({ num_beats: totalBeats, beat_value: 4 });
+        const voice = new Voice({ numBeats: totalBeats, beatValue: 4 });
         voice.setMode(2); // SOFT mode
         voice.addTickables(vfNotes);
         new Formatter().joinVoices([voice]).format([voice], Math.min(360, totalBeats * 60));
