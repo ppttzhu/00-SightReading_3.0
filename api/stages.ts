@@ -1,4 +1,4 @@
-import { put, list, head } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const BLOB_FILENAME = 'stages.json';
@@ -22,9 +22,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json(null);
       }
 
-      // Fetch the blob content using the download URL (works for private stores)
+      // Fetch the blob content with auth token (required for private stores)
       const latestBlob = blobs[blobs.length - 1];
-      const response = await fetch(latestBlob.downloadUrl);
+      const response = await fetch(latestBlob.url, {
+        headers: {
+          Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Blob fetch failed: ${response.status} ${response.statusText}`);
+      }
       const data = await response.json();
       return res.status(200).json(data);
     } catch (e: any) {
