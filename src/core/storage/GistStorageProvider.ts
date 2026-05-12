@@ -63,8 +63,9 @@ export class GistStorageProvider implements StorageProvider {
 
     try {
       if (this.owner) {
-        // Direct raw file fetch (faster, no auth)
-        const response = await fetch(url, {
+        // Direct raw file fetch — append timestamp to bust GitHub CDN cache
+        const bustUrl = `${url}?t=${Date.now()}`;
+        const response = await fetch(bustUrl, {
           cache: 'no-store', // Always get fresh data
         });
         if (!response.ok) return null;
