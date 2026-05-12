@@ -1,8 +1,19 @@
 import { Outlet, Link } from 'react-router-dom';
-import { usePublish } from '../../core/storage/useRemoteSync';
+import { useEffect } from 'react';
+import { usePublish, useFetchRemote } from '../../core/storage/useRemoteSync';
+import { useAppStore } from '../../core/store/useAppStore';
 
 export default function CMSLayout() {
   const { publish, status, error } = usePublish();
+  const { fetchRemote } = useFetchRemote();
+  const poolSize = useAppStore(state => state.slicesPool.length);
+
+  // Load remote data on mount if local store is empty (new browser)
+  useEffect(() => {
+    if (poolSize === 0) {
+      fetchRemote();
+    }
+  }, []);
 
   return (
     <div className="cms-layout" style={{ display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
