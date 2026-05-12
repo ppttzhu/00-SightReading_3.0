@@ -2,6 +2,11 @@
 
 A music sight-reading practice app with a teacher CMS and student quiz interface.
 
+## Next step
+1. Fix responsive in mobile phone
+2. Fix only ppttzhu's commit can trigger Vercel auto build
+3. Student can save stage
+
 ## Features
 
 - **4 Quiz Modules**: Notes (单音), Symbols (符号), Theory (乐理), Patterns (音型)
