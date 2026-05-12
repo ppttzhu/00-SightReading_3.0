@@ -1,6 +1,15 @@
+import { useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
+import { useFetchRemote } from '../../core/storage/useRemoteSync';
 
 export default function ClientLayout() {
+  const { fetchRemote, status } = useFetchRemote();
+
+  // Auto-fetch remote data on mount
+  useEffect(() => {
+    fetchRemote();
+  }, [fetchRemote]);
+
   return (
     <div className="client-layout" style={{ 
       minHeight: '100vh', 
@@ -21,6 +30,9 @@ export default function ClientLayout() {
           ✨ Sight-Reading Adventure
         </Link>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          {status === 'loading' && (
+            <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>⏳ Syncing...</span>
+          )}
           <span style={{ background: '#fef3c7', color: '#d97706', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '1.1rem' }}>
             ⭐ 120
           </span>
