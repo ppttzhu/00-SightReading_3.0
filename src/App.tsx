@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import CMSLayout from './pages/cms/CMSLayout';
 import ClientLayout from './pages/client/ClientLayout';
 import Dashboard from './pages/cms/Dashboard';
@@ -12,7 +12,7 @@ import InteractiveQuiz from './pages/client/InteractiveQuiz';
 
 function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         {/* 默认重定向到学生端 */}
         <Route path="/" element={<Navigate to="/client" replace />} />
@@ -33,7 +33,7 @@ function App() {
           <Route path="stages" element={<CustomStageEditor />} />
         </Route>
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 
