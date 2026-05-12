@@ -47,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Upload to Vercel Blob (private access, overwrite existing)
       const blob = await put(BLOB_FILENAME, JSON.stringify(data, null, 2), {
+        access: 'private',
         addRandomSuffix: false,
         allowOverwrite: true,
       });
