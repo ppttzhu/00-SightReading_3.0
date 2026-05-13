@@ -6,6 +6,7 @@ import UploadParser from './pages/cms/UploadParser';
 import StageBuilder from './pages/cms/StageBuilder';
 import ManualCreator from './pages/cms/ManualCreator';
 import CustomStageEditor from './pages/cms/CustomStageEditor';
+import FeedbackManager from './pages/cms/FeedbackManager';
 import MainMenu from './pages/client/MainMenu';
 import StageSelector from './pages/client/StageSelector';
 import InteractiveQuiz from './pages/client/InteractiveQuiz';
@@ -31,6 +32,7 @@ function App() {
           <Route path="builder" element={<StageBuilder />} />
           <Route path="creator" element={<ManualCreator />} />
           <Route path="stages" element={<CustomStageEditor />} />
+          <Route path="feedback" element={<FeedbackManager />} />
         </Route>
       </Routes>
     </BrowserRouter>

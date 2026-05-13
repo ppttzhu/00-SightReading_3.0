@@ -15,6 +15,7 @@ export default function CMSLayout() {
     { to: '/cms/creator', label: '手动出题器' },
     { to: '/cms/builder', label: '题库管理' },
     { to: '/cms/stages', label: '关卡编排' },
+    { to: '/cms/feedback', label: '反馈管理' },
   ];
 
   const isActive = (to: string, end?: boolean) => {

@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useFetchRemote } from '../../core/storage/useRemoteSync';
+import FeedbackDrawer from '../../components/FeedbackDrawer';
 
 export default function ClientLayout() {
   const { fetchRemote, status } = useFetchRemote();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Auto-fetch remote data on mount
   useEffect(() => {
@@ -11,16 +13,16 @@ export default function ClientLayout() {
   }, [fetchRemote]);
 
   return (
-    <div className="client-layout" style={{ 
-      minHeight: '100vh', 
+    <div className="client-layout" style={{
+      minHeight: '100vh',
       background: 'linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)',
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <header style={{ 
-        padding: '20px 40px', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <header style={{
+        padding: '20px 40px',
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
         background: 'rgba(255, 255, 255, 0.7)',
         backdropFilter: 'blur(10px)',
@@ -41,6 +43,27 @@ export default function ClientLayout() {
       <main style={{ flex: 1, padding: '40px', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </main>
+
+      {/* Feedback link */}
+      <div style={{ textAlign: 'center', padding: '16px' }}>
+        <button
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            fontSize: '12px',
+            color: '#9ca3af',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            textDecoration: 'none',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
+          onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
+        >
+          意见反馈
+        </button>
+      </div>
+
+      <FeedbackDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
   );
 }
