@@ -4,8 +4,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 
 ## Next step
 1. Fix responsive in mobile phone
-2. Fix only ppttzhu's commit can trigger Vercel auto build
-3. Student can save stage
+2. Student can save stage
 
 ## Features
 
@@ -14,7 +13,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 - **Smart Difficulty**: Auto-grades questions L1–L10 based on pitch range, accidentals, symbol rarity
 - **Auto Stage Generation**: Groups questions into stages (5 per stage) by type and difficulty
 - **Custom Stages**: Teachers can manually curate stage content
-- **Cloud Sync**: Teacher publishes questions via Vercel Blob; students see them instantly on any device
+- **Cloud Sync**: Teacher publishes questions via Cloudflare KV; students see them instantly on any device
 - **Progress Tracking**: Student progress persisted locally with sequential stage unlocking
 
 ## Tech Stack
@@ -25,7 +24,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 - Zustand (state management with localStorage persistence)
 - React Router 7
 - Lucide React (icons)
-- Vercel Blob (cloud storage)
+- Cloudflare Pages + KV (hosting & cloud storage)
 
 ## Requirements
 
@@ -41,7 +40,7 @@ A music sight-reading practice app with a teacher CMS and student quiz interface
 npm install
 ```
 
-### 2. Configure cloud sync (Vercel Blob)
+### 2. Configure cloud sync (Cloudflare KV)
 
 ```bash
 cp .env.example .env
@@ -53,12 +52,11 @@ Edit `.env` and fill in:
 VITE_CMS_SECRET=your_cms_secret
 ```
 
-#### Vercel Blob Setup:
+#### Cloudflare Setup:
 
-1. Deploy the project to Vercel (connect your GitHub repo)
-2. In Vercel dashboard → **Storage** → **Create** → **Blob** → Connect to your project
-   - This auto-adds `BLOB_READ_WRITE_TOKEN` to your project environment variables
-3. (Optional) Add `CMS_SECRET` in Vercel **Settings → Environment Variables** to protect write access
+1. Create a KV namespace: `npx wrangler kv namespace create STAGES_KV`
+2. Add the namespace ID to `wrangler.toml`
+3. Set `CMS_SECRET` via `npx wrangler pages secret put CMS_SECRET`
 4. Set `VITE_CMS_SECRET` in your local `.env` to the same value (for teacher CMS auth)
 
 ### 3. Run the dev server
@@ -67,22 +65,35 @@ VITE_CMS_SECRET=your_cms_secret
 npm run dev
 ```
 
-> Note: Cloud sync requires deployment to Vercel since the API route (`/api/stages`) runs as a serverless function. In local dev, the student side will fall back to local data.
+### 4. Preview with Cloudflare Functions locally
+
+```bash
+npm run build
+npm run preview
+```
+
+This runs `wrangler pages dev dist` which serves the built app with the API function locally.
 
 ## Deployment
 
-This project is deployed on **Vercel** with automatic CI/CD:
+This project is deployed on **Cloudflare Pages** with Git integration:
 
-- Push to `main` → production deployment
+- Push to `main` → production deployment at `https://sightreading.pages.dev`
 - Push to other branches → preview deployment with unique URL
-- Pull requests get automatic preview links
 
-### Deploy Steps:
+### Manual Deploy:
 
-1. Connect your GitHub repo to Vercel
-2. Vercel auto-detects Vite and configures build settings
-3. Create a Blob store in Vercel Storage and connect it to the project
-4. (Optional) Set `CMS_SECRET` environment variable for write protection
+```bash
+npm run build
+npm run deploy
+```
+
+### Deploy Steps (first time):
+
+1. Connect your GitHub repo to Cloudflare Pages
+2. Set build command: `npm run build`, output directory: `dist`
+3. Create a KV namespace and bind it in the dashboard (Settings → Functions → KV namespace bindings → `STAGES_KV`)
+4. Set `CMS_SECRET` secret via `npx wrangler pages secret put CMS_SECRET`
 5. Push to `main` — done!
 
 ## Usage
@@ -104,22 +115,22 @@ This project is deployed on **Vercel** with automatic CI/CD:
 ## Cloud Sync Architecture
 
 ```
-Teacher (CMS) → clicks "发布到云端" → POST /api/stages → Vercel Blob
-Student (any browser) → auto-fetches on page load ← GET /api/stages ← Vercel Blob
+Teacher (CMS) → clicks "发布到云端" → POST /api/stages → Cloudflare KV
+Student (any browser) → auto-fetches on page load ← GET /api/stages ← Cloudflare KV
 ```
 
 The storage layer is abstracted via a `StorageProvider` interface:
 
 ```
 src/core/storage/
-├── types.ts                  # StorageProvider interface
-├── VercelStorageProvider.ts  # Vercel Blob implementation (current)
-├── GistStorageProvider.ts    # GitHub Gist implementation (legacy)
-├── index.ts                  # Provider factory (swap backends here)
-└── useRemoteSync.ts          # React hooks: usePublish() + useFetchRemote()
+├── types.ts                     # StorageProvider interface
+├── CloudflareStorageProvider.ts # Cloudflare KV implementation (current)
+├── GistStorageProvider.ts       # GitHub Gist implementation (legacy)
+├── index.ts                     # Provider factory (swap backends here)
+└── useRemoteSync.ts             # React hooks: usePublish() + useFetchRemote()
 
-api/
-└── stages.ts                 # Vercel serverless function (GET/POST)
+functions/api/
+└── stages.ts                    # Cloudflare Pages Function (GET/POST)
 ```
 
 To switch to Firebase, Supabase, or any other backend: implement the `StorageProvider` interface and change one line in `index.ts`.
@@ -128,7 +139,8 @@ To switch to Firebase, Supabase, or any other backend: implement the `StoragePro
 
 ```bash
 npm run build    # outputs to ./dist
-npm run preview  # preview production build locally
+npm run preview  # preview production build locally with wrangler
+npm run deploy   # deploy to Cloudflare Pages
 ```
 
 ## Project Structure
@@ -144,6 +156,6 @@ src/
 │   └── cms/             # Teacher-facing content management
 └── main.tsx
 
-api/
-└── stages.ts            # Vercel serverless function for Blob storage
+functions/api/
+└── stages.ts            # Cloudflare Pages Function for KV storage
 ```
