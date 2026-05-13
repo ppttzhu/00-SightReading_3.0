@@ -2,10 +2,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../core/store/useAppStore';
 
 const MODULE_LABELS: Record<string, string> = {
-  notes: 'Notes',
-  symbols: 'Symbols',
-  theory: 'Theory',
-  patterns: 'Patterns',
+  notes: '音符',
+  symbols: '符号',
+  theory: '乐理',
+  patterns: '节奏型',
 };
 
 export default function StageSelector() {
@@ -18,6 +18,7 @@ export default function StageSelector() {
   const currentUnlocked = studentProgress[moduleId || ''] || 1;
 
   const stages = getAllStages(moduleId || '');
+  const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -25,17 +26,17 @@ export default function StageSelector() {
         onClick={() => navigate('/client')}
         style={{ alignSelf: 'flex-start', background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
       >
-        ← Back to Menu
+        ← 返回主菜单
       </button>
       <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
-        {MODULE_LABELS[moduleId || ''] || moduleId} Trials
+        {moduleLabel} Trials
       </h1>
 
       {stages.length === 0 ? (
         <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
           <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.3 }}>📭</div>
-          <h2 style={{ fontWeight: '700', color: '#6b7280' }}>No stages available yet</h2>
-          <p>Ask the teacher to add questions for this module.</p>
+          <h2 style={{ fontWeight: '700', color: '#6b7280' }}>暂无可用关卡</h2>
+          <p>请联系老师为该模块添加题目。</p>
         </div>
       ) : (
         <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
