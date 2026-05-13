@@ -1,15 +1,5 @@
 import { useState, useEffect } from 'react';
-
-interface FeedbackEntry {
-  id: string;
-  category: 'feature' | 'bug';
-  nickname: string;
-  content: string;
-  status: 'new' | 'read' | 'resolved';
-  timestamp: string;
-}
-
-const AUTH_HEADER = `Bearer ${import.meta.env.VITE_CMS_SECRET || ''}`;
+import { getFeedbackStorage, type FeedbackEntry } from '../../core/storage/FeedbackStorage';
 
 type FilterTab = 'all' | 'feature' | 'bug' | 'new';
 
@@ -67,27 +57,20 @@ export default function FeedbackManager() {
   const [filter, setFilter] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [localMode, setLocalMode] = useState(false);
 
   const fetchEntries = async (silent = false) => {
     if (!silent) setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/feedback', {
-        headers: { Authorization: AUTH_HEADER },
-      });
-      if (res.status === 401) {
-        setError('未授权：请检查 VITE_CMS_SECRET 配置');
-        setEntries([]);
-        return;
+      const storage = await getFeedbackStorage();
+      if (storage.constructor.name === 'LocalFeedbackStorage') {
+        setLocalMode(true);
       }
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setEntries(data.entries || []);
-      }
-    } catch {
-      setError('网络错误，无法加载反馈数据');
+      const data = await storage.getAll();
+      setEntries(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '网络错误，无法加载反馈数据');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -120,15 +103,8 @@ export default function FeedbackManager() {
     setEntries(prev => prev.map(e => (e.id === id ? { ...e, status } : e)));
 
     try {
-      const res = await fetch('/api/feedback', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: AUTH_HEADER,
-        },
-        body: JSON.stringify({ id, status }),
-      });
-      if (!res.ok) throw new Error();
+      const storage = await getFeedbackStorage();
+      await storage.updateStatus(id, status);
     } catch {
       if (previous) {
         setEntries(prev => prev.map(e => (e.id === id ? previous : e)));
@@ -143,11 +119,8 @@ export default function FeedbackManager() {
     setEntries(prev => prev.filter(e => e.id !== id));
 
     try {
-      const res = await fetch(`/api/feedback?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: { Authorization: AUTH_HEADER },
-      });
-      if (!res.ok) throw new Error();
+      const storage = await getFeedbackStorage();
+      await storage.delete(id);
     } catch {
       setEntries(previous);
     }
@@ -164,6 +137,19 @@ export default function FeedbackManager() {
           查看、筛选和管理学生提交的反馈
         </p>
       </div>
+
+      {localMode && (
+        <div style={{
+          padding: '10px 14px',
+          background: '#f3f4f6',
+          borderRadius: '8px',
+          fontSize: '0.85rem',
+          color: '#6b7280',
+          marginBottom: '16px',
+        }}>
+          💡 当前为本地模式，数据仅存储在浏览器中。生产环境请使用 Cloudflare KV。
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>

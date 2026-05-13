@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react';
-
-interface FeedbackEntry {
-  id: string;
-  category: 'feature' | 'bug';
-  nickname: string;
-  content: string;
-  status: 'new' | 'read' | 'resolved';
-  timestamp: string;
-}
+import { getFeedbackStorage, type FeedbackEntry } from '../core/storage/FeedbackStorage';
 
 interface Props {
   open: boolean;
@@ -61,6 +53,7 @@ export default function FeedbackDrawer({ open, onClose }: Props) {
   const [submitError, setSubmitError] = useState('');
   const [resolvedEntries, setResolvedEntries] = useState<FeedbackEntry[]>([]);
   const [resolvedLoading, setResolvedLoading] = useState(false);
+  const [localMode, setLocalMode] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -70,31 +63,28 @@ export default function FeedbackDrawer({ open, onClose }: Props) {
       setContent('');
       setSubmitState('idle');
       setSubmitError('');
+      getFeedbackStorage().then(s => {
+        if (s.constructor.name === 'LocalFeedbackStorage') {
+          setLocalMode(true);
+        }
+      });
     }
   }, [open]);
 
   useEffect(() => {
     if (activeTab === 'resolved' && open && resolvedEntries.length === 0) {
       setResolvedLoading(true);
-      fetch('/api/feedback/resolved')
-        .then(res => res.json())
-        .then(data => {
-          setResolvedEntries(data.entries || []);
-        })
-        .catch(() => {
-          setResolvedEntries([]);
-        })
-        .finally(() => {
-          setResolvedLoading(false);
-        });
+      getFeedbackStorage()
+        .then(s => s.getResolved())
+        .then(data => setResolvedEntries(data))
+        .catch(() => setResolvedEntries([]))
+        .finally(() => setResolvedLoading(false));
     }
   }, [activeTab, open, resolvedEntries.length]);
 
   useEffect(() => {
     if (submitState === 'success' && open) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 2000);
+      const timer = setTimeout(() => onClose(), 2000);
       return () => clearTimeout(timer);
     }
   }, [submitState, open, onClose]);
@@ -106,27 +96,12 @@ export default function FeedbackDrawer({ open, onClose }: Props) {
     setSubmitError('');
 
     try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category,
-          nickname: nickname.trim(),
-          content: content.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setSubmitState('error');
-        setSubmitError(data.error || '提交失败，请稍后重试');
-        return;
-      }
-
+      const storage = await getFeedbackStorage();
+      await storage.add({ category, nickname: nickname.trim(), content: content.trim() });
       setSubmitState('success');
-    } catch {
+    } catch (err) {
       setSubmitState('error');
-      setSubmitError('网络错误，请稍后重试');
+      setSubmitError(err instanceof Error ? err.message : '提交失败，请稍后重试');
     }
   };
 
@@ -224,6 +199,18 @@ export default function FeedbackDrawer({ open, onClose }: Props) {
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           {activeTab === 'submit' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {localMode && (
+                <div style={{
+                  padding: '8px 12px',
+                  background: '#f3f4f6',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  color: '#6b7280',
+                }}>
+                  💡 当前为本地模式，数据仅存储在浏览器中
+                </div>
+              )}
+
               {/* Category */}
               <div>
                 <label style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 500, display: 'block', marginBottom: '8px' }}>
