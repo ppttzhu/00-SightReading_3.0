@@ -28,3 +28,71 @@ body {
 button {
   font-family: inherit;
 }
+
+/* ============================================================
+   Responsive: Mobile adjustments
+   ============================================================ */
+@media (max-width: 640px) {
+  .client-layout > header {
+    padding: 12px 16px !important;
+  }
+  .client-layout > header a {
+    font-size: 1.1rem !important;
+  }
+  .client-layout > main {
+    padding: 16px !important;
+  }
+  .main-menu-title {
+    font-size: 1.8rem !important;
+    margin-bottom: 30px !important;
+  }
+  .main-menu-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+  .main-menu-card {
+    padding: 20px 12px !important;
+    border-radius: 20px !important;
+  }
+  .main-menu-icon {
+    width: 60px !important;
+    height: 60px !important;
+    border-radius: 16px !important;
+    margin-bottom: 12px !important;
+  }
+  .main-menu-card h2 {
+    font-size: 1.1rem !important;
+  }
+  .quiz-header {
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px !important;
+  }
+  .quiz-card {
+    min-width: unset !important;
+    width: 100% !important;
+    padding: 20px !important;
+    border-radius: 20px !important;
+    margin-bottom: 30px !important;
+  }
+  .quiz-options {
+    gap: 10px !important;
+  }
+  .quiz-options button {
+    min-width: 100px !important;
+    padding: 10px 14px !important;
+    font-size: 1rem !important;
+  }
+  .stage-selector-title {
+    font-size: 1.6rem !important;
+  }
+  .stage-grid {
+    gap: 20px !important;
+    margin-top: 30px !important;
+  }
+  .stage-circle {
+    width: 65px !important;
+    height: 65px !important;
+    font-size: 1.4rem !important;
+  }
+}

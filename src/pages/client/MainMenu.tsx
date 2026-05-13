@@ -13,13 +13,14 @@ export default function MainMenu() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '20px' }}>
-      <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111827', marginBottom: '60px', letterSpacing: '-1px' }}>
+      <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111827', marginBottom: '60px', letterSpacing: '-1px' }} className="main-menu-title">
         Select Your Trial
       </h1>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '40px', maxWidth: '800px', width: '100%' }}>
+      <div className="main-menu-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '40px', maxWidth: '800px', width: '100%' }}>
         {modules.map(m => (
           <div 
             key={m.id}
+            className="main-menu-card"
             onClick={() => navigate(`/client/module/${m.id}`)}
             style={{ 
               background: 'white', 
@@ -45,7 +46,7 @@ export default function MainMenu() {
               e.currentTarget.style.borderColor = '#f3f4f6';
             }}
           >
-            <div style={{ 
+            <div className="main-menu-icon" style={{ 
               width: '100px', 
               height: '100px', 
               borderRadius: '28px', 

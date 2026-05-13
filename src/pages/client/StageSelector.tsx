@@ -27,7 +27,7 @@ export default function StageSelector() {
       >
         ← Back to Menu
       </button>
-      <h1 style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
+      <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
         {MODULE_LABELS[moduleId || ''] || moduleId} Trials
       </h1>
 
@@ -38,7 +38,7 @@ export default function StageSelector() {
           <p>Ask the teacher to add questions for this module.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
+        <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
           {stages.map((stage, index) => {
             const isUnlocked = index < currentUnlocked;
             const stageNumber = index + 1;
@@ -59,7 +59,7 @@ export default function StageSelector() {
                 onMouseEnter={e => { if (isUnlocked) e.currentTarget.style.transform = 'scale(1.1)'; }}
                 onMouseLeave={e => { if (isUnlocked) e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                <div style={{
+                <div className="stage-circle" style={{
                   width: '90px',
                   height: '90px',
                   borderRadius: '50%',

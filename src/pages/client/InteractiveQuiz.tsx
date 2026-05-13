@@ -175,10 +175,11 @@ export default function InteractiveQuiz() {
     if (currentSlice.type === 'B') return;
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
-    renderer.resize(500, 200);
+    const width = Math.min(500, containerRef.current.clientWidth - 20);
+    renderer.resize(width, 200);
     const context = renderer.getContext();
     // 不添加拍号，只加谱号
-    const stave = new Stave(10, 40, 460);
+    const stave = new Stave(10, 40, width - 40);
     stave.addClef("treble");
     stave.setContext(context).draw();
 
@@ -332,7 +333,7 @@ export default function InteractiveQuiz() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease',
       background: feedback === 'correct' ? '#ecfdf5' : feedback === 'wrong' ? '#fef2f2' : 'transparent'
     }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+      <header className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <button
           onClick={() => navigate(-1)}
           style={{ background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
@@ -350,6 +351,7 @@ export default function InteractiveQuiz() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         {/* 题目展示区 */}
         <div
+          className="quiz-card"
           style={{
             background: 'white',
             borderRadius: '32px',
@@ -382,7 +384,7 @@ export default function InteractiveQuiz() {
         </div>
 
         {/* 选项区 */}
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
+        <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
           {options.map((opt, i) => (
             <button
               key={`${currentSliceIndex}_${i}_${opt}`}
