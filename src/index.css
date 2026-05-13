@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&family=Noto+Serif+SC:wght@400;600&display=swap');
 
 :root {
   font-family: 'Outfit', 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -27,37 +27,6 @@ body {
 /* 按钮基础去样式 */
 button {
   font-family: inherit;
-}
-
-/* ============================================================
-   Hint Tooltip
-   ============================================================ */
-.hint-wrapper {
-  z-index: 10;
-}
-
-.hint-button {
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.hint-tooltip {
-  animation: tooltipFadeIn 0.15s ease;
-}
-
-.hint-inline {
-  display: none;
-}
-
-@keyframes tooltipFadeIn {
-  from {
-    opacity: 0;
-    margin-top: -4px;
-  }
-  to {
-    opacity: 1;
-    margin-top: 0;
-  }
 }
 
 /* ============================================================
@@ -93,17 +62,6 @@ button {
   }
   .main-menu-card h2 {
     font-size: 1.1rem !important;
-  }
-  .hint-button {
-    width: 26px !important;
-    height: 26px !important;
-    font-size: 12px !important;
-  }
-  .hint-tooltip {
-    display: none !important;
-  }
-  .hint-inline {
-    display: block !important;
   }
   .quiz-header {
     flex-wrap: wrap;

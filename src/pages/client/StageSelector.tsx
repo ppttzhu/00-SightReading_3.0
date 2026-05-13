@@ -2,10 +2,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../core/store/useAppStore';
 
 const MODULE_LABELS: Record<string, string> = {
-  notes: '音符',
-  symbols: '符号',
-  theory: '乐理',
-  patterns: '节奏型',
+  notes: '单音',
+  symbols: '音乐表情记号',
+  theory: '双音/音程关系',
+  patterns: '音型',
 };
 
 export default function StageSelector() {
