@@ -1,26 +1,26 @@
 import type { StageData, StorageProvider } from './types';
 
 /**
- * Vercel Blob Storage Provider
+ * Cloudflare KV Storage Provider
  *
- * Uses a Vercel serverless API route (/api/stages) as the backend.
+ * Uses a Cloudflare Pages Function (/api/stages) as the backend.
  * - Teacher (CMS) writes via POST with a secret token
  * - Student reads via GET (no auth needed, no caching)
  *
  * Setup:
- * 1. Add BLOB_READ_WRITE_TOKEN to Vercel environment variables (from Vercel Blob store)
- * 2. Optionally add CMS_SECRET for write protection
- * 3. Set VITE_CMS_SECRET in .env for the teacher side
+ * 1. Create a KV namespace: `npx wrangler kv namespace create STAGES_KV`
+ * 2. Add the namespace ID to wrangler.toml
+ * 3. Set CMS_SECRET via `npx wrangler pages secret put CMS_SECRET`
+ * 4. Set VITE_CMS_SECRET in .env for the teacher side
  */
 
-export class VercelStorageProvider implements StorageProvider {
-  name = 'Vercel Blob';
+export class CloudflareStorageProvider implements StorageProvider {
+  name = 'Cloudflare KV';
 
   private apiBase: string;
   private cmsSecret: string;
 
   constructor(config: { apiBase?: string; cmsSecret?: string }) {
-    // Use relative URL so it works in both dev and production
     this.apiBase = config.apiBase || '/api/stages';
     this.cmsSecret = config.cmsSecret || '';
   }
@@ -58,7 +58,7 @@ export class VercelStorageProvider implements StorageProvider {
       if (!data || !data.slicesPool) return null;
       return data as StageData;
     } catch (e) {
-      console.error('[VercelStorageProvider] Failed to load:', e);
+      console.error('[CloudflareStorageProvider] Failed to load:', e);
       return null;
     }
   }

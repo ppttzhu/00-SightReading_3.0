@@ -1,24 +1,24 @@
 /**
  * Storage module entry point.
  *
- * Uses Vercel Blob storage via serverless API route.
+ * Uses Cloudflare KV storage via Pages Functions API route.
  * The rest of the app only imports from this file.
  */
 
 export type { StageData, StorageProvider } from './types';
-export { VercelStorageProvider } from './VercelStorageProvider';
+export { CloudflareStorageProvider } from './CloudflareStorageProvider';
 
-import { VercelStorageProvider } from './VercelStorageProvider';
+import { CloudflareStorageProvider } from './CloudflareStorageProvider';
 import type { StorageProvider } from './types';
 
 /**
  * Get the configured storage provider.
  *
- * Uses Vercel Blob via /api/stages endpoint.
+ * Uses Cloudflare KV via /api/stages endpoint.
  * Set VITE_CMS_SECRET in .env for teacher write access.
  */
 export function getStorageProvider(): StorageProvider | null {
-  return new VercelStorageProvider({
+  return new CloudflareStorageProvider({
     cmsSecret: import.meta.env.VITE_CMS_SECRET || '',
   });
 }

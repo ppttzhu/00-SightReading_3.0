@@ -1,0 +1,12 @@
+name = "sightreading"
+compatibility_date = "2025-05-01"
+pages_build_output_dir = "dist"
+
+[vars]
+# Non-secret environment variables go here
+# CMS_SECRET should be set via `npx wrangler pages secret put CMS_SECRET`
+
+[[kv_namespaces]]
+binding = "STAGES_KV"
+id = "c94157bb088a4d9bad3da97f4f6689ae"
+preview_id = "592aa85371c246cda3d9e08fbcd63527"
