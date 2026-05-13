@@ -143,7 +143,7 @@ async function detectBackend(): Promise<FeedbackStorage> {
   try {
     const res = await fetch('/api/feedback/resolved', { method: 'HEAD' });
     // Vite dev server returns index.html (text/html) for unknown routes;
-    // real API returns JSON. Check Content-Type to avoid false positives.
+    // real API returns 200 with JSON headers. Check Content-Type to avoid false positives.
     const ct = res.headers.get('Content-Type') || '';
     if (res.ok && ct.includes('application/json')) {
       return new ApiFeedbackStorage();

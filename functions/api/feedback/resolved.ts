@@ -37,6 +37,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (request.method === 'HEAD') {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
   if (request.method === 'GET') {
     try {
       const data = await env.STAGES_KV.get('feedback', 'text');
