@@ -143,8 +143,26 @@ export default function InteractiveQuiz() {
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
+  const [noteVisible, setNoteVisible] = useState(true);
 
   const currentSlice = stage?.slices[currentSliceIndex];
+
+  // Blink effect: show note for 3s, hide for 6s, loop
+  useEffect(() => {
+    setNoteVisible(true);
+    let timeout: ReturnType<typeof setTimeout>;
+    const cycle = () => {
+      timeout = setTimeout(() => {
+        setNoteVisible(false);
+        timeout = setTimeout(() => {
+          setNoteVisible(true);
+          cycle();
+        }, 6000);
+      }, 3000);
+    };
+    cycle();
+    return () => clearTimeout(timeout);
+  }, [currentSliceIndex]);
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -351,7 +369,7 @@ export default function InteractiveQuiz() {
         >
           {isSymbolType ? (
             // B 类：显示符号简称（读单词），不显示括号里的详细解释
-            <div style={{ textAlign: 'center' }}>
+            <div style={{ textAlign: 'center', opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
               <div style={{ fontSize: '4rem', fontWeight: '800', color: '#1f2937', marginBottom: '10px', fontStyle: 'italic', fontFamily: 'serif' }}>
                 {currentSlice?.content.raw || currentSlice?.content.symbol || '?'}
               </div>
@@ -359,7 +377,7 @@ export default function InteractiveQuiz() {
             </div>
           ) : (
             // A/C/D 类：用 VexFlow 渲染乐谱
-            <div ref={containerRef} id="vexflow-container"></div>
+            <div ref={containerRef} id="vexflow-container" style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
           )}
         </div>
 
