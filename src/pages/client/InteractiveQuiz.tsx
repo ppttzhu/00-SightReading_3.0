@@ -120,6 +120,9 @@ export default function InteractiveQuiz() {
   const slicesPool = useAppStore(state => state.slicesPool);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
 
+  // Track a session key that changes each time the component mounts (new attempt)
+  const [sessionKey] = useState(() => Math.random());
+
   const stage = useMemo(() => {
     const parts = stageId?.split('_') || [];
     // 自定义关卡 id 格式: custom_xxx；自动关卡: auto_moduleId_stage_n
@@ -128,8 +131,15 @@ export default function InteractiveQuiz() {
       : parts[1] || '';
     const getAllStages = useAppStore.getState().getAllStages;
     const stages = getAllStages(moduleId);
-    return stages.find(s => s.id === stageId) || null;
-  }, [stageId, slicesPool]);
+    const found = stages.find(s => s.id === stageId) || null;
+    if (found) {
+      // Shuffle questions within the stage for variety on each play
+      const shuffled = [...found.slices].sort(() => Math.random() - 0.5);
+      return { ...found, slices: shuffled };
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageId, slicesPool, sessionKey]);
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
