@@ -41,8 +41,8 @@ export default function StageSelector() {
       ) : (
         <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
           {stages.map((stage, index) => {
-            // const isUnlocked = index < currentUnlocked;
-            const isUnlocked = true; // temp: all stages unlocked for testing
+            // TODO: revert after testing — restore: const isUnlocked = index < currentUnlocked;
+            const isUnlocked = true;
             const stageNumber = index + 1;
 
             return (
