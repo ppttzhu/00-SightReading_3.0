@@ -57,6 +57,12 @@ export function useFetchRemote() {
       return;
     }
 
+    // In dev mode, only load from local file if store is empty (seed data).
+    // This prevents overwriting CMS edits stored in localStorage.
+    if (import.meta.env.DEV && useAppStore.getState().slicesPool.length > 0) {
+      return;
+    }
+
     setStatus('loading');
     setError('');
 

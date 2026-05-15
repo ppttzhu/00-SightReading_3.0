@@ -1,0 +1,32 @@
+pp|极弱 (pianissimo)
+p|弱 (piano)
+mp|中弱 (mezzo-piano)
+mf|中强 (mezzo-forte)
+f|强 (forte)
+ff|极强 (fortissimo)
+fff|最强 (fortississimo)
+sfz|突强 (sforzando)
+fp|强后立弱 (forte-piano)
+cresc.|渐强 (crescendo)
+decresc.|渐弱 (decrescendo)
+dim.|渐弱 (diminuendo)
+rit.|渐慢 (ritardando)
+rall.|渐慢 (rallentando)
+accel.|渐快 (accelerando)
+a tempo|恢复原速
+fermata|延音记号 (𝄐)
+staccato|断音 (·)
+accent|重音 (>)
+tenuto|保持音 (—)
+marcato|顿音 (^)
+trill|颤音 (tr)
+D.C.|从头反复 (Da Capo)
+D.S.|从记号处反复 (Dal Segno)
+Fine|结束
+Coda|尾声 (⊕)
+8va|高八度演奏
+8vb|低八度演奏
+legato|连奏
+pizz.|拨弦 (pizzicato)
+arco|用弓 (arco)
+con ped.|踩踏板

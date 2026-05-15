@@ -76,8 +76,15 @@ function generateOptions(slice: Slice): string[] {
       correct = (slice.content.pitch || '').charAt(0).toUpperCase();
       return NOTE_NAMES; // Always show all 7 notes
     case 'B': {
+      // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
+      const answer = slice.content.answer;
+      if (answer) {
+        correct = answer;
+        // Build pool from all B-type slices' answers in the current stage context
+        pool = ALL_SYMBOLS;
+        break;
+      }
       const rawSymbol = slice.content.raw || slice.content.symbol || '';
-      // 尝试通过 SYMBOL_MAP 将简称映射到完整标签
       correct = SYMBOL_MAP[rawSymbol] || rawSymbol;
       pool = ALL_SYMBOLS;
       break;
@@ -292,6 +299,8 @@ export default function InteractiveQuiz() {
     switch (currentSlice.type) {
       case 'A': return (currentSlice.content.pitch || '').charAt(0).toUpperCase();
       case 'B': {
+        // Prefer the explicit answer field; fall back to SYMBOL_MAP for legacy data
+        if (currentSlice.content.answer) return currentSlice.content.answer;
         const rawSymbol = currentSlice.content.raw || currentSlice.content.symbol || '';
         return SYMBOL_MAP[rawSymbol] || rawSymbol;
       }
@@ -373,7 +382,7 @@ export default function InteractiveQuiz() {
             // B 类：显示符号简称（读单词），不显示括号里的详细解释
             <div style={{ textAlign: 'center', opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
               <div style={{ fontSize: '4rem', fontWeight: '800', color: '#1f2937', marginBottom: '10px', fontStyle: 'italic', fontFamily: 'serif' }}>
-                {currentSlice?.content.raw || currentSlice?.content.symbol || '?'}
+                {currentSlice?.content.symbol || currentSlice?.content.raw || '?'}
               </div>
               <div style={{ fontSize: '1rem', color: '#9ca3af' }}>这是什么音乐记号？</div>
             </div>

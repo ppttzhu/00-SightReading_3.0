@@ -1,0 +1,35 @@
+{
+  "slicesPool": [
+    { "id": "A_001_C4", "type": "A", "content": { "pitch": "C4", "raw": "C4" }, "difficulty": 1 },
+    { "id": "A_002_D4", "type": "A", "content": { "pitch": "D4", "raw": "D4" }, "difficulty": 1 },
+    { "id": "A_003_E4", "type": "A", "content": { "pitch": "E4", "raw": "E4" }, "difficulty": 1 },
+    { "id": "A_004_F4", "type": "A", "content": { "pitch": "F4", "raw": "F4" }, "difficulty": 1 },
+    { "id": "A_005_G4", "type": "A", "content": { "pitch": "G4", "raw": "G4" }, "difficulty": 1 },
+
+    { "id": "A_006_A4", "type": "A", "content": { "pitch": "A4", "raw": "A4" }, "difficulty": 2 },
+    { "id": "A_007_B4", "type": "A", "content": { "pitch": "B4", "raw": "B4" }, "difficulty": 2 },
+    { "id": "A_008_C5", "type": "A", "content": { "pitch": "C5", "raw": "C5" }, "difficulty": 2 },
+    { "id": "A_009_D5", "type": "A", "content": { "pitch": "D5", "raw": "D5" }, "difficulty": 2 },
+    { "id": "A_010_E5", "type": "A", "content": { "pitch": "E5", "raw": "E5" }, "difficulty": 2 },
+
+    { "id": "B_001_f", "type": "B", "content": { "symbol": "f", "answer": "强 (forte)" }, "difficulty": 1 },
+    { "id": "B_002_p", "type": "B", "content": { "symbol": "p", "answer": "弱 (piano)" }, "difficulty": 1 },
+    { "id": "B_003_mf", "type": "B", "content": { "symbol": "mf", "answer": "中强 (mezzo-forte)" }, "difficulty": 1 },
+    { "id": "B_004_mp", "type": "B", "content": { "symbol": "mp", "answer": "中弱 (mezzo-piano)" }, "difficulty": 1 },
+    { "id": "B_005_ff", "type": "B", "content": { "symbol": "ff", "answer": "极强 (fortissimo)" }, "difficulty": 1 },
+
+    { "id": "B_006_pp", "type": "B", "content": { "symbol": "pp", "answer": "极弱 (pianissimo)" }, "difficulty": 2 },
+    { "id": "B_007_fff", "type": "B", "content": { "symbol": "fff", "answer": "最强 (fortississimo)" }, "difficulty": 2 },
+    { "id": "B_008_sfz", "type": "B", "content": { "symbol": "sfz", "answer": "突强 (sforzando)" }, "difficulty": 2 },
+    { "id": "B_009_fp", "type": "B", "content": { "symbol": "fp", "answer": "强后立弱 (forte-piano)" }, "difficulty": 2 },
+    { "id": "B_010_staccato", "type": "B", "content": { "symbol": "staccato", "answer": "断音 (staccato)" }, "difficulty": 2 },
+
+    { "id": "B_011_accent", "type": "B", "content": { "symbol": "accent", "answer": "重音 (accent >)" }, "difficulty": 3 },
+    { "id": "B_012_tenuto", "type": "B", "content": { "symbol": "tenuto", "answer": "保持音 (tenuto —)" }, "difficulty": 3 },
+    { "id": "B_013_fermata", "type": "B", "content": { "symbol": "fermata", "answer": "延音记号 (fermata 𝄐)" }, "difficulty": 3 },
+    { "id": "B_014_marcato", "type": "B", "content": { "symbol": "marcato", "answer": "顿音 (marcato ^)" }, "difficulty": 3 },
+    { "id": "B_015_trill", "type": "B", "content": { "symbol": "trill", "answer": "颤音 (trill tr)" }, "difficulty": 3 }
+  ],
+  "customStages": [],
+  "updatedAt": "2026-05-14T00:00:00.000Z"
+}

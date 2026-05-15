@@ -105,6 +105,23 @@ npm run deploy
 3. Optionally create custom stages in **关卡编排**
 4. Click **"🚀 发布到云端"** in the sidebar to publish
 
+#### Batch Question Templates
+
+Pre-made templates for bulk question entry are in the `templates/` folder (not included in the build):
+
+| File | Description |
+|------|-------------|
+| `templates/symbols-batch.txt` | 音乐表情/符号记号，格式: `符号|答案` |
+
+Usage: Open the template file, copy the content, paste into the CMS **批量添加** text area.
+
+Format for Symbols (type B): one question per line, `symbol|answer`
+```
+pp|极弱 (pianissimo)
+rit.|渐慢 (ritardando)
+D.C.|从头反复 (Da Capo)
+```
+
 ### Student: `/client`
 
 1. Opens and auto-fetches the latest questions from the cloud
@@ -158,4 +175,7 @@ src/
 
 functions/api/
 └── stages.ts            # Cloudflare Pages Function for KV storage
+
+templates/
+└── symbols-batch.txt    # Batch question template for Symbols (not in build)
 ```

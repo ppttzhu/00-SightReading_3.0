@@ -13,6 +13,7 @@ export default function ManualCreator() {
 
   const [type, setType] = useState<'A' | 'B' | 'C' | 'D'>('A');
   const [content, setContent] = useState('');
+  const [symbolAnswer, setSymbolAnswer] = useState('');
   const [difficulty, setDifficulty] = useState(1);
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
@@ -22,6 +23,7 @@ export default function ManualCreator() {
 
   const handleAddSingle = () => {
     if (!content.trim()) return;
+    if (type === 'B' && !symbolAnswer.trim()) return;
 
     const slice = {
       id: `manual_${type}_${Date.now()}_${content}`,
@@ -31,6 +33,7 @@ export default function ManualCreator() {
     };
     addSlices([slice]);
     setContent('');
+    setSymbolAnswer('');
     showSuccess('已添加 1 道题目');
   };
 
@@ -38,13 +41,23 @@ export default function ManualCreator() {
     if (!batchText.trim()) return;
 
     // 按换行分割，每行为一道题
+    // B 类格式: "符号|答案"，如 "pp|极弱 (pianissimo)"
     const lines = batchText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const slices = lines.map((line, idx) => ({
-      id: `manual_${type}_${Date.now()}_${idx}_${line}`,
-      type: type,
-      content: buildContent(type, line),
-      difficulty
-    }));
+    const slices = lines.map((line, idx) => {
+      let contentObj;
+      if (type === 'B' && line.includes('|')) {
+        const [symbol, answer] = line.split('|').map(s => s.trim());
+        contentObj = { symbol, answer };
+      } else {
+        contentObj = buildContent(type, line);
+      }
+      return {
+        id: `manual_${type}_${Date.now()}_${idx}_${line}`,
+        type: type,
+        content: contentObj,
+        difficulty
+      };
+    });
 
     addSlices(slices);
     setBatchText('');
@@ -54,7 +67,7 @@ export default function ManualCreator() {
   const buildContent = (type: string, value: string) => {
     switch (type) {
       case 'A': return { pitch: value, raw: value };
-      case 'B': return { symbol: value, raw: value };
+      case 'B': return { symbol: value, answer: symbolAnswer.trim() };
       case 'C': return { theory: value, raw: value };
       case 'D': return { pattern: value, raw: value };
       default: return { raw: value };
@@ -153,36 +166,68 @@ export default function ManualCreator() {
       {/* 输入区域 */}
       {!batchMode ? (
         <div>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-            <input
-              type="text"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddSingle()}
-              placeholder={currentTypeOption.placeholder}
-              style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
-            />
-            <button
-              onClick={handleAddSingle}
-              disabled={!content.trim()}
-              style={{
-                padding: '12px 24px', borderRadius: '8px', border: 'none',
-                background: content.trim() ? '#3b82f6' : '#94a3b8',
-                color: 'white', fontWeight: 'bold', cursor: content.trim() ? 'pointer' : 'not-allowed',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              + 添加到素材池
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input
+                type="text"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && type !== 'B' && handleAddSingle()}
+                placeholder={currentTypeOption.placeholder}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
+              />
+              {type !== 'B' && (
+                <button
+                  onClick={handleAddSingle}
+                  disabled={!content.trim()}
+                  style={{
+                    padding: '12px 24px', borderRadius: '8px', border: 'none',
+                    background: content.trim() ? '#3b82f6' : '#94a3b8',
+                    color: 'white', fontWeight: 'bold', cursor: content.trim() ? 'pointer' : 'not-allowed',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  + 添加到素材池
+                </button>
+              )}
+            </div>
+            {type === 'B' && (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input
+                  type="text"
+                  value={symbolAnswer}
+                  onChange={(e) => setSymbolAnswer(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddSingle()}
+                  placeholder="输入正确答案，如 极弱 (pianissimo)"
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
+                />
+                <button
+                  onClick={handleAddSingle}
+                  disabled={!content.trim() || !symbolAnswer.trim()}
+                  style={{
+                    padding: '12px 24px', borderRadius: '8px', border: 'none',
+                    background: content.trim() && symbolAnswer.trim() ? '#3b82f6' : '#94a3b8',
+                    color: 'white', fontWeight: 'bold', cursor: content.trim() && symbolAnswer.trim() ? 'pointer' : 'not-allowed',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  + 添加到素材池
+                </button>
+              </div>
+            )}
           </div>
-          <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>按回车可快速提交</p>
+          <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+            {type === 'B' ? '第一行输入符号（题面），第二行输入答案含义' : '按回车可快速提交'}
+          </p>
         </div>
       ) : (
         <div>
           <textarea
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
-            placeholder={`每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`}
+            placeholder={type === 'B'
+              ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
+              : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`}
             style={{
               width: '100%', height: '200px', padding: '16px', borderRadius: '8px',
               border: '1px solid #d1d5db', fontSize: '1rem', resize: 'vertical',
