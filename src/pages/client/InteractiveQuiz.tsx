@@ -121,22 +121,6 @@ function generateOptions(slice: Slice): string[] {
 // 迷你钢琴键盘（高亮显示指定音符）
 // ============================================================
 const WHITE_KEYS = ['C','D','E','F','G','A','B'];
-const BLACK_KEY_OFFSETS: Record<string, number> = { 'C#':1,'D#':2,'F#':4,'G#':5,'A#':6 };
-// 将音高字符串归一化为 { letter, accidental } 忽略八度
-function normalizePitch(p: string): { letter: string; acc: string } {
-  const m = p.match(/^([A-Ga-g])(#|b)?/);
-  if (!m) return { letter: '', acc: '' };
-  let letter = m[1].toUpperCase();
-  let acc = m[2] || '';
-  // 将 b 转为等音 #
-  if (acc === 'b') {
-    const idx = WHITE_KEYS.indexOf(letter);
-    if (idx > 0) { letter = WHITE_KEYS[idx - 1]; acc = '#'; }
-    else { letter = 'B'; acc = ''; } // Cb → B
-  }
-  return { letter, acc };
-}
-
 function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
   const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
   // One octave only — A 类答案只需音名字母
@@ -163,26 +147,6 @@ function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
       ))}
     </svg>
   );
-}
-
-// 从 slice 中提取需要高亮的音符列表
-function getSliceNotes(slice: Slice): string[] {
-  switch (slice.type) {
-    case 'A': return slice.content.pitch ? [slice.content.pitch] : [];
-    case 'C': return Array.isArray(slice.content.notes) ? slice.content.notes : [];
-    case 'D': {
-      const raw: string = slice.content.raw || '';
-      const fromRaw = raw.match(/[A-Ga-g][#b]?\d/g) || [];
-      if (fromRaw.length >= 2) return fromRaw;
-      if (Array.isArray(slice.content.notes) && slice.content.notes.length >= 2) return slice.content.notes;
-      const pattern = slice.content.pattern || raw;
-      for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
-        if (pattern.includes(key)) return notes;
-      }
-      return ['C4','D4','E4','F4','G4'];
-    }
-    default: return [];
-  }
 }
 
 // ============================================================
