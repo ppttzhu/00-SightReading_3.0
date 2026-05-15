@@ -88,7 +88,7 @@ interface AppState {
   generatePresetStages: (moduleId: string) => void;
   setStageOrder: (moduleId: string, orderedIds: string[]) => void;
 
-  unlockNextStage: (moduleId: string) => void;
+  unlockNextStage: (moduleId: string, completedStageIndex: number) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -228,12 +228,13 @@ export const useAppStore = create<AppState>()(
         stageOrder: { ...state.stageOrder, [moduleId]: orderedIds },
       })),
 
-      unlockNextStage: (moduleId) => set((state) => ({
-        studentProgress: {
-          ...state.studentProgress,
-          [moduleId]: (state.studentProgress[moduleId] || 1) + 1,
-        },
-      })),
+      unlockNextStage: (moduleId, completedStageIndex) => set((state) => {
+        const current = state.studentProgress[moduleId] || 1;
+        if (completedStageIndex !== current) return state;
+        return {
+          studentProgress: { ...state.studentProgress, [moduleId]: current + 1 },
+        };
+      }),
     }),
     { name: 'sight-reading-v2-store' }
   )

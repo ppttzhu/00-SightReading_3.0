@@ -130,7 +130,7 @@ export default function InteractiveQuiz() {
   // Track a session key that changes each time the component mounts (new attempt)
   const [sessionKey] = useState(() => Math.random());
 
-  const stage = useMemo(() => {
+  const { stage, stageIndex } = useMemo(() => {
     const parts = stageId?.split('_') || [];
     // 自定义关卡 id 格式: custom_xxx；自动关卡: auto_moduleId_stage_n
     const moduleId = parts[0] === 'custom'
@@ -138,13 +138,13 @@ export default function InteractiveQuiz() {
       : parts[1] || '';
     const getAllStages = useAppStore.getState().getAllStages;
     const stages = getAllStages(moduleId);
-    const found = stages.find(s => s.id === stageId) || null;
+    const idx = stages.findIndex(s => s.id === stageId);
+    const found = idx >= 0 ? stages[idx] : null;
     if (found) {
-      // Shuffle questions within the stage for variety on each play
       const shuffled = [...found.slices].sort(() => Math.random() - 0.5);
-      return { ...found, slices: shuffled };
+      return { stage: { ...found, slices: shuffled }, stageIndex: idx + 1 };
     }
-    return null;
+    return { stage: null, stageIndex: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageId, slicesPool, sessionKey]);
 
@@ -322,7 +322,7 @@ export default function InteractiveQuiz() {
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
-          unlockNextStage(stage.module);
+          unlockNextStage(stage.module, stageIndex);
           navigate(-1);
           setTimeout(() => alert('🎉 Stage Cleared!'), 100);
         }
