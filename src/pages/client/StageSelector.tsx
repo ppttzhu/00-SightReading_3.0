@@ -14,8 +14,6 @@ export default function StageSelector() {
 
   // 从 Store 自动生成的关卡列表（包含自动+手动关卡）
   const getAllStages = useAppStore(state => state.getAllStages);
-  const studentProgress = useAppStore(state => state.studentProgress);
-  const currentUnlocked = studentProgress[moduleId || ''] || 1;
 
   const stages = getAllStages(moduleId || '');
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
@@ -41,7 +39,7 @@ export default function StageSelector() {
       ) : (
         <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
           {stages.map((stage, index) => {
-            // TODO: revert after testing — restore: const isUnlocked = index < currentUnlocked;
+            // TODO: revert after testing — restore: const isUnlocked = index < (useAppStore.getState().studentProgress[moduleId || ''] || 1);
             const isUnlocked = true;
             const stageNumber = index + 1;
 

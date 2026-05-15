@@ -19,8 +19,6 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
 // 选项生成器 (为每个类型生成正确答案 + 3 个干扰项)
 // ============================================================
 
-const ALL_PITCHES = ['C3','D3','E3','F3','G3','A3','B3','C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5'];
-
 const ALL_INTERVALS = [
   '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
   '纯四度 (P4)', '三全音 (TT)', '纯五度 (P5)',
@@ -66,15 +64,17 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
   '八度跳进':    ['C4', 'C5', 'C4', 'C5'],
 };
 
+const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
 function generateOptions(slice: Slice): string[] {
   let correct = '';
   let pool: string[] = [];
 
   switch (slice.type) {
     case 'A':
-      correct = slice.content.pitch || '';
-      pool = ALL_PITCHES;
-      break;
+      // Extract just the note letter (e.g., "C#4" → "C", "Bb3" → "B")
+      correct = (slice.content.pitch || '').charAt(0).toUpperCase();
+      return NOTE_NAMES; // Always show all 7 notes
     case 'B': {
       const rawSymbol = slice.content.raw || slice.content.symbol || '';
       // 尝试通过 SYMBOL_MAP 将简称映射到完整标签
@@ -290,7 +290,7 @@ export default function InteractiveQuiz() {
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
     switch (currentSlice.type) {
-      case 'A': return currentSlice.content.pitch || '';
+      case 'A': return (currentSlice.content.pitch || '').charAt(0).toUpperCase();
       case 'B': {
         const rawSymbol = currentSlice.content.raw || currentSlice.content.symbol || '';
         return SYMBOL_MAP[rawSymbol] || rawSymbol;
