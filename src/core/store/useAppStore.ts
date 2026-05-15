@@ -106,7 +106,9 @@ export const useAppStore = create<AppState>()(
 
       getAllStages: (moduleId) => {
         const state = get();
-        const auto = autoGenerateStages(state.slicesPool).filter(s => s.module === moduleId);
+        const usedInCustom = new Set(state.customStages.flatMap(cs => cs.sliceIds));
+        const freePool = state.slicesPool.filter(s => !usedInCustom.has(s.id));
+        const auto = autoGenerateStages(freePool).filter(s => s.module === moduleId);
 
         const custom: AutoStage[] = state.customStages
           .filter(cs => cs.module === moduleId)
@@ -150,6 +152,10 @@ export const useAppStore = create<AppState>()(
 
       removeSlice: (id) => set((state) => ({
         slicesPool: state.slicesPool.filter(s => s.id !== id),
+        customStages: state.customStages.map(cs => ({
+          ...cs,
+          sliceIds: cs.sliceIds.filter(sid => sid !== id),
+        })),
       })),
 
       clearPool: () => set({ slicesPool: [] }),

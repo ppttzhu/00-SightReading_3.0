@@ -25,10 +25,17 @@ export default function CustomStageEditor() {
   const [stageName, setStageName] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [diffFilter, setDiffFilter] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CustomStage | null>(null);
   const [msg, setMsg] = useState('');
 
   const relevantType = MODULE_TYPE[module];
-  const filteredPool = slicesPool.filter(s => s.type === relevantType);
+  const usedByOthers = new Set(
+    customStages.filter(cs => cs.id !== editingId).flatMap(cs => cs.sliceIds)
+  );
+  const filteredPool = slicesPool.filter(s => s.type === relevantType && !usedByOthers.has(s.id));
+  const visiblePool = filteredPool.filter(s => diffFilter === null || s.difficulty === diffFilter);
   const moduleStages = customStages.filter(cs => cs.module === module);
   const moduleColor = MODULE_OPTIONS.find(m => m.value === module)?.color || '#3b82f6';
 
@@ -57,6 +64,7 @@ export default function CustomStageEditor() {
     addCustomStage(stage);
     setStageName('');
     setSelectedIds(new Set());
+    setDiffFilter(null);
     showMsg(`✓ 已创建关卡「${stage.title}」（${stage.sliceIds.length} 道题）`);
   };
 
@@ -85,6 +93,7 @@ export default function CustomStageEditor() {
   };
 
   return (
+    <>
     <div style={{ maxWidth: '900px' }}>
       <h1 style={{ fontSize: '2rem', color: '#1f2937', margin: '0 0 8px' }}>关卡编排</h1>
       <p style={{ color: '#6b7280', marginBottom: '28px' }}>
@@ -147,13 +156,23 @@ export default function CustomStageEditor() {
             </label>
             {filteredPool.length > 0 && (
               <button
-                onClick={() => setSelectedIds(selectedIds.size === filteredPool.length ? new Set() : new Set(filteredPool.map(s => s.id)))}
+                onClick={() => setSelectedIds(selectedIds.size === visiblePool.length ? new Set() : new Set(visiblePool.map(s => s.id)))}
                 style={{ fontSize: '0.8rem', color: moduleColor, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
               >
-                {selectedIds.size === filteredPool.length ? '取消全选' : '全选'}
+                {selectedIds.size === visiblePool.length && visiblePool.length > 0 ? '取消全选' : '全选'}
               </button>
             )}
           </div>
+
+          {/* 难度筛选 */}
+          {filteredPool.length > 0 && (
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+              <button onClick={() => { setDiffFilter(null); setSelectedIds(new Set()); }} style={{ padding: '3px 10px', borderRadius: '20px', border: `1px solid ${diffFilter === null ? moduleColor : '#e5e7eb'}`, background: diffFilter === null ? `${moduleColor}18` : 'white', color: diffFilter === null ? moduleColor : '#6b7280', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>全部</button>
+              {Array.from(new Set(filteredPool.map(s => s.difficulty))).sort((a, b) => a - b).map(d => (
+                <button key={d} onClick={() => { setDiffFilter(diffFilter === d ? null : d); setSelectedIds(new Set()); }} style={{ padding: '3px 10px', borderRadius: '20px', border: `1px solid ${diffFilter === d ? '#f59e0b' : '#e5e7eb'}`, background: diffFilter === d ? '#fef3c7' : 'white', color: diffFilter === d ? '#d97706' : '#6b7280', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>L{d}</button>
+              ))}
+            </div>
+          )}
 
           {filteredPool.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', background: '#f9fafb', borderRadius: '10px', color: '#9ca3af' }}>
@@ -161,9 +180,10 @@ export default function CustomStageEditor() {
             </div>
           ) : (
             <div style={{ maxHeight: '260px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '8px' }}>
-              {filteredPool.map(slice => {
+              {visiblePool.map(slice => {
                 const checked = selectedIds.has(slice.id);
-                const label = slice.content.raw || slice.content.symbol || slice.content.theory || slice.content.pattern || slice.id;
+                const c = slice.content;
+                const label = (typeof c === 'string' ? c : c.raw || c.symbol || c.theory || c.pattern) || slice.id;
                 return (
                   <label
                     key={slice.id}
@@ -241,40 +261,43 @@ export default function CustomStageEditor() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {moduleStages.map((cs, idx) => {
               const sliceCount = cs.sliceIds.length;
-              const resolved = cs.sliceIds.filter(id => slicesPool.some(s => s.id === id)).length;
+              const isExpanded = expandedId === cs.id;
+              const stageSlices = cs.sliceIds.map(id => slicesPool.find(s => s.id === id)).filter(Boolean) as typeof slicesPool;
               return (
-                <div
-                  key={cs.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '16px',
-                    padding: '14px 18px', background: 'white', borderRadius: '10px',
-                    border: `1px solid ${editingId === cs.id ? '#f59e0b' : '#e5e7eb'}`,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
-                    borderLeft: `4px solid ${moduleColor}`,
-                  }}
-                >
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: `${moduleColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: moduleColor, fontWeight: 800, fontSize: '0.9rem', flexShrink: 0 }}>
-                    {idx + 1}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: '#1f2937', marginBottom: '2px' }}>{cs.title}</div>
-                    <div style={{ fontSize: '0.82rem', color: '#9ca3af' }}>
-                      {resolved} / {sliceCount} 道题
-                      {resolved < sliceCount && <span style={{ color: '#ef4444', marginLeft: '6px' }}>（有 {sliceCount - resolved} 道题目已从题库删除）</span>}
+                <div key={cs.id} style={{ borderRadius: '10px', border: `1px solid ${editingId === cs.id ? '#f59e0b' : '#e5e7eb'}`, borderLeft: `4px solid ${moduleColor}`, background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 18px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: `${moduleColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: moduleColor, fontWeight: 800, fontSize: '0.9rem', flexShrink: 0 }}>
+                      {idx + 1}
                     </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, color: '#1f2937', marginBottom: '2px' }}>{cs.title}</div>
+                      <div style={{ fontSize: '0.82rem', color: '#9ca3af' }}>{sliceCount} 道题</div>
+                    </div>
+                    <button onClick={() => setExpandedId(isExpanded ? null : cs.id)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #d1d5db', background: isExpanded ? '#f3f4f6' : 'white', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
+                      {isExpanded ? '收起' : '查看'}
+                    </button>
+                    <button onClick={() => handleEdit(cs)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #d1d5db', background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
+                      编辑
+                    </button>
+                    <button onClick={() => setDeleteTarget(cs)} style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: '#fee2e2', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
+                      删除
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleEdit(cs)}
-                    style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #d1d5db', background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    编辑
-                  </button>
-                  <button
-                    onClick={() => { if (confirm(`确认删除关卡「${cs.title}」？`)) removeCustomStage(cs.id); }}
-                    style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: '#fee2e2', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    删除
-                  </button>
+                  {isExpanded && (
+                    <div style={{ borderTop: '1px solid #f3f4f6', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {stageSlices.map(slice => {
+                        const c = slice.content;
+                        const label = (typeof c === 'string' ? c : c.raw || c.symbol || c.theory || c.pattern) || slice.id;
+                        return (
+                          <div key={slice.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#374151' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '4px', background: `${TYPE_COLORS[slice.type]}18`, color: TYPE_COLORS[slice.type], fontWeight: 600, fontSize: '0.75rem' }}>{TYPE_LABELS[slice.type]}</span>
+                            <span style={{ flex: 1 }}>{label}</span>
+                            <span style={{ color: '#f59e0b', fontSize: '0.8rem' }}>L{slice.difficulty}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -282,5 +305,19 @@ export default function CustomStageEditor() {
         )}
       </div>
     </div>
+
+    {deleteTarget && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '28px 32px', width: '360px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+          <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1f2937', marginBottom: '10px' }}>删除关卡</div>
+          <div style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '24px' }}>确认删除关卡「{deleteTarget.title}」？此操作不可撤销。</div>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setDeleteTarget(null)} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer' }}>取消</button>
+            <button onClick={() => { removeCustomStage(deleteTarget.id); setDeleteTarget(null); }} style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>删除</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
