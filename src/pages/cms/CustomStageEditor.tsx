@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAppStore, type CustomStage } from '../../core/store/useAppStore';
+import { useState, useRef } from 'react';
+import { useAppStore, type CustomStage, type AutoStage } from '../../core/store/useAppStore';
 
 const MODULE_OPTIONS = [
   { value: 'notes',    label: '🎵 单音 (Notes)',          color: '#3b82f6' },
@@ -17,9 +17,13 @@ const MODULE_TYPE: Record<string, string> = {
 export default function CustomStageEditor() {
   const slicesPool = useAppStore(s => s.slicesPool);
   const customStages = useAppStore(s => s.customStages);
+  const stageOrder = useAppStore(s => s.stageOrder);
   const addCustomStage = useAppStore(s => s.addCustomStage);
   const updateCustomStage = useAppStore(s => s.updateCustomStage);
   const removeCustomStage = useAppStore(s => s.removeCustomStage);
+  const generatePresetStages = useAppStore(s => s.generatePresetStages);
+  const setStageOrder = useAppStore(s => s.setStageOrder);
+  const getAllStages = useAppStore(s => s.getAllStages);
 
   const [module, setModule] = useState<'notes' | 'symbols' | 'theory' | 'patterns'>('notes');
   const [stageName, setStageName] = useState('');
@@ -29,6 +33,8 @@ export default function CustomStageEditor() {
   const [diffFilter, setDiffFilter] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomStage | null>(null);
   const [msg, setMsg] = useState('');
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
 
   const relevantType = MODULE_TYPE[module];
   const usedByOthers = new Set(
@@ -36,8 +42,22 @@ export default function CustomStageEditor() {
   );
   const filteredPool = slicesPool.filter(s => s.type === relevantType && !usedByOthers.has(s.id));
   const visiblePool = filteredPool.filter(s => diffFilter === null || s.difficulty === diffFilter);
-  const moduleStages = customStages.filter(cs => cs.module === module);
+  const moduleStages = customStages.filter(cs => cs.module === module && !cs.isPreset);
   const moduleColor = MODULE_OPTIONS.find(m => m.value === module)?.color || '#3b82f6';
+  const hasOrder = stageOrder[module] && stageOrder[module].length > 0;
+  const orderedStages: AutoStage[] = hasOrder ? getAllStages(module) : [];
+
+  const handleDragStart = (idx: number) => { dragItem.current = idx; };
+  const handleDragEnter = (idx: number) => { dragOver.current = idx; };
+  const handleDragEnd = () => {
+    if (dragItem.current === null || dragOver.current === null || dragItem.current === dragOver.current) return;
+    const newOrder = [...stageOrder[module]];
+    const [moved] = newOrder.splice(dragItem.current, 1);
+    newOrder.splice(dragOver.current, 0, moved);
+    setStageOrder(module, newOrder);
+    dragItem.current = null;
+    dragOver.current = null;
+  };
 
   const showMsg = (text: string) => {
     setMsg(text);
@@ -242,6 +262,62 @@ export default function CustomStageEditor() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ===== 全局排序区块 ===== */}
+      <div style={{ background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)', marginBottom: '32px', border: '2px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.15rem', color: '#374151', fontWeight: 700 }}>关卡排序（学生视角）</h2>
+            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#9ca3af' }}>
+              {hasOrder ? '拖拽调整关卡顺序，学生将按此顺序解锁关卡' : '点击「生成预设关卡」后可在此拖拽排序'}
+            </p>
+          </div>
+          <button
+            onClick={() => { generatePresetStages(module); showMsg('✓ 预设关卡已重新生成'); }}
+            style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' }}
+          >
+            生成预设关卡
+          </button>
+        </div>
+
+        {hasOrder ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 16px', fontSize: '0.78rem', color: '#9ca3af', fontWeight: 600 }}>
+              <span style={{ width: '16px' }} />
+              <span style={{ width: '28px', textAlign: 'center' }}>序号</span>
+              <span style={{ flex: 1 }}>关卡名称</span>
+              <span style={{ width: '36px', textAlign: 'center' }}>类型</span>
+              <span style={{ width: '36px', textAlign: 'right' }}>题数</span>
+            </div>
+            {orderedStages.map((stage, idx) => {
+              const isPreset = customStages.find(cs => cs.id === stage.id)?.isPreset;
+              return (
+                <div
+                  key={stage.id}
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragEnter={() => handleDragEnter(idx)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={e => e.preventDefault()}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#fafafa', cursor: 'grab', userSelect: 'none' }}
+                >
+                  <span style={{ color: '#9ca3af', fontSize: '1rem' }}>⠿</span>
+                  <span style={{ width: '28px', height: '28px', borderRadius: '50%', background: `${moduleColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: moduleColor, fontWeight: 800, fontSize: '0.85rem', flexShrink: 0 }}>{idx + 1}</span>
+                  <span style={{ flex: 1, fontWeight: 600, color: '#1f2937', fontSize: '0.95rem' }}>{stage.title}</span>
+                  <span style={{ fontSize: '0.78rem', padding: '2px 8px', borderRadius: '4px', background: isPreset ? '#f3f4f6' : `${moduleColor}18`, color: isPreset ? '#9ca3af' : moduleColor, fontWeight: 600 }}>
+                    {isPreset ? '预设' : '手动'}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{stage.slices.length} 题</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ padding: '32px', textAlign: 'center', background: '#f9fafb', borderRadius: '10px', color: '#9ca3af' }}>
+            暂无排序数据，点击「生成预设关卡」初始化
+          </div>
+        )}
       </div>
 
       {/* ===== 已创建的自定义关卡（按当前模块筛选） ===== */}
