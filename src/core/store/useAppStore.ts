@@ -64,15 +64,16 @@ export interface CustomStage {
   module: 'notes' | 'symbols' | 'theory' | 'patterns';
   title: string;
   sliceIds: string[]; // 引用 slicesPool 中的 id
+  isPreset?: boolean;
 }
 
 interface AppState {
   slicesPool: Slice[];
   customStages: CustomStage[];
+  stageOrder: Record<string, string[]>; // moduleId -> ordered stage ids
   studentProgress: Record<string, number>;
 
   getAutoStages: (moduleId: string) => AutoStage[];
-  /** 自动关卡 + 自定义关卡，统一格式返回 */
   getAllStages: (moduleId: string) => AutoStage[];
 
   addSlices: (slices: Slice[]) => void;
@@ -84,6 +85,9 @@ interface AppState {
   updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds'>>) => void;
   removeCustomStage: (id: string) => void;
 
+  generatePresetStages: (moduleId: string) => void;
+  setStageOrder: (moduleId: string, orderedIds: string[]) => void;
+
   unlockNextStage: (moduleId: string) => void;
 }
 
@@ -92,6 +96,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       slicesPool: [],
       customStages: [],
+      stageOrder: {},
       studentProgress: {
         notes: 1,
         symbols: 1,
@@ -106,26 +111,40 @@ export const useAppStore = create<AppState>()(
 
       getAllStages: (moduleId) => {
         const state = get();
+        const order = state.stageOrder[moduleId];
+
+        // If preset stages have been generated, use stageOrder
+        if (order && order.length > 0) {
+          const stageMap = new Map<string, AutoStage>();
+          state.customStages
+            .filter(cs => cs.module === moduleId)
+            .forEach((cs, idx) => {
+              const slices = cs.sliceIds
+                .map(sid => state.slicesPool.find(s => s.id === sid))
+                .filter(Boolean) as Slice[];
+              if (slices.length > 0) {
+                stageMap.set(cs.id, { id: cs.id, module: cs.module, stageNum: idx + 1, title: cs.title, slices });
+              }
+            });
+          return order.flatMap((id, idx) => {
+            const s = stageMap.get(id);
+            return s ? [{ ...s, stageNum: idx + 1 }] : [];
+          });
+        }
+
+        // Fallback: original dynamic generation
         const usedInCustom = new Set(state.customStages.flatMap(cs => cs.sliceIds));
         const freePool = state.slicesPool.filter(s => !usedInCustom.has(s.id));
         const auto = autoGenerateStages(freePool).filter(s => s.module === moduleId);
-
         const custom: AutoStage[] = state.customStages
           .filter(cs => cs.module === moduleId)
           .map((cs, idx) => {
             const slices = cs.sliceIds
               .map(sid => state.slicesPool.find(s => s.id === sid))
               .filter(Boolean) as Slice[];
-            return {
-              id: cs.id,
-              module: cs.module,
-              stageNum: auto.length + idx + 1,
-              title: cs.title,
-              slices,
-            };
+            return { id: cs.id, module: cs.module, stageNum: auto.length + idx + 1, title: cs.title, slices };
           })
           .filter(s => s.slices.length > 0);
-
         return [...auto, ...custom];
       },
 
@@ -172,6 +191,41 @@ export const useAppStore = create<AppState>()(
 
       removeCustomStage: (id) => set((state) => ({
         customStages: state.customStages.filter(cs => cs.id !== id),
+        stageOrder: Object.fromEntries(
+          Object.entries(state.stageOrder).map(([mod, ids]) => [mod, ids.filter(i => i !== id)])
+        ),
+      })),
+
+      generatePresetStages: (moduleId) => set((state) => {
+        // Remove old presets for this module
+        const withoutOldPresets = state.customStages.filter(
+          cs => !(cs.module === moduleId && cs.isPreset)
+        );
+        // Compute free pool (not used by non-preset custom stages)
+        const usedByCustom = new Set(
+          withoutOldPresets.filter(cs => cs.module === moduleId).flatMap(cs => cs.sliceIds)
+        );
+        const freePool = state.slicesPool.filter(s => !usedByCustom.has(s.id));
+        const autoStages = autoGenerateStages(freePool).filter(s => s.module === moduleId);
+        const presets: CustomStage[] = autoStages.map(s => ({
+          id: s.id,
+          module: moduleId as CustomStage['module'],
+          title: s.title,
+          sliceIds: s.slices.map(sl => sl.id),
+          isPreset: true,
+        }));
+        const newCustomStages = [...withoutOldPresets, ...presets];
+        // Build order: presets first, then existing manual stages for this module
+        const manualIds = withoutOldPresets.filter(cs => cs.module === moduleId).map(cs => cs.id);
+        const newOrder = [...presets.map(p => p.id), ...manualIds];
+        return {
+          customStages: newCustomStages,
+          stageOrder: { ...state.stageOrder, [moduleId]: newOrder },
+        };
+      }),
+
+      setStageOrder: (moduleId, orderedIds) => set((state) => ({
+        stageOrder: { ...state.stageOrder, [moduleId]: orderedIds },
       })),
 
       unlockNextStage: (moduleId) => set((state) => ({
