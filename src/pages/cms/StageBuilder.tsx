@@ -1,4 +1,32 @@
+import { useState } from 'react';
 import { useAppStore } from '../../core/store/useAppStore';
+
+function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const [input, setInput] = useState('');
+  const confirmed = input === '确定删除';
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '32px', width: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <h2 style={{ margin: '0 0 8px', color: '#1f2937', fontSize: '1.2rem' }}>确认清空题库</h2>
+        <p style={{ color: '#6b7280', margin: '0 0 20px', fontSize: '0.9rem' }}>此操作将删除全部题目且不可恢复。请在下方输入框中输入 <b>我确定要删除</b> 以确认。</p>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="确定删除"
+          style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none' }}
+        />
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', color: '#374151' }}>取消</button>
+          <button
+            onClick={onConfirm}
+            disabled={!confirmed}
+            style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: confirmed ? '#ef4444' : '#fca5a5', color: 'white', cursor: confirmed ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}
+          >确定删除</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const TYPE_LABELS: Record<string, string> = {
   'A': '单音',
@@ -19,6 +47,7 @@ export default function StageBuilder() {
   const updateSliceDifficulty = useAppStore(state => state.updateSliceDifficulty);
   const removeSlice = useAppStore(state => state.removeSlice);
   const clearPool = useAppStore(state => state.clearPool);
+  const [showClearModal, setShowClearModal] = useState(false);
 
   // 按类型分组统计
   const stats = {
@@ -32,6 +61,7 @@ export default function StageBuilder() {
   const totalStages = Math.ceil(stats.A / 5) + Math.ceil(stats.B / 5) + Math.ceil(stats.C / 5) + Math.ceil(stats.D / 5);
 
   return (
+    <>
     <div style={{ maxWidth: '900px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div>
@@ -42,7 +72,7 @@ export default function StageBuilder() {
         </div>
         {slicesPool.length > 0 && (
           <button
-            onClick={() => { if (confirm('确认清空全部题目？')) clearPool(); }}
+            onClick={() => setShowClearModal(true)}
             style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
           >
             清空题库
@@ -130,5 +160,12 @@ export default function StageBuilder() {
         )}
       </div>
     </div>
+    {showClearModal && (
+      <ClearConfirmModal
+        onConfirm={() => { clearPool(); setShowClearModal(false); }}
+        onCancel={() => setShowClearModal(false)}
+      />
+    )}
+    </>
   );
 }
