@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../core/store/useAppStore';
 
@@ -15,9 +16,19 @@ const MODULE_COLORS: Record<string, string> = {
   patterns: '#10b981',
 };
 
+export const NOTES_INPUT_MODE_KEY = 'notes_input_mode';
+
 export default function StageSelector() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
+  const [usePiano, setUsePiano] = useState(
+    () => (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano'
+  );
+
+  const toggleMode = (val: boolean) => {
+    setUsePiano(val);
+    localStorage.setItem(NOTES_INPUT_MODE_KEY, val ? 'piano' : 'options');
+  };
 
   // 从 Store 自动生成的关卡列表（包含自动+手动关卡）
   const getAllStages = useAppStore(state => state.getAllStages);
@@ -37,6 +48,25 @@ export default function StageSelector() {
       <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
         {moduleLabel} Trials
       </h1>
+
+      {moduleId === 'notes' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          {(['piano', 'options'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => toggleMode(mode === 'piano')}
+              style={{
+                padding: '6px 18px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
+                background: (mode === 'piano') === usePiano ? moduleColor : 'transparent',
+                color: (mode === 'piano') === usePiano ? 'white' : '#6b7280',
+                transition: 'all 0.2s'
+              }}
+            >
+              {mode === 'piano' ? '键盘' : '选项'}
+            </button>
+          ))}
+        </div>
+      )}
 
       {stages.length === 0 ? (
         <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
+import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -117,6 +118,74 @@ function generateOptions(slice: Slice): string[] {
 }
 
 // ============================================================
+// 迷你钢琴键盘（高亮显示指定音符）
+// ============================================================
+const WHITE_KEYS = ['C','D','E','F','G','A','B'];
+const BLACK_KEY_OFFSETS: Record<string, number> = { 'C#':1,'D#':2,'F#':4,'G#':5,'A#':6 };
+// 将音高字符串归一化为 { letter, accidental } 忽略八度
+function normalizePitch(p: string): { letter: string; acc: string } {
+  const m = p.match(/^([A-Ga-g])(#|b)?/);
+  if (!m) return { letter: '', acc: '' };
+  let letter = m[1].toUpperCase();
+  let acc = m[2] || '';
+  // 将 b 转为等音 #
+  if (acc === 'b') {
+    const idx = WHITE_KEYS.indexOf(letter);
+    if (idx > 0) { letter = WHITE_KEYS[idx - 1]; acc = '#'; }
+    else { letter = 'B'; acc = ''; } // Cb → B
+  }
+  return { letter, acc };
+}
+
+function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
+  const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
+  // One octave only — A 类答案只需音名字母
+  const whites = WHITE_KEYS; // C D E F G A B
+  const blacks: { name: string; pos: number }[] = [
+    { name: 'C#', pos: 1 }, { name: 'D#', pos: 2 },
+    { name: 'F#', pos: 4 }, { name: 'G#', pos: 5 }, { name: 'A#', pos: 6 },
+  ];
+  const totalW = whites.length * whiteW;
+
+  return (
+    <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
+      {whites.map((name, i) => (
+        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
+          <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
+            fill="white" stroke="#d1d5db" strokeWidth={1.5} rx={4} />
+        </g>
+      ))}
+      {blacks.map(({ name, pos }) => (
+        <g key={name} onClick={() => onAnswer(name.charAt(0))} style={{ cursor: 'pointer' }}>
+          <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
+            fill="#1f2937" rx={4} />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// 从 slice 中提取需要高亮的音符列表
+function getSliceNotes(slice: Slice): string[] {
+  switch (slice.type) {
+    case 'A': return slice.content.pitch ? [slice.content.pitch] : [];
+    case 'C': return Array.isArray(slice.content.notes) ? slice.content.notes : [];
+    case 'D': {
+      const raw: string = slice.content.raw || '';
+      const fromRaw = raw.match(/[A-Ga-g][#b]?\d/g) || [];
+      if (fromRaw.length >= 2) return fromRaw;
+      if (Array.isArray(slice.content.notes) && slice.content.notes.length >= 2) return slice.content.notes;
+      const pattern = slice.content.pattern || raw;
+      for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
+        if (pattern.includes(key)) return notes;
+      }
+      return ['C4','D4','E4','F4','G4'];
+    }
+    default: return [];
+  }
+}
+
+// ============================================================
 // 组件
 // ============================================================
 export default function InteractiveQuiz() {
@@ -151,6 +220,7 @@ export default function InteractiveQuiz() {
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [noteVisible, setNoteVisible] = useState(true);
+  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano';
 
   const currentSlice = stage?.slices[currentSliceIndex];
 
@@ -393,56 +463,60 @@ export default function InteractiveQuiz() {
         </div>
 
         {/* 选项区 */}
-        <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
-          {options.map((opt, i) => (
-            <button
-              key={`${currentSliceIndex}_${i}_${opt}`}
-              onClick={() => handleAnswer(opt)}
-              style={{
-                minWidth: '140px',
-                maxWidth: '260px',
-                padding: '14px 20px',
-                borderRadius: '20px',
-                border: '1px solid #f3f4f6',
-                background: 'white',
-                fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
-                fontWeight: '700',
-                color: '#374151',
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                lineHeight: '1.4',
-                textAlign: 'center'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                e.currentTarget.style.borderColor = '#e5e7eb';
-              }}
-              onMouseDown={e => {
-                e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
-                e.currentTarget.style.background = '#f8fafc';
-                e.currentTarget.style.color = '#3b82f6';
-              }}
-              onMouseUp={e => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.background = 'white';
-                e.currentTarget.style.color = '#374151';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.background = 'white';
-                e.currentTarget.style.color = '#374151';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                e.currentTarget.style.borderColor = '#f3f4f6';
-              }}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
+        {currentSlice?.type === 'A' && usePiano ? (
+          <PianoKeyboard onAnswer={handleAnswer} />
+        ) : (
+          <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
+            {options.map((opt, i) => (
+              <button
+                key={`${currentSliceIndex}_${i}_${opt}`}
+                onClick={() => handleAnswer(opt)}
+                style={{
+                  minWidth: '140px',
+                  maxWidth: '260px',
+                  padding: '14px 20px',
+                  borderRadius: '20px',
+                  border: '1px solid #f3f4f6',
+                  background: 'white',
+                  fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
+                  fontWeight: '700',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  lineHeight: '1.4',
+                  textAlign: 'center'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
+                onMouseDown={e => {
+                  e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
+                  e.currentTarget.style.background = '#f8fafc';
+                  e.currentTarget.style.color = '#3b82f6';
+                }}
+                onMouseUp={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.color = '#374151';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.color = '#374151';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
+                  e.currentTarget.style.borderColor = '#f3f4f6';
+                }}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
