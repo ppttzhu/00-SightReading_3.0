@@ -8,6 +8,13 @@ const MODULE_LABELS: Record<string, string> = {
   patterns: '音型',
 };
 
+const MODULE_COLORS: Record<string, string> = {
+  notes: '#3b82f6',
+  symbols: '#ec4899',
+  theory: '#8b5cf6',
+  patterns: '#10b981',
+};
+
 export default function StageSelector() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
@@ -17,6 +24,7 @@ export default function StageSelector() {
 
   const stages = getAllStages(moduleId || '');
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
+  const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -68,10 +76,10 @@ export default function StageSelector() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: isUnlocked ? '2rem' : '1.5rem',
-                  color: isUnlocked ? '#3b82f6' : '#9ca3af',
+                  color: isUnlocked ? moduleColor : '#9ca3af',
                   fontWeight: '800',
-                  boxShadow: isUnlocked ? '0 8px 24px rgba(59,130,246,0.15)' : 'inset 0 2px 4px rgba(0,0,0,0.05)',
-                  border: isUnlocked ? '2px solid #bfdbfe' : '1px solid #e5e7eb',
+                  boxShadow: isUnlocked ? `0 8px 24px ${moduleColor}26` : 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                  border: isUnlocked ? `2px solid ${moduleColor}50` : '1px solid #e5e7eb',
                 }}>
                   {isUnlocked ? stageNumber : '🔒'}
                 </div>
