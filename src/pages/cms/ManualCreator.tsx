@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useAppStore } from '../../core/store/useAppStore';
 
 const TYPE_OPTIONS = [
-  { value: 'A', label: '单音池 (A)', placeholder: '输入音高，如 C4、F#5、Bb3' },
-  { value: 'B', label: '符号池 (B)', placeholder: '输入符号名称，如 ff、staccato、fermata' },
-  { value: 'C', label: '乐理池 (C)', placeholder: '输入乐理概念，如 纯五度 (P5)、C大调三和弦' },
-  { value: 'D', label: '音型池 (D)', placeholder: '输入音型描述，如 上行音阶 C-D-E-F-G' },
+  { value: 'A', label: '单音 (A)', placeholder: '输入音高，如 C4、F#5、Bb3' },
+  { value: 'B', label: '音乐表情记号 (B)', placeholder: '输入符号名称，如 ff、staccato、fermata' },
+  { value: 'C', label: '双音/音程关系 (C)', placeholder: '格式: 音符1,音符2|名称，如 C4,G4|纯五度 (P5)' },
+  { value: 'D', label: '音型 (D)', placeholder: '输入音型描述，如 上行音阶 C-D-E-F-G' },
 ];
 
 export default function ManualCreator() {
@@ -68,7 +68,14 @@ export default function ManualCreator() {
     switch (type) {
       case 'A': return { pitch: value, raw: value };
       case 'B': return { symbol: value, answer: symbolAnswer.trim() };
-      case 'C': return { theory: value, raw: value };
+      case 'C': {
+        if (value.includes('|')) {
+          const [notesPart, theory] = value.split('|').map(s => s.trim());
+          const notes = notesPart.split(',').map(s => s.trim()).filter(Boolean);
+          return { theory, notes, raw: value };
+        }
+        return { theory: value, raw: value };
+      }
       case 'D': return { pattern: value, raw: value };
       default: return { raw: value };
     }

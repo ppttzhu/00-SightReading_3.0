@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useAppStore, type CustomStage } from '../../core/store/useAppStore';
 
 const MODULE_OPTIONS = [
-  { value: 'notes',    label: '🎵 单音识谱 (Notes)',    color: '#3b82f6' },
-  { value: 'symbols',  label: '🎼 音乐记号 (Symbols)',  color: '#ec4899' },
-  { value: 'theory',   label: '📚 乐理知识 (Theory)',   color: '#8b5cf6' },
-  { value: 'patterns', label: '🎹 音型练习 (Patterns)', color: '#10b981' },
+  { value: 'notes',    label: '🎵 单音 (Notes)',          color: '#3b82f6' },
+  { value: 'symbols',  label: '🎼 音乐表情记号 (Symbols)', color: '#ec4899' },
+  { value: 'theory',   label: '📚 双音/音程关系 (Theory)', color: '#8b5cf6' },
+  { value: 'patterns', label: '🎹 音型 (Patterns)',        color: '#10b981' },
 ] as const;
 
-const TYPE_LABELS: Record<string, string> = { A: '单音', B: '符号', C: '乐理', D: '音型' };
+const TYPE_LABELS: Record<string, string> = { A: '单音', B: '音乐表情记号', C: '双音/音程关系', D: '音型' };
 const TYPE_COLORS: Record<string, string> = { A: '#3b82f6', B: '#ec4899', C: '#8b5cf6', D: '#10b981' };
 const MODULE_TYPE: Record<string, string> = {
   notes: 'A', symbols: 'B', theory: 'C', patterns: 'D',

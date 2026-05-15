@@ -30,8 +30,8 @@ function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onC
 
 const TYPE_LABELS: Record<string, string> = {
   'A': '单音',
-  'B': '符号',
-  'C': '乐理',
+  'B': '音乐表情记号',
+  'C': '双音/音程关系',
   'D': '音型',
 };
 
