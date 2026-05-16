@@ -86,6 +86,8 @@ interface AppState {
   removeCustomStage: (id: string) => void;
 
   generatePresetStages: (moduleId: string) => void;
+  unpresetStage: (stageId: string) => void;
+  clearPresetStages: (moduleId: string) => void;
   setStageOrder: (moduleId: string, orderedIds: string[]) => void;
 
   unlockNextStage: (moduleId: string, completedStageIndex: number) => void;
@@ -223,6 +225,24 @@ export const useAppStore = create<AppState>()(
           stageOrder: { ...state.stageOrder, [moduleId]: newOrder },
         };
       }),
+
+      unpresetStage: (stageId) => set((state) => ({
+        customStages: state.customStages.map(cs =>
+          cs.id === stageId ? { ...cs, isPreset: false } : cs
+        ),
+      })),
+
+      clearPresetStages: (moduleId) => set((state) => ({
+        customStages: state.customStages.filter(
+          cs => !(cs.module === moduleId && cs.isPreset)
+        ),
+        stageOrder: {
+          ...state.stageOrder,
+          [moduleId]: (state.stageOrder[moduleId] || []).filter(
+            id => !state.customStages.some(cs => cs.id === id && cs.isPreset && cs.module === moduleId)
+          ),
+        },
+      })),
 
       setStageOrder: (moduleId, orderedIds) => set((state) => ({
         stageOrder: { ...state.stageOrder, [moduleId]: orderedIds },

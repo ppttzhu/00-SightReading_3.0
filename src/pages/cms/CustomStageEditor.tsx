@@ -22,6 +22,8 @@ export default function CustomStageEditor() {
   const updateCustomStage = useAppStore(s => s.updateCustomStage);
   const removeCustomStage = useAppStore(s => s.removeCustomStage);
   const generatePresetStages = useAppStore(s => s.generatePresetStages);
+  const unpresetStage = useAppStore(s => s.unpresetStage);
+  const clearPresetStages = useAppStore(s => s.clearPresetStages);
   const setStageOrder = useAppStore(s => s.setStageOrder);
   const getAllStages = useAppStore(s => s.getAllStages);
 
@@ -273,12 +275,22 @@ export default function CustomStageEditor() {
               {hasOrder ? '拖拽调整关卡顺序，学生将按此顺序解锁关卡' : '点击「生成预设关卡」后可在此拖拽排序'}
             </p>
           </div>
-          <button
-            onClick={() => { generatePresetStages(module); showMsg('✓ 预设关卡已重新生成'); }}
-            style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' }}
-          >
-            生成预设关卡
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => { generatePresetStages(module); showMsg('✓ 预设关卡已重新生成'); }}
+              style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' }}
+            >
+              生成预设关卡
+            </button>
+            {customStages.some(cs => cs.module === module && cs.isPreset) && (
+              <button
+                onClick={() => { clearPresetStages(module); showMsg('✓ 已清除全部预设关卡'); }}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' }}
+              >
+                清除全部预设
+              </button>
+            )}
+          </div>
         </div>
 
         {hasOrder ? (
@@ -308,6 +320,14 @@ export default function CustomStageEditor() {
                   <span style={{ fontSize: '0.78rem', padding: '2px 8px', borderRadius: '4px', background: isPreset ? '#f3f4f6' : `${moduleColor}18`, color: isPreset ? '#9ca3af' : moduleColor, fontWeight: 600 }}>
                     {isPreset ? '预设' : '手动'}
                   </span>
+                  {isPreset && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); unpresetStage(stage.id); showMsg('✓ 已转为手动关卡，可自行编辑'); }}
+                      style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: 'white', color: '#6b7280', fontWeight: 500, cursor: 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
+                    >
+                      取消预设
+                    </button>
+                  )}
                   <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{stage.slices.length} 题</span>
                 </div>
               );
