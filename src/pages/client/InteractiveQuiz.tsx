@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import PianoKeyboard from '../../components/PianoKeyboard';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -115,38 +116,6 @@ function generateOptions(slice: Slice): string[] {
 
   // 混合并打乱
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
-}
-
-// ============================================================
-// 迷你钢琴键盘（高亮显示指定音符）
-// ============================================================
-const WHITE_KEYS = ['C','D','E','F','G','A','B'];
-function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
-  const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
-  // One octave only — A 类答案只需音名字母
-  const whites = WHITE_KEYS; // C D E F G A B
-  const blacks: { name: string; pos: number }[] = [
-    { name: 'C#', pos: 1 }, { name: 'D#', pos: 2 },
-    { name: 'F#', pos: 4 }, { name: 'G#', pos: 5 }, { name: 'A#', pos: 6 },
-  ];
-  const totalW = whites.length * whiteW;
-
-  return (
-    <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
-      {whites.map((name, i) => (
-        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-          <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
-            fill="white" stroke="#d1d5db" strokeWidth={1.5} rx={4} />
-        </g>
-      ))}
-      {blacks.map(({ name, pos }) => (
-        <g key={name} onClick={() => onAnswer(name.charAt(0))} style={{ cursor: 'pointer' }}>
-          <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
-            fill="#1f2937" rx={4} />
-        </g>
-      ))}
-    </svg>
-  );
 }
 
 // ============================================================
@@ -353,7 +322,14 @@ export default function InteractiveQuiz() {
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
     switch (currentSlice.type) {
-      case 'A': return (currentSlice.content.pitch || '').charAt(0).toUpperCase();
+      case 'A': {
+        const pitch = currentSlice.content.pitch || '';
+        if (usePiano) {
+          const match = pitch.match(/^[A-G][#b]?/);
+          return match ? match[0] : pitch.charAt(0).toUpperCase();
+        }
+        return pitch.charAt(0).toUpperCase();
+      }
       case 'B': {
         // Prefer the explicit answer field; fall back to SYMBOL_MAP for legacy data
         if (currentSlice.content.answer) return currentSlice.content.answer;
@@ -450,7 +426,7 @@ export default function InteractiveQuiz() {
 
         {/* 选项区 */}
         {currentSlice?.type === 'A' && usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} />
+          <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
             {options.map((opt, i) => (
