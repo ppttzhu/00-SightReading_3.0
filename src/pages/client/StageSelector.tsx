@@ -27,7 +27,7 @@ export default function StageSelector() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
   const [usePiano, setUsePiano] = useState(
-    () => (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano'
+    () => (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano'
   );
   const [mode, setMode] = useState<'stages' | 'practice'>('stages');
   const [lowPitch, setLowPitch] = useState('C2');
