@@ -219,16 +219,38 @@ export default function InteractiveQuiz() {
     const width = Math.min(500, containerRef.current.clientWidth - 20);
     renderer.resize(width, 200);
     const context = renderer.getContext();
-    // 不添加拍号，只加谱号
+
+    // 根据音高决定谱号 (仅 A 类单音)
+    let clef = 'treble';
+    if (currentSlice.type === 'A') {
+      const pitch = currentSlice.content.pitch || '';
+      const noteChar = pitch.charAt(0).toUpperCase();
+      const octave = parseInt(pitch.charAt(pitch.length - 1));
+      // 将音名转为数值用于比较: C=0,D=1,E=2,F=3,G=4,A=5,B=6
+      const noteVal: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+      const pitchNum = (octave * 7) + (noteVal[noteChar] || 0);
+      const e4Num = (4 * 7) + 2; // E4
+      const a3Num = (3 * 7) + 5; // A3
+
+      if (pitchNum > e4Num) {
+        clef = 'treble';
+      } else if (pitchNum < a3Num) {
+        clef = 'bass';
+      } else {
+        // Between A3 and E4: random
+        clef = Math.random() > 0.5 ? 'treble' : 'bass';
+      }
+    }
+
     const stave = new Stave(10, 40, width - 40);
-    stave.addClef("treble");
+    stave.addClef(clef);
     stave.setContext(context).draw();
 
     try {
       if (currentSlice.type === 'A') {
         // ---- A: 单音 → 画一个全音符 ----
         const { key, accidental } = parsePitchForVexflow(currentSlice.content.pitch);
-        const note = new StaveNote({ keys: [key], duration: "w" });
+        const note = new StaveNote({ keys: [key], duration: "w", clef });
         if (accidental) note.addModifier(new Accidental(accidental));
 
         const voice = new Voice({ numBeats: 4, beatValue: 4 });
