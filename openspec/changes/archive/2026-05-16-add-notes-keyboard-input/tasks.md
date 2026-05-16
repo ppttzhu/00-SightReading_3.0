@@ -19,5 +19,5 @@
 - [x] 4.4 手测: C–B 正确作答;非映射键无反应;反馈锁定期忽略按键;piano 模式不绑定;B/C/D 类不绑定;手机模拟器下提示隐藏
 
 ## 5. Ship
-- [ ] 5.1 在 `feat/notes-keyboard-input` 分支提交
-- [ ] 5.2 推到远程，拿 Cloudflare Pages preview URL 给 owner review
+- [x] 5.1 在 `feat/notes-keyboard-input` 分支提交
+- [x] 5.2 推到远程，拿 Cloudflare Pages preview URL 给 owner review
