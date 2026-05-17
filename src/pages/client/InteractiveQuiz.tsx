@@ -156,6 +156,15 @@ export default function InteractiveQuiz() {
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [noteVisible, setNoteVisible] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
+  const [showAudioTip, setShowAudioTip] = useState(true);
+  const [tipFading, setTipFading] = useState(false);
+  useEffect(() => {
+    setTipFading(false);
+    const t1 = setTimeout(() => setTipFading(true), 3000);
+    const t2 = setTimeout(() => setShowAudioTip(false), 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [showAudioTip]);
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
   // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
   // which excludes phones and most touch-only tablets.
@@ -378,6 +387,7 @@ export default function InteractiveQuiz() {
     if (isCorrect) {
       setFeedback('correct');
       setTimeout(() => {
+        audioEngine.stop();
         setFeedback('none');
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
@@ -413,8 +423,41 @@ export default function InteractiveQuiz() {
         <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
           {stage.title} <span style={{ color: '#9ca3af', fontWeight: '500', marginLeft: '10px' }}>{currentSliceIndex + 1} / {stage.slices.length}</span>
         </h2>
-        <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { audioEngine.setEnabled(!audioEngine.enabled); if (audioEngine.enabled) void audioEngine.prime(); setAudioEnabled(audioEngine.enabled); setShowAudioTip(true); }}
+              title={audioEnabled ? '关闭音效' : '开启音效'}
+              style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.2s ease', color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+            >
+              {audioEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <line x1="23" y1="9" x2="17" y2="15"/>
+                  <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+              )}
+            </button>
+            {showAudioTip && (
+              <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+                {audioEnabled ? '音效已开启，答题时会播放音符声音' : '音效已关闭'}
+                <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -467,6 +510,7 @@ export default function InteractiveQuiz() {
             {options.map((opt, i) => (
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
+                onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
                 onClick={() => {
                   if (currentSlice?.type === 'A') {
                     void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
