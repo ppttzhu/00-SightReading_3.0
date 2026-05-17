@@ -1,10 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { audioEngine } from '../core/engine/AudioEngine';
+import { getOctaveFromPitch, pitchAtOctave } from '../core/engine/pitchUtils';
 
 export type FeedbackState = 'none' | 'correct' | 'wrong';
 
 interface PianoKeyboardProps {
   onAnswer: (note: string) => void;
   feedback: FeedbackState;
+  referencePitch?: string;
 }
 
 const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -18,7 +21,8 @@ const BLACK_KEYS = [
 
 const W = 44, WH = 120, BW = 28, BH = 75;
 
-export default function PianoKeyboard({ onAnswer, feedback }: PianoKeyboardProps) {
+export default function PianoKeyboard({ onAnswer, feedback, referencePitch = 'C4' }: PianoKeyboardProps) {
+  const octave = getOctaveFromPitch(referencePitch);
   const [pressedKey, setPressedKey] = useState<string | null>(null);
   const [lastAnsweredKey, setLastAnsweredKey] = useState<string | null>(null);
   const feedbackRef = useRef(feedback);
@@ -46,8 +50,9 @@ export default function PianoKeyboard({ onAnswer, feedback }: PianoKeyboardProps
     if (disabled) return;
     setPressedKey(null);
     setLastAnsweredKey(note);
+    void audioEngine.playNote(pitchAtOctave(note, octave));
     onAnswer(note);
-  }, [disabled, onAnswer]);
+  }, [disabled, onAnswer, octave]);
 
   // ---- 白键颜色 ----
   const whiteFill = (name: string) => {
@@ -77,6 +82,7 @@ export default function PianoKeyboard({ onAnswer, feedback }: PianoKeyboardProps
   const totalW = WHITE_KEYS.length * W;
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
     <svg
       width={totalW}
       height={WH + 20}
@@ -162,5 +168,9 @@ export default function PianoKeyboard({ onAnswer, feedback }: PianoKeyboardProps
         );
       })}
     </svg>
+      <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+        {pitchAtOctave('C', octave)} – {pitchAtOctave('B', octave)}
+      </span>
+    </div>
   );
 }

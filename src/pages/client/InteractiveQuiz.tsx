@@ -5,6 +5,8 @@ import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote } from './keyboardInput';
 import PianoKeyboard from '../../components/PianoKeyboard';
+import { audioEngine } from '../../core/engine/AudioEngine';
+import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -314,17 +316,19 @@ export default function InteractiveQuiz() {
   // the hook above the early return below, satisfying Rules of Hooks.
   const handleAnswerRef = useRef<(answer: string) => void>(() => {});
   const sliceType = currentSlice?.type;
+  const referencePitch = currentSlice?.type === 'A' ? (currentSlice.content.pitch || 'C4') : '';
   useEffect(() => {
     if (sliceType !== 'A' || usePiano) return;
     const onKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const note = mapKeyToNote(e.key);
       if (!note) return;
+      void audioEngine.playNote(pitchForAnswerLetter(note, referencePitch));
       handleAnswerRef.current(note);
     };
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
-  }, [sliceType, usePiano]);
+  }, [sliceType, usePiano, referencePitch]);
 
   if (!stage) {
     return (
@@ -451,7 +455,7 @@ export default function InteractiveQuiz() {
 
         {/* 选项区 */}
         {currentSlice?.type === 'A' && usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} />
+          <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.type === 'A' && hasFinePointer && (
@@ -463,7 +467,12 @@ export default function InteractiveQuiz() {
             {options.map((opt, i) => (
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
-                onClick={() => handleAnswer(opt)}
+                onClick={() => {
+                  if (currentSlice?.type === 'A') {
+                    void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
+                  }
+                  handleAnswer(opt);
+                }}
                 style={{
                   minWidth: '140px',
                   maxWidth: '260px',

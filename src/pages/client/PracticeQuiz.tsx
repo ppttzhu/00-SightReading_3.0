@@ -2,36 +2,11 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import PianoKeyboard from '../../components/PianoKeyboard';
+import { audioEngine } from '../../core/engine/AudioEngine';
+import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-
-const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
-  const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
-  const whites = WHITE_KEYS;
-  const blacks: { name: string; pos: number }[] = [
-    { name: 'C#', pos: 1 }, { name: 'D#', pos: 2 },
-    { name: 'F#', pos: 4 }, { name: 'G#', pos: 5 }, { name: 'A#', pos: 6 },
-  ];
-  const totalW = whites.length * whiteW;
-
-  return (
-    <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
-      {whites.map((name, i) => (
-        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-          <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
-            fill="white" stroke="#d1d5db" strokeWidth={1.5} rx={4} />
-        </g>
-      ))}
-      {blacks.map(({ name, pos }) => (
-        <g key={name} onClick={() => onAnswer(name.charAt(0))} style={{ cursor: 'pointer' }}>
-          <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
-            fill="#1f2937" rx={4} />
-        </g>
-      ))}
-    </svg>
-  );
-}
 
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
@@ -215,13 +190,16 @@ export default function PracticeQuiz() {
         </div>
 
         {usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} />
+          <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
             {NOTE_NAMES.map(note => (
               <button
                 key={note}
-                onClick={() => handleAnswer(note)}
+                onClick={() => {
+                  void audioEngine.playNote(pitchForAnswerLetter(note, currentPitch));
+                  handleAnswer(note);
+                }}
                 style={{
                   width: '64px', height: '64px', borderRadius: '16px',
                   border: '1px solid #f3f4f6', background: 'white',
