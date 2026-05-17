@@ -11,6 +11,7 @@ import MainMenu from './pages/client/MainMenu';
 import StageSelector from './pages/client/StageSelector';
 import InteractiveQuiz from './pages/client/InteractiveQuiz';
 import PracticeQuiz from './pages/client/PracticeQuiz';
+import IntervalPractice from './pages/client/IntervalPractice';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route index element={<MainMenu />} />
           <Route path="module/:moduleId" element={<StageSelector />} />
           <Route path="quiz/:stageId" element={<InteractiveQuiz />} />
+          <Route path="practice/intervals" element={<IntervalPractice />} />
           <Route path="practice/:moduleId" element={<PracticeQuiz />} />
         </Route>
 

@@ -33,6 +33,12 @@ export default function StageSelector() {
   const [lowPitch, setLowPitch] = useState('C2');
   const [highPitch, setHighPitch] = useState('C6');
 
+  // Theory practice params
+  const [intervalType, setIntervalType] = useState('随机');
+  const [intervalDirection, setIntervalDirection] = useState('随机');
+  const [intervalClef, setIntervalClef] = useState('自动');
+  const [intervalMode, setIntervalMode] = useState('随机');
+
   const toggleMode = (val: boolean) => {
     setUsePiano(val);
     localStorage.setItem(NOTES_INPUT_MODE_KEY, val ? 'piano' : 'options');
@@ -46,6 +52,7 @@ export default function StageSelector() {
   const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
 
   const isNotesModule = moduleId === 'notes';
+  const isTheoryModule = moduleId === 'theory';
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
   const handleStartPractice = () => {
@@ -53,6 +60,10 @@ export default function StageSelector() {
     const low = lowPitch.charAt(0).toUpperCase() + lowPitch.charAt(1);
     const high = highPitch.charAt(0).toUpperCase() + highPitch.charAt(1);
     navigate(`/client/practice/notes?low=${low}&high=${high}`);
+  };
+
+  const handleStartTheoryPractice = () => {
+    navigate(`/client/practice/intervals?type=${intervalType}&direction=${intervalDirection}&clef=${intervalClef}&mode=${intervalMode}`);
   };
 
   return (
@@ -67,7 +78,7 @@ export default function StageSelector() {
         {moduleLabel} Trials
       </h1>
 
-      {isNotesModule && (
+      {(isNotesModule || isTheoryModule) && (
         <>
           {/* Mode toggle: 练习 / 闯关 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '20px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -87,27 +98,29 @@ export default function StageSelector() {
             ))}
           </div>
 
-          {/* Input mode toggle (keyboard vs options) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            {(['options', 'piano'] as const).map(inputMode => (
-              <button
-                key={inputMode}
-                onClick={() => toggleMode(inputMode === 'piano')}
-                style={{
-                  padding: '6px 18px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
-                  background: (inputMode === 'piano') === usePiano ? moduleColor : 'transparent',
-                  color: (inputMode === 'piano') === usePiano ? 'white' : '#6b7280',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {inputMode === 'piano' ? '键盘' : '选项'}
-              </button>
-            ))}
-          </div>
+          {/* Input mode toggle (keyboard vs options) — only for Notes */}
+          {isNotesModule && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              {(['options', 'piano'] as const).map(inputMode => (
+                <button
+                  key={inputMode}
+                  onClick={() => toggleMode(inputMode === 'piano')}
+                  style={{
+                    padding: '6px 18px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
+                    background: (inputMode === 'piano') === usePiano ? moduleColor : 'transparent',
+                    color: (inputMode === 'piano') === usePiano ? 'white' : '#6b7280',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {inputMode === 'piano' ? '键盘' : '选项'}
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
 
-      {/* Practice mode UI */}
+      {/* Notes practice mode UI */}
       {isNotesModule && mode === 'practice' && (
         <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px' }}>
@@ -168,8 +181,53 @@ export default function StageSelector() {
         </div>
       )}
 
-      {/* Stages mode UI (existing) */}
-      {(!isNotesModule || mode === 'stages') && (
+      {/* Theory practice mode UI */}
+      {isTheoryModule && mode === 'practice' && (
+        <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px' }}>
+            系统将按所选规则随机生成音程练习题，无限循环。
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
+            {([
+              { label: '音程类型', value: intervalType, setter: setIntervalType, options: ['随机', '二度', '三度', '四度', '五度', '六度', '七度', '八度'] },
+              { label: '方向', value: intervalDirection, setter: setIntervalDirection, options: ['随机', '上行', '下行'] },
+              { label: '谱号', value: intervalClef, setter: setIntervalClef, options: ['自动', '高音谱号', '低音谱号'] },
+              { label: '音程模式', value: intervalMode, setter: setIntervalMode, options: ['随机', '旋律音程', '和声音程'] },
+            ] as const).map(({ label, value, setter, options }) => (
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <label style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: '600' }}>{label}</label>
+                <select
+                  value={value}
+                  onChange={e => setter(e.target.value as never)}
+                  style={{
+                    padding: '10px 14px', borderRadius: '12px', border: '2px solid #e5e7eb',
+                    fontSize: '0.95rem', fontWeight: '600', color: '#374151',
+                    background: 'white', cursor: 'pointer', outline: 'none',
+                    appearance: 'none', paddingRight: '28px',
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
+                  }}
+                >
+                  {options.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleStartTheoryPractice}
+            style={{
+              marginTop: '10px', padding: '14px 40px', borderRadius: '24px', border: 'none',
+              background: moduleColor, color: 'white', fontSize: '1.1rem', fontWeight: '700',
+              cursor: 'pointer', boxShadow: `0 8px 24px ${moduleColor}40`, transition: 'all 0.2s'
+            }}
+          >
+            🎵 开始练习
+          </button>
+        </div>
+      )}
+
+      {/* Stages mode UI */}
+      {((!isNotesModule && !isTheoryModule) || mode === 'stages') && (
         <>
           {stages.length === 0 ? (
             <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
