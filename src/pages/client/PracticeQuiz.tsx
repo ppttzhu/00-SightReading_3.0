@@ -2,11 +2,28 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
+import { extractNoteAnswer, enharmonicEqual } from './noteAnswer';
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const SHARP_NOTES = ['C#', 'D#', 'F#', 'G#', 'A#'];
+const FLAT_NOTES = ['Db', 'Eb', 'Gb', 'Ab', 'Bb'];
+const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
+const FLAT_OK = new Set(['D', 'E', 'G', 'A', 'B']);
 
 const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
+
+type Feedback = 'none' | 'correct' | 'wrong';
+
+function PianoKeyboard({
+  onAnswer,
+  lastAnswer = null,
+  feedback = 'none',
+}: {
+  onAnswer: (note: string) => void;
+  lastAnswer?: string | null;
+  feedback?: Feedback;
+}) {
   const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
   const whites = WHITE_KEYS;
   const blacks: { name: string; pos: number }[] = [
@@ -15,20 +32,33 @@ function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
   ];
   const totalW = whites.length * whiteW;
 
+  const okFill = '#10b981';
+  const badFill = '#ef4444';
+  const flashFill = feedback === 'correct' ? okFill : feedback === 'wrong' ? badFill : null;
+
   return (
     <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
-      {whites.map((name, i) => (
-        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-          <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
-            fill="white" stroke="#d1d5db" strokeWidth={1.5} rx={4} />
-        </g>
-      ))}
-      {blacks.map(({ name, pos }) => (
-        <g key={name} onClick={() => onAnswer(name.charAt(0))} style={{ cursor: 'pointer' }}>
-          <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
-            fill="#1f2937" rx={4} />
-        </g>
-      ))}
+      {whites.map((name, i) => {
+        const active = lastAnswer === name && flashFill !== null;
+        return (
+          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
+            <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
+              fill={active ? flashFill! : 'white'}
+              stroke={active ? flashFill! : '#d1d5db'} strokeWidth={1.5} rx={4}
+              style={{ transition: 'fill 0.2s ease, stroke 0.2s ease' }} />
+          </g>
+        );
+      })}
+      {blacks.map(({ name, pos }) => {
+        const active = lastAnswer === name && flashFill !== null;
+        return (
+          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
+            <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
+              fill={active ? flashFill! : '#1f2937'} rx={4}
+              style={{ transition: 'fill 0.2s ease' }} />
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -50,8 +80,16 @@ function pitchToNum(pitch: string): number {
   return octave * 7 + (noteVal[note] || 0);
 }
 
-// Generate a random pitch between low and high (inclusive), avoiding prev
-function randomPitch(low: string, high: string, prev?: string): string {
+// Generate a random pitch between low and high (inclusive), avoiding prev.
+// When includeSharps and/or includeFlats are true, ~40% of pitches get the
+// respective accidental, skipping the rare enharmonic spellings (E#/B#/Cb/Fb).
+function randomPitch(
+  low: string,
+  high: string,
+  prev: string | undefined,
+  includeSharps: boolean,
+  includeFlats: boolean,
+): string {
   const lowNum = pitchToNum(low);
   const highNum = pitchToNum(high);
   if (highNum <= lowNum) return low;
@@ -62,8 +100,18 @@ function randomPitch(low: string, high: string, prev?: string): string {
   do {
     const target = lowNum + Math.floor(Math.random() * (highNum - lowNum + 1));
     const octave = Math.floor(target / 7);
-    const noteIdx = target % 7;
-    pitch = `${noteNames[noteIdx]}${octave}`;
+    const letter = noteNames[target % 7];
+    let acc = '';
+    if (includeSharps || includeFlats) {
+      const canSharp = includeSharps && SHARP_OK.has(letter);
+      const canFlat = includeFlats && FLAT_OK.has(letter);
+      if (Math.random() < 0.4) {
+        if (canSharp && canFlat) acc = Math.random() < 0.5 ? '#' : 'b';
+        else if (canSharp) acc = '#';
+        else if (canFlat) acc = 'b';
+      }
+    }
+    pitch = `${letter}${acc}${octave}`;
     attempts++;
   } while (pitch === prev && attempts < 20);
   return pitch;
@@ -87,11 +135,15 @@ export default function PracticeQuiz() {
 
   const low = searchParams.get('low') || 'C2';
   const high = searchParams.get('high') || 'C6';
+  const includeSharps = searchParams.get('sharp') === '1';
+  const includeFlats = searchParams.get('flat') === '1';
+  const includeAccidentals = includeSharps || includeFlats;
 
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano';
 
-  const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high));
-  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
+  const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high, undefined, includeSharps, includeFlats));
+  const [feedback, setFeedback] = useState<Feedback>('none');
+  const [lastAnswer, setLastAnswer] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
   const [noteVisible, setNoteVisible] = useState(true);
@@ -99,9 +151,9 @@ export default function PracticeQuiz() {
   const clef = useMemo(() => getClef(currentPitch), [currentPitch]);
 
   const nextQuestion = useCallback(() => {
-    setCurrentPitch(randomPitch(low, high, currentPitch));
+    setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
     setNoteVisible(true);
-  }, [low, high, currentPitch]);
+  }, [low, high, currentPitch, includeSharps, includeFlats]);
 
   // Blink effect: show 3s, hide 6s
   useEffect(() => {
@@ -149,24 +201,75 @@ export default function PracticeQuiz() {
     }
   }, [currentPitch, clef]);
 
-  const handleAnswer = (answer: string) => {
+  const handleAnswer = (answer: string, enharmonic = false) => {
     if (feedback !== 'none') return;
-    const correct = currentPitch.charAt(0).toUpperCase();
-    const isCorrect = answer === correct;
+    const correct = extractNoteAnswer(currentPitch);
+    const isCorrect = enharmonic ? enharmonicEqual(answer, correct) : answer === correct;
 
     setTotal(t => t + 1);
+    setLastAnswer(answer);
     if (isCorrect) {
       setScore(s => s + 1);
       setFeedback('correct');
       setTimeout(() => {
         setFeedback('none');
+        setLastAnswer(null);
         nextQuestion();
       }, 600);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), 500);
+      setTimeout(() => {
+        setFeedback('none');
+        setLastAnswer(null);
+      }, 500);
     }
   };
+  const handleAnswerRef = useRef<(a: string) => void>(() => {});
+  handleAnswerRef.current = handleAnswer;
+
+  // Random 3 distractors + correct, shuffled. Only used when accidentals are on.
+  const options = useMemo(() => {
+    if (!includeAccidentals) return NOTE_NAMES;
+    const correct = extractNoteAnswer(currentPitch);
+    const pool = [
+      ...NOTE_NAMES,
+      ...(includeSharps ? SHARP_NOTES : []),
+      ...(includeFlats ? FLAT_NOTES : []),
+    ];
+    const distractors = pool
+      .filter(n => n !== correct)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+    return [correct, ...distractors].sort(() => Math.random() - 0.5);
+  }, [currentPitch, includeAccidentals, includeSharps, includeFlats]);
+
+  // Physical keyboard listener (options mode only)
+  useEffect(() => {
+    if (usePiano) return;
+    const WINDOW_MS = 300;
+    let buffer: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      const ans = parseNoteKeys(buffer);
+      buffer = [];
+      if (ans) handleAnswerRef.current(ans);
+    };
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const isLetter = mapKeyToNote(e.key) !== null;
+      const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
+      if (!isLetter && !isAccidental) return;
+      buffer.push(e.key);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(flush, WINDOW_MS);
+    };
+    window.addEventListener('keydown', onKeydown);
+    return () => {
+      window.removeEventListener('keydown', onKeydown);
+      if (timer) clearTimeout(timer);
+    };
+  }, [usePiano]);
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
@@ -215,33 +318,42 @@ export default function PracticeQuiz() {
         </div>
 
         {usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} />
+          <PianoKeyboard onAnswer={(a) => handleAnswer(a, true)} lastAnswer={lastAnswer} feedback={feedback} />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {NOTE_NAMES.map(note => (
-              <button
-                key={note}
-                onClick={() => handleAnswer(note)}
-                style={{
-                  width: '64px', height: '64px', borderRadius: '16px',
-                  border: '1px solid #f3f4f6', background: 'white',
-                  fontSize: '1.6rem', fontWeight: '700', color: '#374151',
-                  cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                }}
-              >
-                {note}
-              </button>
-            ))}
+            {options.map(note => {
+              const active = lastAnswer === note && feedback !== 'none';
+              const activeColor = feedback === 'correct' ? '#10b981' : '#ef4444';
+              return (
+                <button
+                  key={note}
+                  onClick={() => handleAnswer(note)}
+                  style={{
+                    width: '64px', height: '64px', borderRadius: '16px',
+                    border: active ? `2px solid ${activeColor}` : '1px solid #f3f4f6',
+                    background: active ? activeColor : 'white',
+                    fontSize: '1.6rem', fontWeight: '700',
+                    color: active ? 'white' : '#374151',
+                    cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: active ? `0 6px 16px ${activeColor}55` : '0 4px 15px rgba(0,0,0,0.03)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transform: active && feedback === 'wrong' ? 'scale(0.96)' : 'none',
+                  }}
+                  onMouseEnter={e => {
+                    if (active) return;
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
+                  }}
+                  onMouseLeave={e => {
+                    if (active) return;
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
+                  }}
+                >
+                  {note}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

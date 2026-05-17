@@ -126,7 +126,18 @@ function generateOptions(slice: Slice): string[] {
 // 迷你钢琴键盘（高亮显示指定音符）
 // ============================================================
 const WHITE_KEYS = ['C','D','E','F','G','A','B'];
-function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
+
+type Feedback = 'none' | 'correct' | 'wrong';
+
+function PianoKeyboard({
+  onAnswer,
+  lastAnswer = null,
+  feedback = 'none',
+}: {
+  onAnswer: (note: string) => void;
+  lastAnswer?: string | null;
+  feedback?: Feedback;
+}) {
   const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
   // One octave only — A 类答案只需音名字母
   const whites = WHITE_KEYS; // C D E F G A B
@@ -136,20 +147,31 @@ function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
   ];
   const totalW = whites.length * whiteW;
 
+  const flashFill = feedback === 'correct' ? '#10b981' : feedback === 'wrong' ? '#ef4444' : null;
+
   return (
     <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
-      {whites.map((name, i) => (
-        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-          <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
-            fill="white" stroke="#d1d5db" strokeWidth={1.5} rx={4} />
-        </g>
-      ))}
-      {blacks.map(({ name, pos }) => (
-        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-          <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
-            fill="#1f2937" rx={4} />
-        </g>
-      ))}
+      {whites.map((name, i) => {
+        const active = lastAnswer === name && flashFill !== null;
+        return (
+          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
+            <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
+              fill={active ? flashFill! : 'white'}
+              stroke={active ? flashFill! : '#d1d5db'} strokeWidth={1.5} rx={4}
+              style={{ transition: 'fill 0.2s ease, stroke 0.2s ease' }} />
+          </g>
+        );
+      })}
+      {blacks.map(({ name, pos }) => {
+        const active = lastAnswer === name && flashFill !== null;
+        return (
+          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
+            <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
+              fill={active ? flashFill! : '#1f2937'} rx={4}
+              style={{ transition: 'fill 0.2s ease' }} />
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -187,7 +209,8 @@ export default function InteractiveQuiz() {
   }, [stageId, slicesPool, sessionKey]);
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
-  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
+  const [feedback, setFeedback] = useState<Feedback>('none');
+  const [lastAnswer, setLastAnswer] = useState<string | null>(null);
   const [noteVisible, setNoteVisible] = useState(true);
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
   // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
@@ -420,10 +443,12 @@ export default function InteractiveQuiz() {
       ? enharmonicEqual(answer, correct)
       : answer === correct;
 
+    setLastAnswer(answer);
     if (isCorrect) {
       setFeedback('correct');
       setTimeout(() => {
         setFeedback('none');
+        setLastAnswer(null);
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
@@ -434,7 +459,10 @@ export default function InteractiveQuiz() {
       }, 800);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), 600);
+      setTimeout(() => {
+        setFeedback('none');
+        setLastAnswer(null);
+      }, 600);
     }
   };
   handleAnswerRef.current = handleAnswer;
@@ -500,7 +528,7 @@ export default function InteractiveQuiz() {
 
         {/* 选项区 */}
         {currentSlice?.type === 'A' && usePiano ? (
-          <PianoKeyboard onAnswer={(a) => handleAnswer(a, true)} />
+          <PianoKeyboard onAnswer={(a) => handleAnswer(a, true)} lastAnswer={lastAnswer} feedback={feedback} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.type === 'A' && hasFinePointer && (
@@ -510,54 +538,63 @@ export default function InteractiveQuiz() {
               </div>
             )}
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
-            {options.map((opt, i) => (
-              <button
-                key={`${currentSliceIndex}_${i}_${opt}`}
-                onClick={() => handleAnswer(opt)}
-                style={{
-                  minWidth: '140px',
-                  maxWidth: '260px',
-                  padding: '14px 20px',
-                  borderRadius: '20px',
-                  border: '1px solid #f3f4f6',
-                  background: 'white',
-                  fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
-                  fontWeight: '700',
-                  color: '#374151',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  lineHeight: '1.4',
-                  textAlign: 'center'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                  e.currentTarget.style.borderColor = '#e5e7eb';
-                }}
-                onMouseDown={e => {
-                  e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
-                  e.currentTarget.style.background = '#f8fafc';
-                  e.currentTarget.style.color = '#3b82f6';
-                }}
-                onMouseUp={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.background = 'white';
-                  e.currentTarget.style.color = '#374151';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.background = 'white';
-                  e.currentTarget.style.color = '#374151';
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                  e.currentTarget.style.borderColor = '#f3f4f6';
-                }}
-              >
-                {opt}
-              </button>
-            ))}
+            {options.map((opt, i) => {
+              const active = lastAnswer === opt && feedback !== 'none';
+              const activeColor = feedback === 'correct' ? '#10b981' : '#ef4444';
+              return (
+                <button
+                  key={`${currentSliceIndex}_${i}_${opt}`}
+                  onClick={() => handleAnswer(opt)}
+                  style={{
+                    minWidth: '140px',
+                    maxWidth: '260px',
+                    padding: '14px 20px',
+                    borderRadius: '20px',
+                    border: active ? `2px solid ${activeColor}` : '1px solid #f3f4f6',
+                    background: active ? activeColor : 'white',
+                    fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
+                    fontWeight: '700',
+                    color: active ? 'white' : '#374151',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: active ? `0 8px 20px ${activeColor}55` : '0 4px 15px rgba(0,0,0,0.03)',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    lineHeight: '1.4',
+                    textAlign: 'center',
+                    transform: active && feedback === 'wrong' ? 'scale(0.96)' : 'none',
+                  }}
+                  onMouseEnter={e => {
+                    if (active) return;
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                  }}
+                  onMouseDown={e => {
+                    if (active) return;
+                    e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.color = '#3b82f6';
+                  }}
+                  onMouseUp={e => {
+                    if (active) return;
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.color = '#374151';
+                  }}
+                  onMouseLeave={e => {
+                    if (active) return;
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.background = 'white';
+                    e.currentTarget.style.color = '#374151';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
+                    e.currentTarget.style.borderColor = '#f3f4f6';
+                  }}
+                >
+                  {opt}
+                </button>
+              );
+            })}
           </div>
           </div>
         )}
