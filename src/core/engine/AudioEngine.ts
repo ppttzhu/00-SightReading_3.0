@@ -9,7 +9,7 @@ class AudioEngine {
   private activeNote: string | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
   public isReady = false;
-  public enabled = localStorage.getItem('audioEnabled') === 'true';
+  public enabled = localStorage.getItem('audioEnabled') !== 'false';
 
   public setEnabled(val: boolean) {
     this.enabled = val;
