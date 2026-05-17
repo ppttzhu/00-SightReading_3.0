@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { usePublish, useFetchRemote } from '../../core/storage/useRemoteSync';
 import { useAppStore } from '../../core/store/useAppStore';
+import AccountMenu from '../../components/auth/AccountMenu';
 
 export default function CMSLayout() {
   const { publish, status, error } = usePublish();
@@ -34,6 +35,9 @@ export default function CMSLayout() {
     <div className="cms-layout" style={{ display: 'flex', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       <aside style={{ width: '250px', background: '#f4f4f5', padding: '20px', borderRight: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column' }}>
         <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#18181b' }}>智能教研引擎</h2>
+        <div style={{ marginBottom: '18px' }}>
+          <AccountMenu />
+        </div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
           {navItems.map(item => (
             <Link

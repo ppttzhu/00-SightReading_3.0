@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useFetchRemote } from '../../core/storage/useRemoteSync';
 import FeedbackDrawer from '../../components/FeedbackDrawer';
+import AccountMenu from '../../components/auth/AccountMenu';
 
 export default function ClientLayout() {
   const { fetchRemote, status } = useFetchRemote();
@@ -35,9 +36,7 @@ export default function ClientLayout() {
           {status === 'loading' && (
             <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>⏳ Syncing...</span>
           )}
-          <span style={{ background: '#fef3c7', color: '#d97706', padding: '6px 16px', borderRadius: '20px', fontWeight: '800', fontSize: '1.1rem' }}>
-            ⭐ 120
-          </span>
+          <AccountMenu />
         </div>
       </header>
       <main style={{ flex: 1, padding: '40px', display: 'flex', flexDirection: 'column' }}>
