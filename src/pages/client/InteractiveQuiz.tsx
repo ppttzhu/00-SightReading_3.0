@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
-import { mapKeyToNote } from './keyboardInput';
+import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
+import { extractNoteAnswer, enharmonicEqual } from './noteAnswer';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -67,6 +68,9 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
 };
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const SHARP_NOTES = ['C#', 'D#', 'F#', 'G#', 'A#'];
+const FLAT_NOTES = ['Db', 'Eb', 'Gb', 'Ab', 'Bb'];
+const ALL_NOTE_ANSWERS = [...NOTE_NAMES, ...SHARP_NOTES, ...FLAT_NOTES];
 
 function generateOptions(slice: Slice): string[] {
   let correct = '';
@@ -74,9 +78,9 @@ function generateOptions(slice: Slice): string[] {
 
   switch (slice.type) {
     case 'A':
-      // Extract just the note letter (e.g., "C#4" → "C", "Bb3" → "B")
-      correct = (slice.content.pitch || '').charAt(0).toUpperCase();
-      return NOTE_NAMES; // Always show all 7 notes
+      correct = extractNoteAnswer(slice.content.pitch || '');
+      pool = ALL_NOTE_ANSWERS;
+      break;
     case 'B': {
       // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
       const answer = slice.content.answer;
@@ -141,7 +145,7 @@ function PianoKeyboard({ onAnswer }: { onAnswer: (note: string) => void }) {
         </g>
       ))}
       {blacks.map(({ name, pos }) => (
-        <g key={name} onClick={() => onAnswer(name.charAt(0))} style={{ cursor: 'pointer' }}>
+        <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
           <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
             fill="#1f2937" rx={4} />
         </g>
@@ -347,14 +351,33 @@ export default function InteractiveQuiz() {
   const sliceType = currentSlice?.type;
   useEffect(() => {
     if (sliceType !== 'A' || usePiano) return;
+    // Buffer note-letter and accidental keys within a short window so that
+    // sequences like "C" + "#" resolve to a single "C#" answer.
+    const WINDOW_MS = 300;
+    let buffer: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const flush = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      const answer = parseNoteKeys(buffer);
+      buffer = [];
+      if (answer) handleAnswerRef.current(answer);
+    };
+
     const onKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const note = mapKeyToNote(e.key);
-      if (!note) return;
-      handleAnswerRef.current(note);
+      const isLetter = mapKeyToNote(e.key) !== null;
+      const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
+      if (!isLetter && !isAccidental) return;
+      buffer.push(e.key);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(flush, WINDOW_MS);
     };
     window.addEventListener('keydown', onKeydown);
-    return () => window.removeEventListener('keydown', onKeydown);
+    return () => {
+      window.removeEventListener('keydown', onKeydown);
+      if (timer) clearTimeout(timer);
+    };
   }, [sliceType, usePiano]);
 
   if (!stage) {
@@ -377,7 +400,7 @@ export default function InteractiveQuiz() {
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
     switch (currentSlice.type) {
-      case 'A': return (currentSlice.content.pitch || '').charAt(0).toUpperCase();
+      case 'A': return extractNoteAnswer(currentSlice.content.pitch || '');
       case 'B': {
         // Prefer the explicit answer field; fall back to SYMBOL_MAP for legacy data
         if (currentSlice.content.answer) return currentSlice.content.answer;
@@ -390,10 +413,12 @@ export default function InteractiveQuiz() {
     }
   };
 
-  const handleAnswer = (answer: string) => {
+  const handleAnswer = (answer: string, enharmonic = false) => {
     if (feedback !== 'none') return;
     const correct = getCorrectAnswer();
-    const isCorrect = answer === correct;
+    const isCorrect = enharmonic && currentSlice?.type === 'A'
+      ? enharmonicEqual(answer, correct)
+      : answer === correct;
 
     if (isCorrect) {
       setFeedback('correct');
@@ -475,12 +500,13 @@ export default function InteractiveQuiz() {
 
         {/* 选项区 */}
         {currentSlice?.type === 'A' && usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} />
+          <PianoKeyboard onAnswer={(a) => handleAnswer(a, true)} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.type === 'A' && hasFinePointer && (
               <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 也可作答
+                提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 作答；
+                升号按 <strong style={{ color: '#6b7280' }}>#</strong>，降号按 <strong style={{ color: '#6b7280' }}>-</strong> 或 <strong style={{ color: '#6b7280' }}>b</strong>
               </div>
             )}
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>

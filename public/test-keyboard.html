@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>键盘输入手测 — Sharp/Flat</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ok: #10b981;
+    --bad: #ef4444;
+    --muted: #9ca3af;
+    --bg: #f9fafb;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #111827;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+  h1 { margin: 0 0 8px; font-size: 1.5rem; }
+  p.help { color: #4b5563; max-width: 640px; text-align: center; line-height: 1.6; }
+  kbd {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.9em;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 32px;
+    margin: 20px 0;
+    min-width: 320px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .target-label { color: var(--muted); font-size: 0.875rem; margin-bottom: 8px; }
+  .target {
+    font-size: 5rem;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .status { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 0.95rem; }
+  .status .k { color: var(--muted); text-align: right; }
+  .status .v { font-family: ui-monospace, Menlo, monospace; min-height: 1.4em; }
+  .feedback {
+    margin-top: 12px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    min-height: 1.4em;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  .controls { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+  button {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #374151;
+  }
+  button:hover { background: #f3f4f6; }
+  .checklist {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(56px, 1fr));
+    gap: 6px;
+    max-width: 560px;
+    margin-top: 8px;
+  }
+  .chip {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 4px;
+    text-align: center;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.95rem;
+    background: white;
+    color: #6b7280;
+  }
+  .chip.done { background: #d1fae5; border-color: var(--ok); color: #065f46; }
+  .chip.current { outline: 2px solid #3b82f6; outline-offset: 1px; }
+  .progress { color: var(--muted); font-size: 0.875rem; margin-top: 4px; }
+  .done-banner {
+    background: #ecfdf5; border: 1px solid var(--ok); color: #065f46;
+    padding: 16px 24px; border-radius: 12px; font-weight: 700;
+    display: none;
+  }
+  .done-banner.show { display: block; }
+</style>
+</head>
+<body>
+  <h1>🎹 键盘输入手测</h1>
+  <p class="help">
+    按键盘输入下面显示的音名。升号 = <kbd>#</kbd> 或 <kbd>+</kbd> 或 <kbd>=</kbd>；
+    降号 = <kbd>-</kbd> 或 <kbd>_</kbd>。
+    <br>300ms 时间窗内的按键会合并，例如：按 <kbd>C</kbd> 后立刻按 <kbd>#</kbd> → C#。
+  </p>
+
+  <div class="card">
+    <div class="target-label">请按出：</div>
+    <div class="target" id="target">—</div>
+  </div>
+
+  <div class="card" style="min-width: 360px;">
+    <div class="status">
+      <div class="k">按键 buffer：</div><div class="v" id="buf">—</div>
+      <div class="k">解析结果：</div><div class="v" id="parsed">—</div>
+    </div>
+    <div class="feedback" id="feedback">&nbsp;</div>
+    <div class="controls">
+      <button id="skip">跳过 / 下一个 →</button>
+      <button id="reset">重置全部</button>
+    </div>
+  </div>
+
+  <div class="done-banner card" id="banner">🎉 全部完成！</div>
+
+  <div class="progress">进度：<span id="done">0</span> / <span id="total">0</span></div>
+  <div class="checklist" id="checklist"></div>
+
+<script>
+'use strict';
+
+// === Mirror of src/pages/client/keyboardInput.ts ===
+// Keep this in sync if the source changes. This page is a manual test harness
+// for the keyboard input logic and intentionally has no React/build deps.
+
+const NOTE_KEYS = new Set(['C','D','E','F','G','A','B']);
+const SHARP_KEYS = new Set(['#','+','=']);
+const FLAT_KEYS  = new Set(['-','_']);
+
+function mapKeyToNote(key) {
+  if (!key || key.length !== 1) return null;
+  const u = key.toUpperCase();
+  return NOTE_KEYS.has(u) ? u : null;
+}
+function isSharpKey(key) { return SHARP_KEYS.has(key); }
+function isFlatKey(key)  { return FLAT_KEYS.has(key); }
+
+function parseNoteKeys(keys) {
+  let letter = null;
+  let accidental = '';
+  for (const k of keys) {
+    if (!k) continue;
+    if (k === 'b' || k === 'B') {
+      if (letter === null) letter = 'B';
+      else accidental = 'b';
+      continue;
+    }
+    if (k.length === 1 && NOTE_KEYS.has(k.toUpperCase())) {
+      letter = k.toUpperCase();
+      continue;
+    }
+    if (SHARP_KEYS.has(k)) { accidental = '#'; continue; }
+    if (FLAT_KEYS.has(k))  { accidental = 'b'; continue; }
+  }
+  if (!letter) return null;
+  return letter + accidental;
+}
+
+// === Targets — all naturals + all sharps + all flats ===
+const TARGETS = [
+  'C','D','E','F','G','A','B',
+  'C#','D#','E#','F#','G#','A#','B#',
+  'Cb','Db','Eb','Fb','Gb','Ab','Bb',
+];
+
+const WINDOW_MS = 300;
+
+// === State ===
+let order = [];
+let cursor = 0;
+const done = new Set();
+let buffer = [];
+let timer = null;
+
+// === DOM ===
+const $target = document.getElementById('target');
+const $buf = document.getElementById('buf');
+const $parsed = document.getElementById('parsed');
+const $feedback = document.getElementById('feedback');
+const $done = document.getElementById('done');
+const $total = document.getElementById('total');
+const $checklist = document.getElementById('checklist');
+const $banner = document.getElementById('banner');
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildChecklist() {
+  $checklist.innerHTML = '';
+  TARGETS.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'chip';
+    el.id = 'chip-' + t;
+    el.textContent = t;
+    $checklist.appendChild(el);
+  });
+}
+
+function refreshChecklist() {
+  TARGETS.forEach(t => {
+    const el = document.getElementById('chip-' + t);
+    if (!el) return;
+    el.classList.toggle('done', done.has(t));
+    el.classList.toggle('current', t === currentTarget());
+  });
+}
+
+function currentTarget() {
+  if (cursor >= order.length) return null;
+  return order[cursor];
+}
+
+function renderTarget() {
+  const t = currentTarget();
+  $target.textContent = t || '—';
+  $banner.classList.toggle('show', !t);
+  refreshChecklist();
+  $done.textContent = String(done.size);
+  $total.textContent = String(TARGETS.length);
+}
+
+function showStatus() {
+  $buf.textContent = buffer.length ? buffer.map(k => k === ' ' ? '␣' : k).join(' + ') : '—';
+  const parsed = parseNoteKeys(buffer);
+  $parsed.textContent = parsed || '—';
+}
+
+function flush() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  const parsed = parseNoteKeys(buffer);
+  const target = currentTarget();
+  if (!target) { buffer = []; showStatus(); return; }
+  if (parsed === target) {
+    $feedback.textContent = '✓ 正确：' + parsed;
+    $feedback.className = 'feedback ok';
+    done.add(target);
+    cursor++;
+    setTimeout(() => {
+      $feedback.textContent = ' ';
+      $feedback.className = 'feedback';
+      renderTarget();
+    }, 600);
+  } else if (parsed) {
+    $feedback.textContent = '✗ 错误：你输入了 ' + parsed + '，目标是 ' + target;
+    $feedback.className = 'feedback bad';
+    setTimeout(() => {
+      $feedback.textContent = ' ';
+      $feedback.className = 'feedback';
+    }, 1200);
+  }
+  buffer = [];
+  showStatus();
+}
+
+function onKeydown(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const isLetter = mapKeyToNote(e.key) !== null;
+  const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
+  if (!isLetter && !isAccidental) return;
+  e.preventDefault();
+  buffer.push(e.key);
+  showStatus();
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(flush, WINDOW_MS);
+}
+
+function reset() {
+  order = shuffle(TARGETS);
+  cursor = 0;
+  done.clear();
+  buffer = [];
+  if (timer) { clearTimeout(timer); timer = null; }
+  $feedback.textContent = ' ';
+  $feedback.className = 'feedback';
+  renderTarget();
+  showStatus();
+}
+
+document.getElementById('skip').addEventListener('click', () => {
+  cursor++;
+  buffer = [];
+  if (timer) { clearTimeout(timer); timer = null; }
+  showStatus();
+  renderTarget();
+});
+document.getElementById('reset').addEventListener('click', reset);
+window.addEventListener('keydown', onKeydown);
+
+buildChecklist();
+reset();
+</script>
+</body>
+</html>
