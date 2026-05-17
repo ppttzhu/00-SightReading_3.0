@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import { mapKeyToNote } from './keyboardInput';
 import PianoKeyboard from '../../components/PianoKeyboard';
 
 // ============================================================
@@ -153,7 +154,13 @@ export default function InteractiveQuiz() {
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [noteVisible, setNoteVisible] = useState(true);
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano';
+  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
+  // which excludes phones and most touch-only tablets.
+  const [hasFinePointer] = useState(() =>
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  );
 
   const currentSlice = stage?.slices[currentSliceIndex];
 
@@ -302,6 +309,23 @@ export default function InteractiveQuiz() {
     }
   }, [currentSlice]);
 
+  // Physical keyboard input for Notes (A-type) options mode.
+  // Ref lets us reference the latest handleAnswer (defined further down) while keeping
+  // the hook above the early return below, satisfying Rules of Hooks.
+  const handleAnswerRef = useRef<(answer: string) => void>(() => {});
+  const sliceType = currentSlice?.type;
+  useEffect(() => {
+    if (sliceType !== 'A' || usePiano) return;
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const note = mapKeyToNote(e.key);
+      if (!note) return;
+      handleAnswerRef.current(note);
+    };
+    window.addEventListener('keydown', onKeydown);
+    return () => window.removeEventListener('keydown', onKeydown);
+  }, [sliceType, usePiano]);
+
   if (!stage) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
@@ -364,6 +388,7 @@ export default function InteractiveQuiz() {
       setTimeout(() => setFeedback('none'), 600);
     }
   };
+  handleAnswerRef.current = handleAnswer;
 
   const progressPercent = ((currentSliceIndex) / stage.slices.length) * 100;
 
@@ -428,6 +453,12 @@ export default function InteractiveQuiz() {
         {currentSlice?.type === 'A' && usePiano ? (
           <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} />
         ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            {currentSlice?.type === 'A' && hasFinePointer && (
+              <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 也可作答
+              </div>
+            )}
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
             {options.map((opt, i) => (
               <button
@@ -477,6 +508,7 @@ export default function InteractiveQuiz() {
                 {opt}
               </button>
             ))}
+          </div>
           </div>
         )}
       </div>
