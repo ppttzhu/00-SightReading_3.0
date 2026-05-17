@@ -9,6 +9,12 @@ class AudioEngine {
   private activeNote: string | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
   public isReady = false;
+  public enabled = localStorage.getItem('audioEnabled') === 'true';
+
+  public setEnabled(val: boolean) {
+    this.enabled = val;
+    localStorage.setItem('audioEnabled', String(val));
+  }
 
   private constructor() {
     this.sampler = new Tone.Sampler({
@@ -62,7 +68,22 @@ class AudioEngine {
     }, NOTE_PLAY_MS);
   }
 
+  public stop() {
+    if (this.activeNote && this.sampler) {
+      this.sampler.triggerRelease(this.activeNote, Tone.now());
+      this.activeNote = null;
+    }
+    this.clearEndTimer();
+  }
+
+  public async prime() {
+    if (Tone.context.state !== 'running') {
+      await Tone.start();
+    }
+  }
+
   public async playNote(note: string) {
+    if (!this.enabled) return;
     if (Tone.context.state !== 'running') {
       await Tone.start();
     }
