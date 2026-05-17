@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-commit-build.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(openspec list *)",
+      "Bash(openspec validate *)",
+      "Bash(openspec show *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(./node_modules/.bin/tsc -b)",
+      "Bash(node_modules/.bin/tsc -b)",
+      "Bash(npm install *)",
+      "Read(//c/Users/Quan/AppData/Local/Temp/droid/C--Users-Quan-Desktop--------5--00-SightReading-3-0/96e8a195-b472-482c-8eb6-21bef8b1447e/tasks/**)",
+      "Bash(npx openspec *)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__new_page",
+      "Bash(curl *)",
+      "Bash(npx playwright *)",
+      "Bash(node *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'docs\\(spec\\): add feedback system change proposal *)",
+      "Bash(git commit -m 'docs\\(spec\\): add student UI localization change proposal *)",
+      "Bash(tasklist)",
+      "Bash(taskkill *)",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__press_key",
+      "mcp__chrome-devtools__emulate",
+      "mcp__chrome-devtools__select_page",
+      "Bash(git commit *)",
+      "Bash(openspec archive *)",
+      "Bash(cp -r openspec/changes/add-feedback-system openspec/changes/archive/2026-05-13-add-feedback-system)",
+      "Bash(cp -r openspec/changes/localize-student-ui-with-hints openspec/changes/archive/2026-05-13-localize-student-ui-with-hints)",
+      "Bash(git rm *)",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__resize_page",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(ls openspec/specs/)",
+      "Bash(ls openspec/changes/)",
+      "Bash(cat openspec/project.md)",
+      "Bash(git stash *)",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__fill",
+      "Bash(cp \"C:/Users/Quan/xwechat_files/wxid_iq660j53bizm22_0135/msg/file/2026-05/00-SightReading_3.0/src/core/engine/AudioEngine.ts\" \"C:/Users/Quan/Desktop/新建文件夹 \\(5\\)/00-SightReading_3.0/src/core/engine/AudioEngine.ts\")",
+      "Bash(cp \"C:/Users/Quan/xwechat_files/wxid_iq660j53bizm22_0135/msg/file/2026-05/00-SightReading_3.0/src/core/engine/pitchUtils.ts\" \"C:/Users/Quan/Desktop/新建文件夹 \\(5\\)/00-SightReading_3.0/src/core/engine/pitchUtils.ts\")",
+      "Bash(cp \"C:/Users/Quan/xwechat_files/wxid_iq660j53bizm22_0135/msg/file/2026-05/00-SightReading_3.0/public/audio/piano/\"*.mp3 \"C:/Users/Quan/Desktop/新建文件夹 \\(5\\)/00-SightReading_3.0/public/audio/piano/\")",
+      "Skill(update-config)",
+      "Bash(chmod +x *)",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)"
+    ]
+  }
+}

@@ -510,9 +510,8 @@ export default function InteractiveQuiz() {
             {options.map((opt, i) => (
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
-                onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
                 onClick={() => {
-                  if (currentSlice?.type === 'A') {
+                  if (audioEnabled && currentSlice?.type === 'A') {
                     void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
                   }
                   handleAnswer(opt);
@@ -541,6 +540,7 @@ export default function InteractiveQuiz() {
                   e.currentTarget.style.borderColor = '#e5e7eb';
                 }}
                 onMouseDown={e => {
+                  if (audioEnabled) void audioEngine.prime();
                   e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
                   e.currentTarget.style.background = '#f8fafc';
                   e.currentTarget.style.color = '#3b82f6';
