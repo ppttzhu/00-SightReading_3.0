@@ -88,7 +88,7 @@ export default function PracticeQuiz() {
   const low = searchParams.get('low') || 'C2';
   const high = searchParams.get('high') || 'C6';
 
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano';
+  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
 
   const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high));
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');

@@ -71,7 +71,7 @@ export default function StageSelector() {
         <>
           {/* Mode toggle: 练习 / 闯关 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '20px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            {([{ key: 'practice', label: '练习模式' }, { key: 'stages', label: '闯关模式' }] as const).map(m => (
+            {([{ key: 'stages', label: '闯关模式' }, { key: 'practice', label: '练习模式' }] as const).map(m => (
               <button
                 key={m.key}
                 onClick={() => setMode(m.key)}
@@ -89,7 +89,7 @@ export default function StageSelector() {
 
           {/* Input mode toggle (keyboard vs options) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            {(['piano', 'options'] as const).map(inputMode => (
+            {(['options', 'piano'] as const).map(inputMode => (
               <button
                 key={inputMode}
                 onClick={() => toggleMode(inputMode === 'piano')}
