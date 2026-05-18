@@ -8,7 +8,7 @@ function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onC
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '32px', width: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <h2 style={{ margin: '0 0 8px', color: '#1f2937', fontSize: '1.2rem' }}>确认清空题库</h2>
-        <p style={{ color: '#6b7280', margin: '0 0 20px', fontSize: '0.9rem' }}>此操作将删除全部题目且不可恢复。请在下方输入框中输入 <b>我确定要删除</b> 以确认。</p>
+        <p style={{ color: '#6b7280', margin: '0 0 20px', fontSize: '0.9rem' }}>此操作将删除全部题目且不可恢复。请在下方输入框中输入 <b>确定删除</b> 以确认。</p>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
