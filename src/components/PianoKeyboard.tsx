@@ -39,6 +39,7 @@ export default function PianoKeyboard({ onAnswer, feedback, referencePitch = 'C4
 
   const handlePress = useCallback((note: string) => {
     if (disabled) return;
+    if (audioEngine.enabled) void audioEngine.prime();
     setPressedKey(note);
   }, [disabled]);
 

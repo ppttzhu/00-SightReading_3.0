@@ -3,11 +3,20 @@ import * as Tone from 'tone';
 /** 采样尾音上限，用于在播完后允许再次触发同一音 */
 const NOTE_PLAY_MS = 5000;
 
+type NavigatorWithAudioSession = Navigator & {
+  audioSession?: {
+    type?: string;
+  };
+};
+
 class AudioEngine {
   private static instance: AudioEngine;
   private sampler: Tone.Sampler | null = null;
   private activeNote: string | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
+  private silentUnlockAudio: HTMLAudioElement | null = null;
+  private silentUnlockUrl: string | null = null;
+  private silentUnlockStarted = false;
   public isReady = false;
   public enabled = localStorage.getItem('audioEnabled') !== 'false';
 
@@ -68,6 +77,78 @@ class AudioEngine {
     }, NOTE_PLAY_MS);
   }
 
+  private isIOSWebAudioMuteCandidate() {
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isIPadOSDesktopMode = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return isIOS || isIPadOSDesktopMode;
+  }
+
+  private getSilentUnlockUrl() {
+    if (this.silentUnlockUrl) return this.silentUnlockUrl;
+
+    const sampleRate = 8000;
+    const durationSeconds = 0.25;
+    const sampleCount = sampleRate * durationSeconds;
+    const headerBytes = 44;
+    const dataBytes = sampleCount * 2;
+    const buffer = new ArrayBuffer(headerBytes + dataBytes);
+    const view = new DataView(buffer);
+
+    const writeString = (offset: number, value: string) => {
+      for (let i = 0; i < value.length; i += 1) {
+        view.setUint8(offset + i, value.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataBytes, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataBytes, true);
+
+    this.silentUnlockUrl = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+    return this.silentUnlockUrl;
+  }
+
+  private primeIOSMediaChannel() {
+    if (!this.isIOSWebAudioMuteCandidate()) return Promise.resolve();
+
+    const nav = navigator as NavigatorWithAudioSession;
+    if (nav.audioSession) {
+      nav.audioSession.type = 'playback';
+    }
+
+    if (!this.silentUnlockAudio) {
+      const audio = document.createElement('audio');
+      audio.src = this.getSilentUnlockUrl();
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.setAttribute('playsinline', 'true');
+      audio.setAttribute('x-webkit-airplay', 'deny');
+      audio.style.display = 'none';
+      document.body.appendChild(audio);
+      this.silentUnlockAudio = audio;
+    }
+
+    if (this.silentUnlockStarted) return Promise.resolve();
+
+    const playPromise = this.silentUnlockAudio.play();
+    this.silentUnlockStarted = true;
+    return playPromise.catch((error) => {
+      this.silentUnlockStarted = false;
+      console.warn('[AudioEngine] iOS silent-mode unlock failed:', error);
+    });
+  }
+
   public stop() {
     if (this.activeNote && this.sampler) {
       this.sampler.triggerRelease(this.activeNote, Tone.now());
@@ -77,13 +158,14 @@ class AudioEngine {
   }
 
   public async prime() {
-    if (Tone.context.state !== 'running') {
-      await Tone.start();
-    }
+    const unlockPromise = this.primeIOSMediaChannel();
+    const toneStartPromise = Tone.context.state !== 'running' ? Tone.start() : Promise.resolve();
+    await Promise.allSettled([unlockPromise, toneStartPromise]);
   }
 
   public async playNote(note: string) {
     if (!this.enabled) return;
+    await this.prime();
     if (Tone.context.state !== 'running') {
       await Tone.start();
     }
