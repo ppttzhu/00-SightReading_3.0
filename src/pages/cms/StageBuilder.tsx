@@ -48,6 +48,7 @@ export default function StageBuilder() {
   const removeSlice = useAppStore(state => state.removeSlice);
   const clearPool = useAppStore(state => state.clearPool);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [filterType, setFilterType] = useState<string>('A');
 
   // 按类型分组统计
   const stats = {
@@ -102,6 +103,31 @@ export default function StageBuilder() {
         <span style={{ color: '#1e40af' }}>📊 共 <b>{totalQuestions}</b> 道题目，自动生成 <b>{totalStages}</b> 个关卡</span>
       </div>
 
+      {/* 类型筛选 */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        {(['A', 'B', 'C', 'D'] as const).map(type => {
+          const active = filterType === type;
+          return (
+            <button
+              key={type}
+              onClick={() => setFilterType(type)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: active ? '2px solid ' + TYPE_COLORS[type] : '1px solid #e5e7eb',
+                background: active ? `${TYPE_COLORS[type]}15` : 'white',
+                color: active ? TYPE_COLORS[type] : '#6b7280',
+                fontWeight: active ? 'bold' : 'normal',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              {TYPE_LABELS[type]}池 ({stats[type]})
+            </button>
+          );
+        })}
+      </div>
+
       {/* 题目列表 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {slicesPool.length === 0 ? (
@@ -109,7 +135,9 @@ export default function StageBuilder() {
             题库为空。请通过"文件解析器"或"手动出题器"添加题目。
           </div>
         ) : (
-          slicesPool.map(slice => (
+          slicesPool
+            .filter(slice => slice.type === filterType)
+            .map(slice => (
             <div
               key={slice.id}
               style={{
