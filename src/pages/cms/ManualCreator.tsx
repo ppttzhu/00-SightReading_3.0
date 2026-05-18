@@ -225,6 +225,18 @@ export default function ManualCreator() {
       if (type === 'B' && line.includes('|')) {
         const [symbol, answer] = line.split('|').map(s => s.trim());
         contentObj = { symbol, answer };
+      } else if (type === 'C' && !line.includes('|') && line.includes(',')) {
+        const [startNote, interval] = line.split(',').map(s => s.trim());
+        const secondNote = calcSecondNote(startNote, interval);
+        if (startNote && interval && secondNote) {
+          contentObj = {
+            theory: interval,
+            notes: [startNote, secondNote],
+            raw: `${startNote},${secondNote}|${interval}`,
+          };
+        } else {
+          contentObj = buildContent(type, line);
+        }
       } else {
         contentObj = buildContent(type, line);
       }
@@ -403,9 +415,13 @@ export default function ManualCreator() {
           <textarea
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
-            placeholder={type === 'B'
-              ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
-              : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`}
+            placeholder={
+              type === 'B'
+                ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
+                : type === 'C'
+                ? `每行格式: 起始音,音程名  或  音1,音2|音程名\n例如：\nC4,纯五度 (P5)\nD4,大三度 (M3)\nE4,G4|大三度 (M3)`
+                : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`
+            }
             style={{
               width: '100%', height: '200px', padding: '16px', borderRadius: '8px',
               border: '1px solid #d1d5db', fontSize: '1rem', resize: 'vertical',
