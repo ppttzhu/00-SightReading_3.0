@@ -1,15 +1,35 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote } from './keyboardInput';
 import PianoKeyboard from '../../components/PianoKeyboard';
+import QuestionTimer from '../../components/QuestionTimer';
+import StageCompleteModal from '../../components/StageCompleteModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { useAuth } from '../../core/auth/AuthProvider';
+import { resolveDisplayName } from '../../core/leaderboard/displayName';
+import { submitScore } from '../../core/leaderboard/leaderboardService';
+import TrainingLeaderboardButtons from '../../components/TrainingLeaderboardButtons';
+import type { LeaderboardEntry } from '../../core/leaderboard/types';
+import { labelFromSlice } from '../../core/practice/labels';
+import type { PracticeInsights } from '../../core/practice/questionTracker';
+import { useQuestionTracker } from '../../hooks/useQuestionTracker';
+
+function getQuestionSubtitle(type: Slice['type']): string {
+  switch (type) {
+    case 'A': return '\u8bc6\u522b\u8fd9\u4e2a\u97f3\u7b26';
+    case 'B': return '\u8fd9\u662f\u4ec0\u4e48\u97f3\u4e50\u8bb0\u53f7\uff1f';
+    case 'C': return '\u8bc6\u522b\u8fd9\u4e2a\u97f3\u7a0b';
+    case 'D': return '\u8bc6\u522b\u8fd9\u4e2a\u97f3\u578b';
+    default: return '\u8bf7\u4f5c\u7b54';
+  }
+}
 
 // ============================================================
-// 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
+// ??????????? (? C#5) ??? VexFlow ? key ? accidental
 // ============================================================
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
@@ -21,52 +41,51 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
 }
 
 // ============================================================
-// 选项生成器 (为每个类型生成正确答案 + 3 个干扰项)
+// ????? (??????????? + 3 ????)
 // ============================================================
 
 const ALL_INTERVALS = [
-  '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
-  '纯四度 (P4)', '三全音 (TT)', '纯五度 (P5)',
-  '小六度 (m6)', '大六度 (M6)', '小七度 (m7)', '大七度 (M7)', '纯八度 (P8)'
+  '??? (m2)', '??? (M2)', '??? (m3)', '??? (M3)',
+  '??? (P4)', '??? (TT)', '??? (P5)',
+  '??? (m6)', '??? (M6)', '??? (m7)', '??? (M7)', '??? (P8)'
 ];
 
-// 符号简称 → 含义标签映射
-// 选项只显示「含义」，不含缩写前缀，防止题目中的缩写直接暗示答案
+// ???? ? ??????
+// ???????????????????????????????
 const SYMBOL_MAP: Record<string, string> = {
-  'pp':       '极弱 (pianissimo)',
-  'p':        '弱 (piano)',
-  'mp':       '中弱 (mezzo-piano)',
-  'mf':       '中强 (mezzo-forte)',
-  'f':        '强 (forte)',
-  'ff':       '极强 (fortissimo)',
-  'fff':      '最强 (fortississimo)',
-  'staccato': '断音 (staccato)',
-  'accent':   '重音 (accent >)',
-  'tenuto':   '保持音 (tenuto —)',
-  'fermata':  '延音记号 (fermata 𝄐)',
-  'sfz':      '突强 (sforzando)',
-  'fp':       '强后立弱 (forte-piano)',
-  'marcato':  '顿音 (marcato ^)',
-  'trill':    '颤音 (trill tr)',
+  'pp':       '?? (pianissimo)',
+  'p':        '? (piano)',
+  'mp':       '?? (mezzo-piano)',
+  'mf':       '?? (mezzo-forte)',
+  'f':        '? (forte)',
+  'ff':       '?? (fortissimo)',
+  'fff':      '?? (fortississimo)',
+  'staccato': '?? (staccato)',
+  'accent':   '?? (accent >)',
+  'tenuto':   '??? (tenuto ?)',
+  'fermata':  '???? (fermata ??)',
+  'sfz':      '?? (sforzando)',
+  'fp':       '???? (forte-piano)',
+  'marcato':  '?? (marcato ^)',
+  'trill':    '?? (trill tr)',
 };
 
 const ALL_SYMBOLS = Object.values(SYMBOL_MAP);
 
 const ALL_PATTERNS = [
-  '上行音阶跑动', '下行音阶跑动', '分解和弦', '琶音上行',
-  '琶音下行', 'Alberti Bass', '重复音型', '八度跳进'
+  '\u4e0a\u884c\u97f3\u9636\u8dd1\u52a8', '\u4e0b\u884c\u97f3\u9636\u8dd1\u52a8', '\u5206\u89e3\u548c\u5f26', '\u7434\u97f3\u4e0a\u884c',
+  '\u7434\u97f3\u4e0b\u884c', 'Alberti Bass', '\u91cd\u590d\u97f3\u578b', '\u516b\u5ea6\u8df3\u8fdb'
 ];
 
-// 音型名称 → 预置示例音符（当 raw 字符串中无法解析出音符时作为兜底）
 const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
-  '上行音阶跑动': ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'],
-  '下行音阶跑动': ['A4', 'G4', 'F4', 'E4', 'D4', 'C4'],
-  '分解和弦':    ['C4', 'E4', 'G4', 'C5'],
-  '琶音上行':    ['C4', 'E4', 'G4', 'C5'],
-  '琶音下行':    ['C5', 'G4', 'E4', 'C4'],
+  '\u4e0a\u884c\u97f3\u9636\u8dd1\u52a8': ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'],
+  '\u4e0b\u884c\u97f3\u9636\u8dd1\u52a8': ['A4', 'G4', 'F4', 'E4', 'D4', 'C4'],
+  '\u5206\u89e3\u548c\u5f26': ['C4', 'E4', 'G4', 'C5'],
+  '\u7434\u97f3\u4e0a\u884c': ['C4', 'E4', 'G4', 'C5'],
+  '\u7434\u97f3\u4e0b\u884c': ['C5', 'G4', 'E4', 'C4'],
   'Alberti Bass': ['C4', 'G4', 'E4', 'G4'],
-  '重复音型':    ['G4', 'G4', 'G4', 'G4'],
-  '八度跳进':    ['C4', 'C5', 'C4', 'C5'],
+  '\u91cd\u590d\u97f3\u578b': ['G4', 'G4', 'G4', 'G4'],
+  '\u516b\u5ea6\u8df3\u8fdb': ['C4', 'C5', 'C4', 'C5'],
 };
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -77,7 +96,7 @@ function generateOptions(slice: Slice): string[] {
 
   switch (slice.type) {
     case 'A':
-      // Extract just the note letter (e.g., "C#4" → "C", "Bb3" → "B")
+      // Extract just the note letter (e.g., "C#4" ? "C", "Bb3" ? "B")
       correct = (slice.content.pitch || '').charAt(0).toUpperCase();
       return NOTE_NAMES; // Always show all 7 notes
     case 'B': {
@@ -96,10 +115,10 @@ function generateOptions(slice: Slice): string[] {
     }
     case 'C':
       correct = slice.content.theory || slice.content.raw || '';
-      // 如果是音程，用音程池；如果是和弦或调号，用自身作为正确答案
-      pool = correct.includes('度') || correct.includes('P') || correct.includes('m')
+      // ?????????????????????????????
+      pool = correct.includes('?') || correct.includes('P') || correct.includes('m')
         ? ALL_INTERVALS
-        : ['C大调', 'G大调', 'D大调', 'F大调', 'Bb大调', 'A大调', 'Eb大调', 'E大调',
+        : ['C??', 'G??', 'D??', 'F??', 'Bb??', 'A??', 'Eb??', 'E??',
            'C Major Chord', 'G Major Chord', 'D Minor Chord', 'F Major Chord',
            'Am Chord', 'Em Chord', 'Dm Chord'];
       break;
@@ -109,26 +128,30 @@ function generateOptions(slice: Slice): string[] {
       break;
   }
 
-  if (!correct) return ['—', '—', '—', '—'];
+  if (!correct) return ['?', '?', '?', '?'];
 
-  // 从池中选 3 个不等于正确答案的干扰项
+  // ???? 3 ????????????
   const distractors = pool
     .filter(p => p !== correct)
     .sort(() => Math.random() - 0.5)
     .slice(0, 3);
 
-  // 混合并打乱
+  // ?????
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
 // ============================================================
-// 组件
+// ??
 // ============================================================
 export default function InteractiveQuiz() {
   const { stageId } = useParams();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageStartRef = useRef(Date.now());
+  const questionStartRef = useRef(Date.now());
+  const { record: recordAttempt, getInsights } = useQuestionTracker();
 
+  const { user, profile } = useAuth();
   const slicesPool = useAppStore(state => state.slicesPool);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
 
@@ -137,7 +160,7 @@ export default function InteractiveQuiz() {
 
   const { stage, stageIndex } = useMemo(() => {
     const parts = stageId?.split('_') || [];
-    // 自定义关卡 id 格式: custom_xxx；自动关卡: auto_moduleId_stage_n
+    // ????? id ??: custom_xxx?????: auto_moduleId_stage_n
     const moduleId = parts[0] === 'custom'
       ? (useAppStore.getState().customStages.find(cs => cs.id === stageId)?.module || '')
       : parts[1] || '';
@@ -156,6 +179,10 @@ export default function InteractiveQuiz() {
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [noteVisible, setNoteVisible] = useState(true);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [completionTimeMs, setCompletionTimeMs] = useState(0);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
+  const [practiceInsights, setPracticeInsights] = useState<PracticeInsights | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
@@ -175,6 +202,38 @@ export default function InteractiveQuiz() {
 
   const currentSlice = stage?.slices[currentSliceIndex];
 
+  useEffect(() => {
+    stageStartRef.current = Date.now();
+    setShowCompleteModal(false);
+  }, [stageId, sessionKey]);
+
+  useEffect(() => {
+    questionStartRef.current = Date.now();
+  }, [currentSliceIndex]);
+
+  const handleStageComplete = useCallback(async () => {
+    const timeMs = Date.now() - stageStartRef.current;
+    const displayName = resolveDisplayName(profile?.nickname);
+    setCompletionTimeMs(timeMs);
+    setPracticeInsights(getInsights());
+    unlockNextStage(stage!.module, stageIndex);
+    const entries = await submitScore({
+      stageId: stage!.id,
+      moduleId: stage!.module,
+      displayName,
+      authUserId: user?.id,
+      timeMs,
+      perfect: true,
+    });
+    setLeaderboardEntries(entries);
+    setShowCompleteModal(true);
+  }, [user?.id, profile?.nickname, stage, stageIndex, unlockNextStage, getInsights]);
+
+  const handleCloseCompleteModal = useCallback(() => {
+    setShowCompleteModal(false);
+    navigate(-1);
+  }, [navigate]);
+
   // Blink effect: show note for 3s, hide for 6s, loop
   useEffect(() => {
     setNoteVisible(true);
@@ -193,13 +252,13 @@ export default function InteractiveQuiz() {
   }, [currentSliceIndex]);
 
   // ============================================================
-  // VexFlow 渲染 (根据题目类型绘制不同内容)
+  // VexFlow ?? (????????????)
   // ============================================================
   useEffect(() => {
     if (!containerRef.current || !currentSlice) return;
     containerRef.current.innerHTML = '';
 
-    // B 类（符号）不使用 VexFlow，用纯文字展示
+    // B ???????? VexFlow???????
     if (currentSlice.type === 'B') return;
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
@@ -207,13 +266,13 @@ export default function InteractiveQuiz() {
     renderer.resize(width, 200);
     const context = renderer.getContext();
 
-    // 根据音高决定谱号 (仅 A 类单音)
+    // ???????? (? A ???)
     let clef = 'treble';
     if (currentSlice.type === 'A') {
       const pitch = currentSlice.content.pitch || '';
       const noteChar = pitch.charAt(0).toUpperCase();
       const octave = parseInt(pitch.charAt(pitch.length - 1));
-      // 将音名转为数值用于比较: C=0,D=1,E=2,F=3,G=4,A=5,B=6
+      // ???????????: C=0,D=1,E=2,F=3,G=4,A=5,B=6
       const noteVal: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
       const pitchNum = (octave * 7) + (noteVal[noteChar] || 0);
       const e4Num = (4 * 7) + 2; // E4
@@ -235,7 +294,7 @@ export default function InteractiveQuiz() {
 
     try {
       if (currentSlice.type === 'A') {
-        // ---- A: 单音 → 画一个全音符 ----
+        // ---- A: ?? ? ?????? ----
         const { key, accidental } = parsePitchForVexflow(currentSlice.content.pitch);
         const note = new StaveNote({ keys: [key], duration: "w", clef });
         if (accidental) note.addModifier(new Accidental(accidental));
@@ -247,10 +306,10 @@ export default function InteractiveQuiz() {
         voice.draw(context, stave);
 
       } else if (currentSlice.type === 'C') {
-        // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
+        // ---- C: ?? ? ???(???)????? ----
         const noteNames: string[] = currentSlice.content.notes || [];
         if (noteNames.length >= 2) {
-          // 音程：用二分音符，紧缩间距
+          // ?????????????
           const vfNotes = noteNames.map(n => {
             const { key, accidental } = parsePitchForVexflow(n);
             const note = new StaveNote({ keys: [key], duration: "h" });
@@ -267,21 +326,21 @@ export default function InteractiveQuiz() {
         }
 
       } else if (currentSlice.type === 'D') {
-        // ---- D: 音型 → 画四分音符序列 ----
+        // ---- D: ?? ? ??????? ----
         const rawStr: string = currentSlice.content.raw || currentSlice.content.pattern || '';
         console.log('[Pattern] raw:', rawStr, 'content:', JSON.stringify(currentSlice.content));
 
-        // 1. 从 raw 字符串提取带八度音符，如 C4、F#3、Bb5
+        // 1. ? raw ???????????? C4?F#3?Bb5
         let noteNames: string[] = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
         console.log('[Pattern] step1 fromRaw:', noteNames);
 
-        // 2. 没有则尝试 content.notes
+        // 2. ????? content.notes
         if (noteNames.length < 2 && Array.isArray(currentSlice.content.notes) && currentSlice.content.notes.length >= 2) {
           noteNames = currentSlice.content.notes;
           console.log('[Pattern] step2 fromNotes:', noteNames);
         }
 
-        // 3. 兜底：按音型名称查预置示例音符
+        // 3. ???????????????
         if (noteNames.length < 2) {
           for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
             if (rawStr.includes(key)) {
@@ -292,7 +351,7 @@ export default function InteractiveQuiz() {
           }
         }
 
-        // 4. 最终兜底：C大调上行音阶示例
+        // 4. ?????C????????
         if (noteNames.length < 2) {
           noteNames = ['C4', 'D4', 'E4', 'F4', 'G4'];
           console.log('[Pattern] step4 ultimateFallback:', noteNames);
@@ -308,7 +367,7 @@ export default function InteractiveQuiz() {
         });
 
         const totalBeats = vfNotes.length;
-        // SOFT 模式：不严格校验总拍数，避免静默失败
+        // SOFT ??????????????????
         const voice = new Voice({ numBeats: totalBeats, beatValue: 4 });
         voice.setMode(2); // SOFT mode
         voice.addTickables(vfNotes);
@@ -349,7 +408,7 @@ export default function InteractiveQuiz() {
   }
 
   // ============================================================
-  // 选项与判题
+  // ?????
   // ============================================================
   const options = useMemo(() => {
     if (!currentSlice) return [];
@@ -380,9 +439,16 @@ export default function InteractiveQuiz() {
   };
 
   const handleAnswer = (answer: string) => {
-    if (feedback !== 'none') return;
+    if (feedback !== 'none' || !currentSlice) return;
     const correct = getCorrectAnswer();
     const isCorrect = answer === correct;
+    const { label, category } = labelFromSlice(currentSlice);
+    recordAttempt({
+      label,
+      category,
+      timeMs: Date.now() - questionStartRef.current,
+      correct: isCorrect,
+    });
 
     if (isCorrect) {
       setFeedback('correct');
@@ -392,9 +458,7 @@ export default function InteractiveQuiz() {
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
-          unlockNextStage(stage.module, stageIndex);
-          navigate(-1);
-          setTimeout(() => alert('🎉 Stage Cleared!'), 100);
+          void handleStageComplete();
         }
       }, 800);
     } else {
@@ -406,7 +470,7 @@ export default function InteractiveQuiz() {
 
   const progressPercent = ((currentSliceIndex) / stage.slices.length) * 100;
 
-  // B 类的题目用纯文字大卡片展示（不用 VexFlow）
+  // B ???????????????? VexFlow?
   const isSymbolType = currentSlice?.type === 'B';
 
   return (
@@ -420,9 +484,11 @@ export default function InteractiveQuiz() {
         >
           Quit
         </button>
-        <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
-          {stage.title} <span style={{ color: '#9ca3af', fontWeight: '500', marginLeft: '10px' }}>{currentSliceIndex + 1} / {stage.slices.length}</span>
-        </h2>
+        <TrainingLeaderboardButtons moduleId={stage.module} compact>
+          <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
+            {stage.title} <span style={{ color: '#9ca3af', fontWeight: '500', marginLeft: '10px' }}>{currentSliceIndex + 1} / {stage.slices.length}</span>
+          </h2>
+        </TrainingLeaderboardButtons>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
@@ -430,7 +496,7 @@ export default function InteractiveQuiz() {
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => { audioEngine.setEnabled(!audioEngine.enabled); if (audioEngine.enabled) void audioEngine.prime(); setAudioEnabled(audioEngine.enabled); setShowAudioTip(true); }}
-              title={audioEnabled ? '关闭音效' : '开启音效'}
+              title={audioEnabled ? '????' : '????'}
               style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.2s ease', color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
@@ -453,7 +519,7 @@ export default function InteractiveQuiz() {
             </button>
             {showAudioTip && (
               <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
-                {audioEnabled ? '音效已开启，答题时会播放音符声音' : '音效已关闭'}
+                {audioEnabled ? '????????????????' : '?????'}
                 <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
               </div>
             )}
@@ -462,7 +528,7 @@ export default function InteractiveQuiz() {
       </header>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        {/* 题目展示区 */}
+        {/* ????? */}
         <div
           className="quiz-card"
           style={{
@@ -482,28 +548,29 @@ export default function InteractiveQuiz() {
             border: '1px solid #f9fafb'
           }}
         >
+          <p className="quiz-question-subtitle">
+            {currentSlice ? getQuestionSubtitle(currentSlice.type) : ''}
+          </p>
+          <QuestionTimer resetKey={currentSliceIndex} paused={feedback !== 'none'} />
           {isSymbolType ? (
-            // B 类：显示符号简称（读单词），不显示括号里的详细解释
-            <div style={{ textAlign: 'center', opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+            <div style={{ textAlign: 'center', opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease', marginTop: '16px' }}>
               <div style={{ fontSize: '4rem', fontWeight: '800', color: '#1f2937', marginBottom: '10px', fontStyle: 'italic', fontFamily: 'serif' }}>
                 {currentSlice?.content.symbol || currentSlice?.content.raw || '?'}
               </div>
-              <div style={{ fontSize: '1rem', color: '#9ca3af' }}>这是什么音乐记号？</div>
             </div>
           ) : (
-            // A/C/D 类：用 VexFlow 渲染乐谱
-            <div ref={containerRef} id="vexflow-container" style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+            <div ref={containerRef} id="vexflow-container" style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease', marginTop: '16px' }}></div>
           )}
         </div>
 
-        {/* 选项区 */}
+        {/* ??? */}
         {currentSlice?.type === 'A' && usePiano ? (
           <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.type === 'A' && hasFinePointer && (
               <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 也可作答
+                ??: ??? <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> ????
               </div>
             )}
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
@@ -565,6 +632,18 @@ export default function InteractiveQuiz() {
           </div>
         )}
       </div>
+
+      {showCompleteModal && stageId && (
+        <StageCompleteModal
+          stageTitle={stage.title}
+          timeMs={completionTimeMs}
+          displayName={resolveDisplayName(profile?.nickname)}
+          stageId={stageId}
+          initialEntries={leaderboardEntries}
+          insights={practiceInsights}
+          onClose={handleCloseCompleteModal}
+        />
+      )}
     </div>
   );
 }

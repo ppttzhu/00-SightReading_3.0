@@ -2,6 +2,11 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import QuestionTimer from '../../components/QuestionTimer';
+import PracticeSummaryModal from '../../components/PracticeSummaryModal';
+import TrainingLeaderboardButtons from '../../components/TrainingLeaderboardButtons';
+import { labelFromInterval } from '../../core/practice/labels';
+import { useQuestionTracker } from '../../hooks/useQuestionTracker';
 
 // ============================================================
 // 音程数据
@@ -231,6 +236,8 @@ export default function IntervalPractice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
+  const questionStartRef = useRef(Date.now());
+  const { record: recordAttempt, getInsights, getAttemptCount } = useQuestionTracker();
 
   const type = searchParams.get('type') || '随机';
   const direction = searchParams.get('direction') || '随机';
@@ -245,11 +252,27 @@ export default function IntervalPractice() {
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
   const [noteVisible, setNoteVisible] = useState(true);
+  const [showSummary, setShowSummary] = useState(false);
+  const [questionKey, setQuestionKey] = useState(0);
 
   const nextQuestion = useCallback(() => {
     setCurrentQuestion(generateInterval(type, direction, clefPref, modePref));
     setNoteVisible(true);
+    setQuestionKey(k => k + 1);
+    questionStartRef.current = Date.now();
   }, [type, direction, clefPref, modePref]);
+
+  useEffect(() => {
+    questionStartRef.current = Date.now();
+  }, []);
+
+  const handleExit = () => {
+    if (getAttemptCount() > 0) {
+      setShowSummary(true);
+    } else {
+      navigate(-1);
+    }
+  };
 
   // Blink effect: show 3s, hide 6s
   useEffect(() => {
@@ -332,6 +355,13 @@ export default function IntervalPractice() {
     if (feedback !== 'none') return;
     const correct = currentQuestion.intervalName;
     const isCorrect = answer === correct;
+    const { label, category } = labelFromInterval(currentQuestion.intervalName);
+    recordAttempt({
+      label,
+      category,
+      timeMs: Date.now() - questionStartRef.current,
+      correct: isCorrect,
+    });
 
     setTotal(t => t + 1);
     if (isCorrect) {
@@ -362,20 +392,25 @@ export default function IntervalPractice() {
     }}>
       <header className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleExit}
           style={{ background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
         >
           退出练习
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {paramLabel && (
-            <span style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: '600' }}>
-              {paramLabel}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <TrainingLeaderboardButtons moduleId="theory" compact>
+            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>音程练习</span>
+          </TrainingLeaderboardButtons>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {paramLabel && (
+              <span style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: '600' }}>
+                {paramLabel}
+              </span>
+            )}
+            <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 14px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem' }}>
+              {score}/{total} ({accuracy}%)
             </span>
-          )}
-          <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 14px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem' }}>
-            {score}/{total} ({accuracy}%)
-          </span>
+          </div>
         </div>
       </header>
 
@@ -400,7 +435,9 @@ export default function IntervalPractice() {
             border: '1px solid #f9fafb'
           }}
         >
-          <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+          <p className="quiz-question-subtitle">识别这个音程</p>
+          <QuestionTimer resetKey={questionKey} paused={feedback !== 'none'} />
+          <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease', marginTop: '16px' }}></div>
         </div>
 
         {/* Options */}
@@ -463,6 +500,17 @@ export default function IntervalPractice() {
           </div>
         )}
       </div>
+
+      {showSummary && (
+        <PracticeSummaryModal
+          title={`音程练习${paramLabel ? ` (${paramLabel})` : ''}`}
+          score={score}
+          total={total}
+          insights={getInsights()}
+          onClose={() => setShowSummary(false)}
+          onConfirmExit={() => navigate(-1)}
+        />
+      )}
     </div>
   );
 }

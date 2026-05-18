@@ -3,8 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import PianoKeyboard from '../../components/PianoKeyboard';
+import QuestionTimer from '../../components/QuestionTimer';
+import PracticeSummaryModal from '../../components/PracticeSummaryModal';
+import TrainingLeaderboardButtons from '../../components/TrainingLeaderboardButtons';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { labelFromPitch } from '../../core/practice/labels';
+import { useQuestionTracker } from '../../hooks/useQuestionTracker';
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -59,6 +64,8 @@ export default function PracticeQuiz() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
+  const questionStartRef = useRef(Date.now());
+  const { record: recordAttempt, getInsights, getAttemptCount } = useQuestionTracker();
 
   const low = searchParams.get('low') || 'C2';
   const high = searchParams.get('high') || 'C6';
@@ -73,6 +80,8 @@ export default function PracticeQuiz() {
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [questionKey, setQuestionKey] = useState(0);
   useEffect(() => {
     setTipFading(false);
     const t1 = setTimeout(() => setTipFading(true), 3000);
@@ -85,7 +94,21 @@ export default function PracticeQuiz() {
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch));
     setNoteVisible(true);
+    setQuestionKey(k => k + 1);
+    questionStartRef.current = Date.now();
   }, [low, high, currentPitch]);
+
+  useEffect(() => {
+    questionStartRef.current = Date.now();
+  }, []);
+
+  const handleExit = () => {
+    if (getAttemptCount() > 0) {
+      setShowSummary(true);
+    } else {
+      navigate(-1);
+    }
+  };
 
   // Blink effect: show 3s, hide 6s
   useEffect(() => {
@@ -137,6 +160,13 @@ export default function PracticeQuiz() {
     if (feedback !== 'none') return;
     const correct = currentPitch.charAt(0).toUpperCase();
     const isCorrect = answer === correct;
+    const { label, category } = labelFromPitch(currentPitch);
+    recordAttempt({
+      label,
+      category,
+      timeMs: Date.now() - questionStartRef.current,
+      correct: isCorrect,
+    });
 
     setTotal(t => t + 1);
     if (isCorrect) {
@@ -161,11 +191,14 @@ export default function PracticeQuiz() {
     }}>
       <header className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleExit}
           style={{ background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
         >
           退出练习
         </button>
+        <TrainingLeaderboardButtons moduleId="notes" compact>
+          <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827' }}>单音练习</span>
+        </TrainingLeaderboardButtons>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '0.9rem', color: '#6b7280' }}>
             音域: {low} — {high}
@@ -227,7 +260,9 @@ export default function PracticeQuiz() {
             border: '1px solid #f9fafb'
           }}
         >
-          <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+          <p className="quiz-question-subtitle">识别这个音符</p>
+          <QuestionTimer resetKey={questionKey} paused={feedback !== 'none'} />
+          <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease', marginTop: '16px' }}></div>
         </div>
 
         {usePiano ? (
@@ -265,6 +300,17 @@ export default function PracticeQuiz() {
           </div>
         )}
       </div>
+
+      {showSummary && (
+        <PracticeSummaryModal
+          title={`单音练习 (${low} — ${high})`}
+          score={score}
+          total={total}
+          insights={getInsights()}
+          onClose={() => setShowSummary(false)}
+          onConfirmExit={() => navigate(-1)}
+        />
+      )}
     </div>
   );
 }

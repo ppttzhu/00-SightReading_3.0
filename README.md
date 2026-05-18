@@ -73,7 +73,8 @@ Do not put a Supabase secret key in any `VITE_` variable. Secret keys are server
 4. In **Authentication → Providers**, enable Email. Enable Phone only if phone login should be live.
 5. Keep third-party OAuth providers such as Google and Apple disabled.
 6. Run the SQL in `docs/supabase/auth.sql` from the Supabase SQL Editor.
-7. Public registration always creates `student` users. To create an admin, manually update a profile:
+7. Run the SQL in `docs/supabase/leaderboards.sql` in the same SQL Editor (persists stage / ability / effort rankings).
+8. Public registration always creates `student` users. To create an admin, manually update a profile:
 
 ```sql
 update public.profiles set role = 'admin' where id = '<auth-user-uuid>';

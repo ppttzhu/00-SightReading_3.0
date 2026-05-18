@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Music, Hash, LibraryBig, Activity } from 'lucide-react';
+import TrainingLeaderboardButtons from '../../components/TrainingLeaderboardButtons';
 
 const modules = [
   { id: 'notes', label: '单音', title: 'Notes', color: '#3b82f6', bg: '#eff6ff', icon: <Music size={48} color="#3b82f6" strokeWidth={1.5} /> },
@@ -13,9 +14,11 @@ export default function MainMenu() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '20px' }}>
-      <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111827', marginBottom: '60px', letterSpacing: '-1px' }} className="main-menu-title">
-        Select Your Trial
-      </h1>
+      <TrainingLeaderboardButtons>
+        <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111827', marginBottom: '60px', letterSpacing: '-1px', marginTop: 0 }} className="main-menu-title">
+          Select Your Trial
+        </h1>
+      </TrainingLeaderboardButtons>
       <div className="main-menu-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '40px', maxWidth: '800px', width: '100%' }}>
         {modules.map(m => (
           <div

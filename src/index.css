@@ -392,3 +392,308 @@ button {
     font-size: 1.4rem !important;
   }
 }
+
+/* Question timer */
+@keyframes timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+.question-timer--urgent {
+  animation: timer-pulse 0.8s ease-in-out infinite;
+}
+
+/* Stage complete modal */
+.stage-complete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.stage-complete-modal {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+}
+.stage-complete-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+}
+.stage-complete-close:hover {
+  background: #e5e7eb;
+}
+.stage-complete-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.stage-complete-icon {
+  margin-bottom: 12px;
+}
+.stage-complete-header h2 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111827;
+}
+.stage-complete-subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+.stage-complete-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stage-complete-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 16px;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+.stage-complete-stat strong {
+  font-size: 1.25rem;
+  color: #111827;
+}
+.stage-complete-leaderboard-title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
+}
+.stage-complete-leaderboard-hint {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+.stage-complete-loading,
+.stage-complete-empty,
+.stage-complete-pending {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+  padding: 16px 0;
+}
+.stage-complete-table-wrap {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+}
+.stage-complete-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.stage-complete-table th,
+.stage-complete-table td {
+  padding: 10px 14px;
+  text-align: left;
+}
+.stage-complete-table th {
+  background: #f9fafb;
+  color: #6b7280;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+.stage-complete-table td:first-child {
+  width: 48px;
+  text-align: center;
+  font-weight: 700;
+}
+.stage-complete-table td:last-child {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #3b82f6;
+}
+.stage-complete-row--self {
+  background: #eff6ff;
+}
+.stage-complete-you {
+  color: #3b82f6;
+  font-size: 0.8rem;
+  margin-left: 4px;
+}
+.stage-complete-btn {
+  width: 100%;
+  padding: 14px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.stage-complete-btn:hover {
+  background: #2563eb;
+}
+.quiz-question-subtitle {
+  font-size: 1rem;
+  color: #6b7280;
+  margin: 0;
+  text-align: center;
+}
+.stage-complete-beat-message {
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #7c3aed;
+  background: linear-gradient(135deg, #faf5ff 0%, #eff6ff 100%);
+  border: 1px solid #e9d5ff;
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin: 0 0 20px;
+}
+.practice-insight-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+}
+.practice-insight-title {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #92400e;
+}
+.practice-insight-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #78350f;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.practice-summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stage-complete-btn--secondary {
+  background: white !important;
+  color: #374151 !important;
+  border: 1px solid #e5e7eb !important;
+}
+.stage-complete-btn--secondary:hover {
+  background: #f9fafb !important;
+}
+
+/* Training leaderboard buttons */
+.training-lb-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.training-lb-section--compact {
+  margin-bottom: 8px;
+}
+.training-lb-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.training-lb-section--compact .training-lb-buttons {
+  margin-bottom: 10px;
+}
+.training-lb-btn {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.training-lb-btn:hover {
+  transform: translateY(-2px);
+}
+.training-lb-btn--ability {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+.training-lb-btn--effort {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+}
+.global-ranking-modal {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+}
+.global-ranking-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.global-ranking-header h2 {
+  margin: 8px 0 4px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111827;
+}
+.global-ranking-scope {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.global-ranking-period-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.global-ranking-period-tab {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.global-ranking-period-tab--active {
+  background: #111827;
+  color: white;
+  border-color: #111827;
+}

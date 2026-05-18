@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../core/store/useAppStore';
+import TrainingLeaderboardButtons from '../../components/TrainingLeaderboardButtons';
 
 const MODULE_LABELS: Record<string, string> = {
   notes: '单音',
@@ -74,9 +75,13 @@ export default function StageSelector() {
       >
         ← 返回主菜单
       </button>
-      <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
-        {moduleLabel} Trials
-      </h1>
+      <div style={{ marginTop: '30px' }}>
+        <TrainingLeaderboardButtons moduleId={moduleId}>
+          <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: 0, letterSpacing: '-1px' }}>
+            {moduleLabel} Trials
+          </h1>
+        </TrainingLeaderboardButtons>
+      </div>
 
       {(isNotesModule || isTheoryModule) && (
         <>
