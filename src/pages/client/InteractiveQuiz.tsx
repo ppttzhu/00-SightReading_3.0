@@ -4,7 +4,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflo
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote } from './keyboardInput';
-import PianoKeyboard from '../../components/PianoKeyboard';
+import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
@@ -498,7 +498,7 @@ export default function InteractiveQuiz() {
 
         {/* 选项区 */}
         {currentSlice?.type === 'A' && usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
+          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.type === 'A' && hasFinePointer && (
