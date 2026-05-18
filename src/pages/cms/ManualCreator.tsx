@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
+import { resolvePlacement } from '../../core/engine/pitchUtils';
+import type { StaffPlacement } from '../../core/engine/pitchUtils';
 
 // ── 字典数据 ──────────────────────────────────────────────────
 const SYMBOL_MAP: Record<string, string> = {
@@ -189,6 +192,58 @@ export default function ManualCreator() {
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [placement, setPlacement] = useState<StaffPlacement>('auto');
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  // ── 单音大谱表预览 ──
+  const isValidPitch = (s: string) => /^[A-Ga-g][#b]?\d$/.test(s);
+
+  useEffect(() => {
+    if (!previewRef.current || type !== 'A') return;
+    previewRef.current.innerHTML = '';
+
+    const pitch = content.trim();
+    if (!isValidPitch(pitch)) return;
+
+    const renderer = new Renderer(previewRef.current, Renderer.Backends.SVG);
+    const width = Math.min(400, previewRef.current.clientWidth - 20);
+    renderer.resize(width, 240);
+    const context = renderer.getContext();
+    const staveW = width - 40;
+
+    const staveTop = new Stave(10, 20, staveW);
+    staveTop.addClef('treble');
+    staveTop.setContext(context).draw();
+
+    const staveBottom = new Stave(10, 110, staveW);
+    staveBottom.addClef('bass');
+    staveBottom.setContext(context).draw();
+
+    const connector = new StaveConnector(staveTop, staveBottom);
+    connector.setType(StaveConnector.type.BRACE);
+    connector.setContext(context).draw();
+
+    const actualPlacement = resolvePlacement(pitch, placement);
+    const activeStave = actualPlacement === 'treble' ? staveTop : staveBottom;
+
+    const match = pitch.match(/^([A-Ga-g])(#|b)?(\d)$/);
+    if (!match) return;
+    const key = `${match[1].toLowerCase()}/${match[3]}`;
+    const accidental = match[2] || null;
+
+    try {
+      const note = new StaveNote({ keys: [key], duration: 'w', clef: actualPlacement });
+      if (accidental) note.addModifier(new Accidental(accidental));
+
+      const voice = new Voice({ numBeats: 4, beatValue: 4 });
+      voice.setMode(2);
+      voice.addTickables([note]);
+      new Formatter().joinVoices([voice]).format([voice], 300);
+      voice.draw(context, activeStave);
+    } catch (e) {
+      console.error('Preview error:', e);
+    }
+  }, [type, content, placement]);
 
   const currentTypeOption = TYPE_OPTIONS.find(t => t.value === type)!;
 
@@ -243,7 +298,7 @@ export default function ManualCreator() {
 
   const buildContent = (type: string, value: string) => {
     switch (type) {
-      case 'A': return { pitch: value, raw: value };
+      case 'A': return { pitch: value, raw: value, placement };
       case 'B': return { symbol: value, answer: symbolAnswer.trim() };
       case 'C': {
         if (value.includes('|')) {
@@ -391,9 +446,48 @@ export default function ManualCreator() {
                     }}>+ 添加到素材池</button>
                   </div>
                 )}
+                {/* 单音：谱号位置选择 */}
+                {type === 'A' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>在大谱表中出现位置：</span>
+                    <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '10px', padding: '3px' }}>
+                      {([
+                        { v: 'auto' as StaffPlacement, label: '自动' },
+                        { v: 'treble' as StaffPlacement, label: '高音谱号' },
+                        { v: 'bass' as StaffPlacement, label: '低音谱号' },
+                      ]).map(opt => (
+                        <button
+                          key={opt.v}
+                          onClick={() => setPlacement(opt.v)}
+                          style={{
+                            padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                            fontWeight: placement === opt.v ? '700' : '500', fontSize: '0.85rem',
+                            background: placement === opt.v ? '#1f2937' : 'transparent',
+                            color: placement === opt.v ? 'white' : '#6b7280',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
+          {/* 单音大谱表预览 */}
+          {type === 'A' && isValidPitch(content.trim()) && (
+            <div style={{
+              background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px',
+              padding: '16px', marginBottom: '15px', textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '8px' }}>
+                大谱表预览 — 音符出现在{resolvePlacement(content.trim(), placement) === 'treble' ? '高音谱号' : '低音谱号'}中
+              </div>
+              <div ref={previewRef}></div>
+            </div>
+          )}
           <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
             {type === 'B' ? '第一行输入符号（题面），第二行输入答案含义' : type === 'C' ? '输入起始音和音程，第二个音自动推算' : '按回车可快速提交'}
           </p>

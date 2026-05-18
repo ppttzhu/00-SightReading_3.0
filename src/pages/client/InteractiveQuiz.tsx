@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { getAutomaticClefForPitch, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { getAutomaticClefForPitch, resolvePlacement, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -204,13 +204,56 @@ export default function InteractiveQuiz() {
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
     const width = Math.min(500, containerRef.current.clientWidth - 20);
+    const isGrand = currentSlice.type === 'A';
+
+    if (isGrand) {
+      // ── A 类单音：使用大谱表 ──
+      renderer.resize(width, 280);
+      const context = renderer.getContext();
+
+      const staveW = width - 40;
+      const staveTop = new Stave(10, 30, staveW);
+      staveTop.addClef('treble');
+      staveTop.setContext(context).draw();
+
+      const staveBottom = new Stave(10, 130, staveW);
+      staveBottom.addClef('bass');
+      staveBottom.setContext(context).draw();
+
+      const connector = new StaveConnector(staveTop, staveBottom);
+      connector.setType(StaveConnector.type.BRACE);
+      connector.setContext(context).draw();
+
+      const pitch = currentSlice.content.pitch || '';
+      const placement = resolvePlacement(pitch, currentSlice.content.placement || 'auto');
+      const activeStave = placement === 'treble' ? staveTop : staveBottom;
+
+      try {
+        const { key, accidental } = parsePitchForVexflow(pitch);
+        const note = new StaveNote({ keys: [key], duration: 'w', clef: placement });
+        if (accidental) note.addModifier(new Accidental(accidental));
+
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables([note]);
+        new Formatter().joinVoices([voice]).format([voice], 350);
+        voice.draw(context, activeStave);
+      } catch (e) {
+        console.error('VexFlow Draw Error:', e);
+      }
+      return;
+    }
+
+    // ── C / D 类：单五线谱 ──
     renderer.resize(width, 200);
     const context = renderer.getContext();
 
-    // 根据音高决定谱号 (仅 A 类单音)
     let clef = 'treble';
-    if (currentSlice.type === 'A') {
-      clef = getAutomaticClefForPitch(currentSlice.content.pitch || '');
+    if (currentSlice.type === 'C') {
+      const notes: string[] = currentSlice.content.notes || [];
+      if (notes.length >= 2) {
+        clef = getAutomaticClefForPitch(notes[0]);
+      }
     }
 
     const stave = new Stave(10, 40, width - 40);
@@ -218,33 +261,20 @@ export default function InteractiveQuiz() {
     stave.setContext(context).draw();
 
     try {
-      if (currentSlice.type === 'A') {
-        // ---- A: 单音 → 画一个全音符 ----
-        const { key, accidental } = parsePitchForVexflow(currentSlice.content.pitch);
-        const note = new StaveNote({ keys: [key], duration: "w", clef });
-        if (accidental) note.addModifier(new Accidental(accidental));
-
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
-        voice.setMode(2); // SOFT mode
-        voice.addTickables([note]);
-        new Formatter().joinVoices([voice]).format([voice], 350);
-        voice.draw(context, stave);
-
-      } else if (currentSlice.type === 'C') {
+      if (currentSlice.type === 'C') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
         const noteNames: string[] = currentSlice.content.notes || [];
         if (noteNames.length >= 2) {
-          // 音程：用二分音符，紧缩间距
           const vfNotes = noteNames.map(n => {
             const { key, accidental } = parsePitchForVexflow(n);
-            const note = new StaveNote({ keys: [key], duration: "h" });
+            const note = new StaveNote({ keys: [key], duration: 'h' });
             if (accidental) note.addModifier(new Accidental(accidental));
             return note;
           });
 
           const beats = vfNotes.length * 2;
           const voice = new Voice({ numBeats: beats, beatValue: 4 });
-          voice.setMode(2); // SOFT mode
+          voice.setMode(2);
           voice.addTickables(vfNotes);
           new Formatter().joinVoices([voice]).format([voice], 160);
           voice.draw(context, stave);
@@ -255,17 +285,14 @@ export default function InteractiveQuiz() {
         const rawStr: string = currentSlice.content.raw || currentSlice.content.pattern || '';
         console.log('[Pattern] raw:', rawStr, 'content:', JSON.stringify(currentSlice.content));
 
-        // 1. 从 raw 字符串提取带八度音符，如 C4、F#3、Bb5
         let noteNames: string[] = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
         console.log('[Pattern] step1 fromRaw:', noteNames);
 
-        // 2. 没有则尝试 content.notes
         if (noteNames.length < 2 && Array.isArray(currentSlice.content.notes) && currentSlice.content.notes.length >= 2) {
           noteNames = currentSlice.content.notes;
           console.log('[Pattern] step2 fromNotes:', noteNames);
         }
 
-        // 3. 兜底：按音型名称查预置示例音符
         if (noteNames.length < 2) {
           for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
             if (rawStr.includes(key)) {
@@ -276,7 +303,6 @@ export default function InteractiveQuiz() {
           }
         }
 
-        // 4. 最终兜底：C大调上行音阶示例
         if (noteNames.length < 2) {
           noteNames = ['C4', 'D4', 'E4', 'F4', 'G4'];
           console.log('[Pattern] step4 ultimateFallback:', noteNames);
@@ -292,9 +318,8 @@ export default function InteractiveQuiz() {
         });
 
         const totalBeats = vfNotes.length;
-        // SOFT 模式：不严格校验总拍数，避免静默失败
         const voice = new Voice({ numBeats: totalBeats, beatValue: 4 });
-        voice.setMode(2); // SOFT mode
+        voice.setMode(2);
         voice.addTickables(vfNotes);
         new Formatter().joinVoices([voice]).format([voice], Math.min(360, totalBeats * 60));
         voice.draw(context, stave);

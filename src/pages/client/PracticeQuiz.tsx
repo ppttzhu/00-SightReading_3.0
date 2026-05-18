@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { getAutomaticClefForPitch, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
+import { getClefForPractice, getGrandStaffPlacement, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
+import type { ClefType } from '../../core/engine/pitchUtils';
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -36,9 +37,9 @@ function randomPitch(low: string, high: string, prev?: string): string {
   return pitch;
 }
 
-// Determine clef based on pitch
-function getClef(pitch: string): string {
-  return getAutomaticClefForPitch(pitch);
+// Get clef for practice mode (random: treble / bass / grand)
+function pickClef(pitch: string): ClefType {
+  return getClefForPractice(pitch);
 }
 
 export default function PracticeQuiz() {
@@ -66,7 +67,7 @@ export default function PracticeQuiz() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
 
-  const clef = useMemo(() => getClef(currentPitch), [currentPitch]);
+  const clef = useMemo<ClefType>(() => pickClef(currentPitch), [currentPitch]);
 
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch));
@@ -97,6 +98,45 @@ export default function PracticeQuiz() {
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
     const width = Math.min(500, containerRef.current.clientWidth - 20);
+
+    if (clef === 'grand') {
+      // ── 大谱表 ──
+      renderer.resize(width, 280);
+      const context = renderer.getContext();
+      const staveW = width - 40;
+
+      const staveTop = new Stave(10, 30, staveW);
+      staveTop.addClef('treble');
+      staveTop.setContext(context).draw();
+
+      const staveBottom = new Stave(10, 130, staveW);
+      staveBottom.addClef('bass');
+      staveBottom.setContext(context).draw();
+
+      const connector = new StaveConnector(staveTop, staveBottom);
+      connector.setType(StaveConnector.type.BRACE);
+      connector.setContext(context).draw();
+
+      const placement = getGrandStaffPlacement(currentPitch);
+      const activeStave = placement === 'treble' ? staveTop : staveBottom;
+
+      try {
+        const { key, accidental } = parsePitchForVexflow(currentPitch);
+        const note = new StaveNote({ keys: [key], duration: 'w', clef: placement });
+        if (accidental) note.addModifier(new Accidental(accidental));
+
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables([note]);
+        new Formatter().joinVoices([voice]).format([voice], 350);
+        voice.draw(context, activeStave);
+      } catch (e) {
+        console.error('VexFlow error:', e);
+      }
+      return;
+    }
+
+    // ── 单五线谱 (treble / bass) ──
     renderer.resize(width, 200);
     const context = renderer.getContext();
 

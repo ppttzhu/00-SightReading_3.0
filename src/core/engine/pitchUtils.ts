@@ -25,6 +25,9 @@ function pitchToMidi(pitch: string): number {
   return (parseInt(match[3], 10) + 1) * 12 + noteVal[match[1].toUpperCase()] + accidentalOffset;
 }
 
+export type ClefType = 'treble' | 'bass' | 'grand';
+export type StaffPlacement = 'auto' | 'treble' | 'bass';
+
 export function getAutomaticClefForPitch(pitch: string): 'treble' | 'bass' {
   const num = pitchToMidi(pitch);
   const a4Num = pitchToMidi('A4');
@@ -33,6 +36,40 @@ export function getAutomaticClefForPitch(pitch: string): 'treble' | 'bass' {
   if (num > a4Num) return 'treble';
   if (num < e3Num) return 'bass';
   return Math.random() > 0.5 ? 'treble' : 'bass';
+}
+
+/** Determine which staff of a grand staff a note belongs on. */
+export function getGrandStaffPlacement(pitch: string): 'treble' | 'bass' {
+  const num = pitchToMidi(pitch);
+  const b3Num = pitchToMidi('B3');
+  return num >= b3Num ? 'treble' : 'bass';
+}
+
+/** Resolve a StaffPlacement to an actual clef, falling back to auto-detect. */
+export function resolvePlacement(pitch: string, pref: StaffPlacement): 'treble' | 'bass' {
+  if (pref === 'treble' || pref === 'bass') return pref;
+  return getGrandStaffPlacement(pitch);
+}
+
+/** For practice mode: randomly choose clef type, constrained by pitch range. */
+export function getClefForPractice(pitch: string): ClefType {
+  const num = pitchToMidi(pitch);
+  const c5Num = pitchToMidi('C5');
+  const f2Num = pitchToMidi('F2');
+
+  // Notes too high for bass clef alone (too many ledger lines)
+  if (num > c5Num) {
+    return Math.random() > 0.5 ? 'treble' : 'grand';
+  }
+  // Notes too low for treble clef alone
+  if (num < f2Num) {
+    return Math.random() > 0.5 ? 'bass' : 'grand';
+  }
+  // Middle range: any of the three
+  const r = Math.random();
+  if (r < 0.33) return 'treble';
+  if (r < 0.67) return 'bass';
+  return 'grand';
 }
 
 /** 在题目参考八度上播放某个音名字母（选项/键盘作答用）
