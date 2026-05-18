@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { LogIn, UserPlus, ArrowLeft, KeyRound } from 'lucide-react';
 import { useAuth } from '../../core/auth/AuthProvider';
@@ -38,11 +38,15 @@ export default function AuthPage() {
   const isForgot = mode === 'forgot';
   const isReset = mode === 'reset';
 
-  const canSubmit = (() => {
-    if (isForgot) return identifier.trim().length > 0;
-    if (isReset) return password.length > 0;
-    return identifier.trim() && password && (!isRegister || nickname.trim());
-  })();
+  const deferredIdentifier = useDeferredValue(identifier);
+  const deferredPassword = useDeferredValue(password);
+  const deferredNickname = useDeferredValue(nickname);
+
+  const canSubmit = useMemo(() => {
+    if (isForgot) return deferredIdentifier.trim().length > 0;
+    if (isReset) return deferredPassword.length > 0;
+    return deferredIdentifier.trim() && deferredPassword && (!isRegister || deferredNickname.trim());
+  }, [isForgot, isReset, isRegister, deferredIdentifier, deferredPassword, deferredNickname]);
 
   const resetMessage = () => {
     setStatus('idle');
@@ -86,19 +90,31 @@ export default function AuthPage() {
     }
   };
 
-  const title = (() => {
+  const title = useMemo(() => {
     if (isForgot) return '找回密码';
     if (isReset) return '设置新密码';
     if (isRegister) return '注册账号';
     return '登录账号';
-  })();
+  }, [isForgot, isReset, isRegister]);
 
-  const subtitle = (() => {
+  const subtitle = useMemo(() => {
     if (isForgot) return '输入注册时使用的邮箱，我们会发送重置链接。';
     if (isReset) return '请输入你的新密码。';
     if (isRegister) return '创建学生账号，之后可用于保存学习资料。';
     return '登录后可进入你的账号。';
-  })();
+  }, [isForgot, isReset, isRegister]);
+
+  const handleIdentifierChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setIdentifier(event.target.value);
+  }, []);
+
+  const handlePasswordChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(event.target.value);
+  }, []);
+
+  const handleNicknameChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setNickname(event.target.value);
+  }, []);
 
   return (
     <div className="auth-page">
@@ -144,7 +160,7 @@ export default function AuthPage() {
               <span>注册邮箱</span>
               <input
                 value={identifier}
-                onChange={(event) => setIdentifier(event.target.value)}
+                onChange={handleIdentifierChange}
                 placeholder="name@example.com"
                 autoComplete="email"
                 type="email"
@@ -159,7 +175,7 @@ export default function AuthPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={handlePasswordChange}
                 placeholder="请输入新密码"
                 autoComplete="new-password"
               />
@@ -173,7 +189,7 @@ export default function AuthPage() {
                 <span>邮箱</span>
                 <input
                   value={identifier}
-                  onChange={(event) => setIdentifier(event.target.value)}
+                  onChange={handleIdentifierChange}
                   placeholder="name@example.com"
                   autoComplete="email"
                   type="email"
@@ -185,7 +201,7 @@ export default function AuthPage() {
                   <span>昵称</span>
                   <input
                     value={nickname}
-                    onChange={(event) => setNickname(event.target.value)}
+                    onChange={handleNicknameChange}
                     placeholder="想让大家怎么称呼你"
                     autoComplete="nickname"
                   />
@@ -197,7 +213,7 @@ export default function AuthPage() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={handlePasswordChange}
                   placeholder="请输入密码"
                   autoComplete={isRegister ? 'new-password' : 'current-password'}
                 />
