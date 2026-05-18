@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
-import PianoKeyboard from '../../components/PianoKeyboard';
+import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
@@ -231,7 +231,7 @@ export default function PracticeQuiz() {
         </div>
 
         {usePiano ? (
-          <PianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
+          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
             {NOTE_NAMES.map(note => (
