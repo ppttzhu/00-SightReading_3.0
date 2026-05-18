@@ -189,7 +189,7 @@ export default function StageSelector() {
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
             {([
-              { label: '音程类型', value: intervalType, setter: setIntervalType, options: ['随机', '二度', '三度', '四度', '五度', '六度', '七度', '八度'] },
+              { label: '音程类型', value: intervalType, setter: setIntervalType, options: ['随机', '一度', '二度', '三度', '四度', '五度', '六度', '七度', '八度'] },
               { label: '方向', value: intervalDirection, setter: setIntervalDirection, options: ['随机', '上行', '下行'] },
               { label: '谱号', value: intervalClef, setter: setIntervalClef, options: ['自动', '高音谱号', '低音谱号'] },
               { label: '音程模式', value: intervalMode, setter: setIntervalMode, options: ['随机', '旋律音程', '和声音程'] },
