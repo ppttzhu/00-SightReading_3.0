@@ -8,44 +8,48 @@ import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 // ============================================================
 
 const INTERVAL_TYPE_SEMITONES: Record<string, number[]> = {
+  '一度': [0],
   '二度': [1, 2],
   '三度': [3, 4],
-  '四度': [5],
-  '五度': [7],
+  '四度': [5, 6],
+  '五度': [6, 7],
   '六度': [8, 9],
   '七度': [10, 11],
   '八度': [12],
 };
 
-const SEMITONE_TO_NAME: Record<number, string> = {
-  1: '小二度 (m2)',
-  2: '大二度 (M2)',
-  3: '小三度 (m3)',
-  4: '大三度 (M3)',
-  5: '纯四度 (P4)',
-  6: '三全音 (TT)',
-  7: '纯五度 (P5)',
-  8: '小六度 (m6)',
-  9: '大六度 (M6)',
-  10: '小七度 (m7)',
-  11: '大七度 (M7)',
-  12: '纯八度 (P8)',
+const SEMITONE_TO_NAMES: Record<number, string[]> = {
+  0: ['纯一度 (P1)'],
+  1: ['小二度 (m2)'],
+  2: ['大二度 (M2)'],
+  3: ['小三度 (m3)'],
+  4: ['大三度 (M3)'],
+  5: ['纯四度 (P4)'],
+  6: ['三全音 (TT)', '增四度 (A4)', '减五度 (d5)'],
+  7: ['纯五度 (P5)'],
+  8: ['小六度 (m6)'],
+  9: ['大六度 (M6)'],
+  10: ['小七度 (m7)'],
+  11: ['大七度 (M7)'],
+  12: ['纯八度 (P8)'],
 };
 
-const ALL_INTERVAL_NAMES = Object.values(SEMITONE_TO_NAME);
+const ALL_INTERVAL_NAMES = Object.values(SEMITONE_TO_NAMES).flat();
 
 const INTERVAL_GROUPS: Record<string, string[]> = {
+  '一度': ['纯一度 (P1)'],
   '二度': ['小二度 (m2)', '大二度 (M2)'],
   '三度': ['小三度 (m3)', '大三度 (M3)'],
-  '四度': ['纯四度 (P4)'],
-  '五度': ['纯五度 (P5)'],
+  '四度': ['纯四度 (P4)', '增四度 (A4)'],
+  '五度': ['纯五度 (P5)', '减五度 (d5)'],
   '六度': ['小六度 (m6)', '大六度 (M6)'],
   '七度': ['小七度 (m7)', '大七度 (M7)'],
   '八度': ['纯八度 (P8)'],
 };
 
 const ADJACENT_GROUPS: Record<string, string[]> = {
-  '二度': ['三度'],
+  '一度': ['二度'],
+  '二度': ['一度', '三度'],
   '三度': ['二度', '四度'],
   '四度': ['三度', '五度'],
   '五度': ['四度', '六度'],
@@ -168,7 +172,7 @@ function generateInterval(
     lowMidi,
     highMidi,
     semitones,
-    intervalName: SEMITONE_TO_NAME[semitones] || `${semitones}半音`,
+    intervalName: (SEMITONE_TO_NAMES[semitones] || [`${semitones}半音`])[Math.floor(Math.random() * (SEMITONE_TO_NAMES[semitones]?.length || 1))],
     clef: getClef(lowMidi, highMidi, clefPref),
     isHarmonic,
   };

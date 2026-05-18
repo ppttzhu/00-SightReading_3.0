@@ -26,8 +26,8 @@ const ALL_PITCHES: string[] = (() => {
 })();
 
 const ALL_INTERVALS = [
-  '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
-  '纯四度 (P4)', '三全音 (TT)', '纯五度 (P5)',
+  '纯一度 (P1)', '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
+  '纯四度 (P4)', '增四度 (A4)', '三全音 (TT)', '减五度 (d5)', '纯五度 (P5)',
   '小六度 (m6)', '大六度 (M6)', '小七度 (m7)', '大七度 (M7)', '纯八度 (P8)',
 ];
 
@@ -35,8 +35,8 @@ const ALL_PATTERNS = ['上行音阶跑动', '下行音阶跑动', '分解和弦'
 
 // 音程名 → 半音数
 const INTERVAL_SEMITONES: Record<string, number> = {
-  '小二度 (m2)': 1, '大二度 (M2)': 2, '小三度 (m3)': 3, '大三度 (M3)': 4,
-  '纯四度 (P4)': 5, '三全音 (TT)': 6, '纯五度 (P5)': 7,
+  '纯一度 (P1)': 0, '小二度 (m2)': 1, '大二度 (M2)': 2, '小三度 (m3)': 3, '大三度 (M3)': 4,
+  '纯四度 (P4)': 5, '增四度 (A4)': 6, '三全音 (TT)': 6, '减五度 (d5)': 6, '纯五度 (P5)': 7,
   '小六度 (m6)': 8, '大六度 (M6)': 9, '小七度 (m7)': 10, '大七度 (M7)': 11, '纯八度 (P8)': 12,
 };
 
@@ -280,6 +280,18 @@ export default function ManualCreator() {
       if (type === 'B' && line.includes('|')) {
         const [symbol, answer] = line.split('|').map(s => s.trim());
         contentObj = { symbol, answer };
+      } else if (type === 'C' && !line.includes('|') && line.includes(',')) {
+        const [startNote, interval] = line.split(',').map(s => s.trim());
+        const secondNote = calcSecondNote(startNote, interval);
+        if (startNote && interval && secondNote) {
+          contentObj = {
+            theory: interval,
+            notes: [startNote, secondNote],
+            raw: `${startNote},${secondNote}|${interval}`,
+          };
+        } else {
+          contentObj = buildContent(type, line);
+        }
       } else {
         contentObj = buildContent(type, line);
       }
@@ -497,9 +509,13 @@ export default function ManualCreator() {
           <textarea
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
-            placeholder={type === 'B'
-              ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
-              : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`}
+            placeholder={
+              type === 'B'
+                ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
+                : type === 'C'
+                ? `每行格式: 起始音,音程名  或  音1,音2|音程名\n例如：\nC4,纯五度 (P5)\nD4,大三度 (M3)\nE4,G4|大三度 (M3)`
+                : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`
+            }
             style={{
               width: '100%', height: '200px', padding: '16px', borderRadius: '8px',
               border: '1px solid #d1d5db', fontSize: '1rem', resize: 'vertical',
