@@ -51,6 +51,8 @@ VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
+项目 `.env` 所需信息请在微信群通知栏中查找。
+
 Get Supabase values from **Supabase Dashboard → Project Settings → API Keys**:
 
 - Project URL → `VITE_SUPABASE_URL`
@@ -113,6 +115,14 @@ This project is deployed on **Cloudflare Pages** with Git integration:
 npm run build
 npm run deploy
 ```
+
+### 数据库变更 PR 检查清单
+
+当 PR 包含数据库相关代码时，开发者需要在请求 review 前完成以下 preview 验证流程：
+
+1. 如果修改了 table schema，需要先在 Supabase 的 `00-SightReading_3.0_preview` database 里运行对应 SQL。
+2. 使用 Cloudflare 为 PR 自动生成的 preview link 进行测试。
+3. 在 PR description 或 PR comments 里提交测试截图。
 
 ### Deploy Steps (first time):
 
