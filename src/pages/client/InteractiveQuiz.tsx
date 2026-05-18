@@ -267,7 +267,7 @@ export default function InteractiveQuiz() {
         if (noteNames.length >= 2) {
           const vfNotes = noteNames.map(n => {
             const { key, accidental } = parsePitchForVexflow(n);
-            const note = new StaveNote({ keys: [key], duration: 'h' });
+            const note = new StaveNote({ keys: [key], duration: 'h', clef });
             if (accidental) note.addModifier(new Accidental(accidental));
             return note;
           });
@@ -312,7 +312,7 @@ export default function InteractiveQuiz() {
 
         const vfNotes = noteNames.map(n => {
           const { key, accidental } = parsePitchForVexflow(n);
-          const note = new StaveNote({ keys: [key], duration: 'q' });
+          const note = new StaveNote({ keys: [key], duration: 'q', clef });
           if (accidental) note.addModifier(new Accidental(accidental));
           return note;
         });
