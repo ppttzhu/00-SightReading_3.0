@@ -58,8 +58,8 @@ export default function StageBuilder() {
     D: slicesPool.filter(s => s.type === 'D').length,
   };
 
-  const totalQuestions = slicesPool.length;
-  const totalStages = Math.ceil(stats.A / 5) + Math.ceil(stats.B / 5) + Math.ceil(stats.C / 5) + Math.ceil(stats.D / 5);
+  const filteredCount = stats[filterType as keyof typeof stats];
+  const filteredStages = Math.ceil(filteredCount / 5);
 
   return (
     <>
@@ -112,9 +112,9 @@ export default function StageBuilder() {
         })}
       </div>
 
-      {/* 全局信息条 */}
+      {/* 当前筛选信息条 */}
       <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#1e40af' }}>📊 共 <b>{totalQuestions}</b> 道题目，自动生成 <b>{totalStages}</b> 个关卡</span>
+        <span style={{ color: '#1e40af' }}>📊 {TYPE_LABELS[filterType]}池：共 <b>{filteredCount}</b> 道题目，自动生成 <b>{filteredStages}</b> 个关卡</span>
       </div>
 
       {/* 题目列表 */}
