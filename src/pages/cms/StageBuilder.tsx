@@ -81,6 +81,10 @@ export default function StageBuilder() {
         )}
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>点击卡片切换题库类型</span>
+      </div>
+
       {/* 统计卡片（也是筛选器） */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '20px' }}>
         {(['A', 'B', 'C', 'D'] as const).map(type => {
