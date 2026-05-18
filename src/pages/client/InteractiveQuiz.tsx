@@ -6,7 +6,7 @@ import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { getAutomaticClefForPitch, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -210,23 +210,7 @@ export default function InteractiveQuiz() {
     // 根据音高决定谱号 (仅 A 类单音)
     let clef = 'treble';
     if (currentSlice.type === 'A') {
-      const pitch = currentSlice.content.pitch || '';
-      const noteChar = pitch.charAt(0).toUpperCase();
-      const octave = parseInt(pitch.charAt(pitch.length - 1));
-      // 将音名转为数值用于比较: C=0,D=1,E=2,F=3,G=4,A=5,B=6
-      const noteVal: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-      const pitchNum = (octave * 7) + (noteVal[noteChar] || 0);
-      const e4Num = (4 * 7) + 2; // E4
-      const a3Num = (3 * 7) + 5; // A3
-
-      if (pitchNum > e4Num) {
-        clef = 'treble';
-      } else if (pitchNum < a3Num) {
-        clef = 'bass';
-      } else {
-        // Between A3 and E4: random
-        clef = Math.random() > 0.5 ? 'treble' : 'bass';
-      }
+      clef = getAutomaticClefForPitch(currentSlice.content.pitch || '');
     }
 
     const stave = new Stave(10, 40, width - 40);

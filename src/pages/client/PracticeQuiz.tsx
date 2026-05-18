@@ -4,7 +4,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflo
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { getAutomaticClefForPitch, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -17,18 +17,10 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
   };
 }
 
-// Convert pitch string to numeric value for comparison
-function pitchToNum(pitch: string): number {
-  const noteVal: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-  const note = pitch.charAt(0).toUpperCase();
-  const octave = parseInt(pitch.charAt(1) || pitch.charAt(pitch.length - 1));
-  return octave * 7 + (noteVal[note] || 0);
-}
-
 // Generate a random pitch between low and high (inclusive), avoiding prev
 function randomPitch(low: string, high: string, prev?: string): string {
-  const lowNum = pitchToNum(low);
-  const highNum = pitchToNum(high);
+  const lowNum = pitchToStaffNum(low);
+  const highNum = pitchToStaffNum(high);
   if (highNum <= lowNum) return low;
 
   const noteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -46,13 +38,7 @@ function randomPitch(low: string, high: string, prev?: string): string {
 
 // Determine clef based on pitch
 function getClef(pitch: string): string {
-  const num = pitchToNum(pitch);
-  const e4Num = pitchToNum('E4');
-  const a3Num = pitchToNum('A3');
-
-  if (num >= e4Num) return 'treble';
-  if (num <= a3Num) return 'bass';
-  return Math.random() > 0.5 ? 'treble' : 'bass';
+  return getAutomaticClefForPitch(pitch);
 }
 
 export default function PracticeQuiz() {
