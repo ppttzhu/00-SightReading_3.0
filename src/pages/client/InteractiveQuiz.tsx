@@ -6,7 +6,7 @@ import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { getAutomaticClefForPitch, resolvePlacement, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { getAutomaticClefForPitch, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -370,10 +370,9 @@ export default function InteractiveQuiz() {
     switch (currentSlice.type) {
       case 'A': {
         const pitch = currentSlice.content.pitch || '';
-        if (usePiano) {
-          const match = pitch.match(/^[A-G][#b]?/);
-          return match ? match[0] : pitch.charAt(0).toUpperCase();
-        }
+        // Piano mode wants the full pitch (with octave) so pitchEqual can
+        // check both letter and octave. Options mode only knows letters.
+        if (usePiano) return pitch;
         return pitch.charAt(0).toUpperCase();
       }
       case 'B': {
@@ -391,7 +390,10 @@ export default function InteractiveQuiz() {
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
     const correct = getCorrectAnswer();
-    const isCorrect = answer === correct;
+    const isPianoTypeA = usePiano && currentSlice?.type === 'A';
+    const isCorrect = isPianoTypeA
+      ? pitchEqual(answer, correct)
+      : answer === correct;
 
     if (isCorrect) {
       setFeedback('correct');
