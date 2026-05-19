@@ -3,10 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
-import { mapKeyToNote } from './keyboardInput';
+import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getAutomaticClefForPitch, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { extractNoteAnswer } from './noteAnswer';
+import { interactiveAOptions } from './noteOptions';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -69,17 +71,15 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
   '八度跳进':    ['C4', 'C5', 'C4', 'C5'],
 };
 
-const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-
 function generateOptions(slice: Slice): string[] {
   let correct = '';
   let pool: string[] = [];
 
   switch (slice.type) {
     case 'A':
-      // Extract just the note letter (e.g., "C#4" → "C", "Bb3" → "B")
-      correct = (slice.content.pitch || '').charAt(0).toUpperCase();
-      return NOTE_NAMES; // Always show all 7 notes
+      // Always 7 unique options including the correct answer. Pool widens to
+      // the 17-spelling set only when the question itself is accidental.
+      return interactiveAOptions(extractNoteAnswer(slice.content.pitch || ''));
     case 'B': {
       // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
       const answer = slice.content.answer;
@@ -337,15 +337,32 @@ export default function InteractiveQuiz() {
   const referencePitch = currentSlice?.type === 'A' ? (currentSlice.content.pitch || 'C4') : '';
   useEffect(() => {
     if (sliceType !== 'A' || usePiano) return;
+    // 300ms buffer so sequences like "C" + "#" resolve to a single "C#" answer.
+    const WINDOW_MS = 300;
+    let buffer: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      const answer = parseNoteKeys(buffer);
+      buffer = [];
+      if (!answer) return;
+      void audioEngine.playNote(pitchForAnswerLetter(answer, referencePitch));
+      handleAnswerRef.current(answer);
+    };
     const onKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const note = mapKeyToNote(e.key);
-      if (!note) return;
-      void audioEngine.playNote(pitchForAnswerLetter(note, referencePitch));
-      handleAnswerRef.current(note);
+      const isLetter = mapKeyToNote(e.key) !== null;
+      const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
+      if (!isLetter && !isAccidental) return;
+      buffer.push(e.key);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(flush, WINDOW_MS);
     };
     window.addEventListener('keydown', onKeydown);
-    return () => window.removeEventListener('keydown', onKeydown);
+    return () => {
+      window.removeEventListener('keydown', onKeydown);
+      if (timer) clearTimeout(timer);
+    };
   }, [sliceType, usePiano, referencePitch]);
 
   if (!stage) {
@@ -371,9 +388,10 @@ export default function InteractiveQuiz() {
       case 'A': {
         const pitch = currentSlice.content.pitch || '';
         // Piano mode wants the full pitch (with octave) so pitchEqual can
-        // check both letter and octave. Options mode only knows letters.
+        // check both letter and octave. Options mode keeps the accidental so
+        // a C#4 question requires "C#" — not the bare "C" letter.
         if (usePiano) return pitch;
-        return pitch.charAt(0).toUpperCase();
+        return extractNoteAnswer(pitch);
       }
       case 'B': {
         // Prefer the explicit answer field; fall back to SYMBOL_MAP for legacy data

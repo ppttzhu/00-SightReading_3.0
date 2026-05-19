@@ -32,6 +32,8 @@ export default function StageSelector() {
   const [mode, setMode] = useState<'stages' | 'practice'>('stages');
   const [lowPitch, setLowPitch] = useState('C2');
   const [highPitch, setHighPitch] = useState('C6');
+  const [includeSharps, setIncludeSharps] = useState(false);
+  const [includeFlats, setIncludeFlats] = useState(false);
 
   // Theory practice params
   const [intervalType, setIntervalType] = useState('随机');
@@ -59,7 +61,9 @@ export default function StageSelector() {
     if (!canStartPractice) return;
     const low = lowPitch.charAt(0).toUpperCase() + lowPitch.charAt(1);
     const high = highPitch.charAt(0).toUpperCase() + highPitch.charAt(1);
-    navigate(`/client/practice/notes?low=${low}&high=${high}`);
+    const sharp = includeSharps ? '&sharp=1' : '';
+    const flat = includeFlats ? '&flat=1' : '';
+    navigate(`/client/practice/notes?low=${low}&high=${high}${sharp}${flat}`);
   };
 
   const handleStartTheoryPractice = () => {
@@ -164,6 +168,26 @@ export default function StageSelector() {
           {(!isValidPitch(lowPitch) || !isValidPitch(highPitch)) && (
             <p style={{ color: '#f87171', fontSize: '0.8rem' }}>格式：字母(A-G) + 数字(0-7)，如 C2、G5</p>
           )}
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#374151', fontSize: '0.95rem', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={includeSharps}
+                onChange={(e) => setIncludeSharps(e.target.checked)}
+                style={{ width: 18, height: 18, cursor: 'pointer' }}
+              />
+              包含升号 (♯)
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#374151', fontSize: '0.95rem', fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={includeFlats}
+                onChange={(e) => setIncludeFlats(e.target.checked)}
+                style={{ width: 18, height: 18, cursor: 'pointer' }}
+              />
+              包含降号 (♭)
+            </label>
+          </div>
           <button
             onClick={handleStartPractice}
             disabled={!canStartPractice}

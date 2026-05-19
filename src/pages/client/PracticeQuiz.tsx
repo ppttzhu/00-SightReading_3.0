@@ -6,8 +6,13 @@ import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPractice, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 import type { ClefType } from '../../core/engine/pitchUtils';
+import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
+import { extractNoteAnswer } from './noteAnswer';
+import { practiceOptions } from './noteOptions';
 
-const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+// Skip the rare enharmonic spellings (E#/B#/Cb/Fb) when generating accidentals.
+const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
+const FLAT_OK = new Set(['D', 'E', 'G', 'A', 'B']);
 
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
@@ -18,8 +23,16 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
   };
 }
 
-// Generate a random pitch between low and high (inclusive), avoiding prev
-function randomPitch(low: string, high: string, prev?: string): string {
+// Generate a random pitch between low and high (inclusive), avoiding prev.
+// When includeSharps and/or includeFlats are true, ~40% of pitches get the
+// respective accidental.
+function randomPitch(
+  low: string,
+  high: string,
+  prev: string | undefined,
+  includeSharps: boolean,
+  includeFlats: boolean,
+): string {
   const lowNum = pitchToStaffNum(low);
   const highNum = pitchToStaffNum(high);
   if (highNum <= lowNum) return low;
@@ -30,8 +43,18 @@ function randomPitch(low: string, high: string, prev?: string): string {
   do {
     const target = lowNum + Math.floor(Math.random() * (highNum - lowNum + 1));
     const octave = Math.floor(target / 7);
-    const noteIdx = target % 7;
-    pitch = `${noteNames[noteIdx]}${octave}`;
+    const letter = noteNames[target % 7];
+    let acc = '';
+    if (includeSharps || includeFlats) {
+      const canSharp = includeSharps && SHARP_OK.has(letter);
+      const canFlat = includeFlats && FLAT_OK.has(letter);
+      if (Math.random() < 0.4) {
+        if (canSharp && canFlat) acc = Math.random() < 0.5 ? '#' : 'b';
+        else if (canSharp) acc = '#';
+        else if (canFlat) acc = 'b';
+      }
+    }
+    pitch = `${letter}${acc}${octave}`;
     attempts++;
   } while (pitch === prev && attempts < 20);
   return pitch;
@@ -49,10 +72,12 @@ export default function PracticeQuiz() {
 
   const low = searchParams.get('low') || 'C2';
   const high = searchParams.get('high') || 'C6';
+  const includeSharps = searchParams.get('sharp') === '1';
+  const includeFlats = searchParams.get('flat') === '1';
 
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
 
-  const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high));
+  const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high, undefined, includeSharps, includeFlats));
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
@@ -70,9 +95,9 @@ export default function PracticeQuiz() {
   const clef = useMemo<ClefType>(() => pickClef(currentPitch), [currentPitch]);
 
   const nextQuestion = useCallback(() => {
-    setCurrentPitch(randomPitch(low, high, currentPitch));
+    setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
     setNoteVisible(true);
-  }, [low, high, currentPitch]);
+  }, [low, high, currentPitch, includeSharps, includeFlats]);
 
   // Blink effect: show 3s, hide 6s
   useEffect(() => {
@@ -161,12 +186,12 @@ export default function PracticeQuiz() {
 
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
-    // Piano mode submits the full pitch (e.g. "C#4"); options mode submits
-    // just the letter. Match accordingly so a different octave of the same
-    // letter is judged wrong on the piano keyboard.
+    // Piano mode submits the full pitch (e.g. "C#4") — pitchEqual checks
+    // letter, accidental, and octave together. Options mode submits the
+    // letter+accidental (e.g. "C#") so a C#4 question needs "C#", not bare "C".
     const isCorrect = usePiano
       ? pitchEqual(answer, currentPitch)
-      : answer === currentPitch.charAt(0).toUpperCase();
+      : answer === extractNoteAnswer(currentPitch);
 
     setTotal(t => t + 1);
     if (isCorrect) {
@@ -182,6 +207,46 @@ export default function PracticeQuiz() {
       setTimeout(() => setFeedback('none'), 500);
     }
   };
+  const handleAnswerRef = useRef<(a: string) => void>(() => {});
+  handleAnswerRef.current = handleAnswer;
+
+  // Options match the question's accidental class: sharp pitch → 7 sharps,
+  // flat → 7 flats, natural → 7 naturals. Always 7, in fixed C…B order.
+  const options = useMemo(
+    () => practiceOptions(extractNoteAnswer(currentPitch)),
+    [currentPitch],
+  );
+
+  // Physical keyboard input for options mode. 300ms buffer lets "C" + "#"
+  // resolve to a single "C#" answer.
+  useEffect(() => {
+    if (usePiano) return;
+    const WINDOW_MS = 300;
+    let buffer: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      const ans = parseNoteKeys(buffer);
+      buffer = [];
+      if (!ans) return;
+      void audioEngine.playNote(pitchForAnswerLetter(ans, currentPitch));
+      handleAnswerRef.current(ans);
+    };
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const isLetter = mapKeyToNote(e.key) !== null;
+      const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
+      if (!isLetter && !isAccidental) return;
+      buffer.push(e.key);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(flush, WINDOW_MS);
+    };
+    window.addEventListener('keydown', onKeydown);
+    return () => {
+      window.removeEventListener('keydown', onKeydown);
+      if (timer) clearTimeout(timer);
+    };
+  }, [usePiano, currentPitch]);
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
@@ -264,7 +329,7 @@ export default function PracticeQuiz() {
           <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {NOTE_NAMES.map(note => (
+            {options.map(note => (
               <button
                 key={note}
                 onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
