@@ -131,6 +131,7 @@ export default function InteractiveQuiz() {
 
   const slicesPool = useAppStore(state => state.slicesPool);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
+  const recordPractice = useAppStore(state => state.recordPractice);
 
   // Track a session key that changes each time the component mounts (new attempt)
   const [sessionKey] = useState(() => Math.random());
@@ -172,6 +173,12 @@ export default function InteractiveQuiz() {
     typeof window !== 'undefined' &&
     window.matchMedia('(hover: hover) and (pointer: fine)').matches
   );
+
+  // 记录每道题的开始时间，用于 practice_records 的 time_spent_ms
+  const questionStartedRef = useRef(Date.now());
+  useEffect(() => {
+    questionStartedRef.current = Date.now();
+  }, [currentSliceIndex]);
 
   const currentSlice = stage?.slices[currentSliceIndex];
 
@@ -406,12 +413,25 @@ export default function InteractiveQuiz() {
   };
 
   const handleAnswer = (answer: string) => {
-    if (feedback !== 'none') return;
+    if (feedback !== 'none' || !currentSlice) return;
     const correct = getCorrectAnswer();
-    const isPianoTypeA = usePiano && currentSlice?.type === 'A';
+    const isPianoTypeA = usePiano && currentSlice.type === 'A';
     const isCorrect = isPianoTypeA
       ? pitchEqual(answer, correct)
       : answer === correct;
+
+    const timeSpentMs = Date.now() - questionStartedRef.current;
+
+    // 记录答题：fire-and-forget，不阻塞反馈动画
+    recordPractice({
+      stageId: stage.id,
+      sliceId: currentSlice.id,
+      sliceType: currentSlice.type,
+      isCorrect,
+      answeredWrong: isCorrect ? undefined : answer,
+      timeSpentMs,
+      score: isCorrect ? currentSlice.difficulty * 10 : 0,
+    });
 
     if (isCorrect) {
       setFeedback('correct');
