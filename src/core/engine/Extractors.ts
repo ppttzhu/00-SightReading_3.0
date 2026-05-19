@@ -1,4 +1,5 @@
 import { MusicXMLParser } from './MusicXMLParser';
+import { getGrandStaffPlacement } from './pitchUtils';
 
 // ---------------------------------------------------------
 // 四维提取引擎 (Extractors)
@@ -136,10 +137,17 @@ export class EngineExtractor {
         const alter = parseInt(pitchNode.querySelector('alter')?.textContent || '0');
         const pitch = parsePitch(note);
         if (pitch) {
+          const staffEl = note.querySelector('staff');
+          const staffNum = staffEl ? parseInt(staffEl.textContent || '1') : 1;
+          const placement =
+            staffNum === 1 ? 'treble'
+            : staffNum === 2 ? 'bass'
+            : getGrandStaffPlacement(pitch.name);
+
           slices.push({
-            id: `A_note_${index}_${pitch.name}`,
+            id: `A_note_${index}_${pitch.name}_${placement}`,
             type: 'A',
-            content: { pitch: pitch.name, raw: pitch.name },
+            content: { pitch: pitch.name, raw: pitch.name, placement },
             difficulty: calcNoteDifficulty(step, octave, alter)
           });
         }
@@ -148,9 +156,9 @@ export class EngineExtractor {
 
     if (slices.length === 0) {
       slices.push(
-        { id: 'A_mock_C4', type: 'A', content: { pitch: 'C4', raw: 'C4' }, difficulty: 1 },
-        { id: 'A_mock_G4', type: 'A', content: { pitch: 'G4', raw: 'G4' }, difficulty: 2 },
-        { id: 'A_mock_D5', type: 'A', content: { pitch: 'D5', raw: 'D5' }, difficulty: 3 }
+        { id: 'A_mock_C4_treble', type: 'A', content: { pitch: 'C4', raw: 'C4', placement: 'treble' }, difficulty: 1 },
+        { id: 'A_mock_G4_treble', type: 'A', content: { pitch: 'G4', raw: 'G4', placement: 'treble' }, difficulty: 2 },
+        { id: 'A_mock_D5_treble', type: 'A', content: { pitch: 'D5', raw: 'D5', placement: 'treble' }, difficulty: 3 }
       );
     }
     return slices;

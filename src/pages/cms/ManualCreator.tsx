@@ -306,7 +306,7 @@ export default function ManualCreator() {
 
       // Override placement for batch Type A imports based on section markers
       if (type === 'A') {
-        contentObj = { ...contentObj, placement: currentPlacement };
+        contentObj = { ...contentObj, placement: resolvePlacement(line, currentPlacement) };
       }
 
       slices.push({
@@ -324,7 +324,7 @@ export default function ManualCreator() {
 
   const buildContent = (type: string, value: string) => {
     switch (type) {
-      case 'A': return { pitch: value, raw: value, placement };
+      case 'A': return { pitch: value, raw: value, placement: resolvePlacement(value, placement) };
       case 'B': return { symbol: value, answer: symbolAnswer.trim() };
       case 'C': {
         if (value.includes('|')) {
