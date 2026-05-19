@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -11,9 +11,22 @@ interface Props {
 export default function GuidanceModal({ title, guidance, onStart }: Props) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
+  // 锁死 Esc 与背景点击 —— 仅「开始答题」按钮可关闭蒙层（spec stage-guidance）
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   return (
     <div
       data-testid="guidance-backdrop"
+      onClick={() => { /* intentionally no-op: backdrop click must not close the modal (spec stage-guidance) */ }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.55)',

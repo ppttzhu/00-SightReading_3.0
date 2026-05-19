@@ -75,4 +75,11 @@ describe('GuidanceModal', () => {
     fireEvent.click(backdrop!);
     expect(onStart).not.toHaveBeenCalled();
   });
+
+  it('does NOT call onStart when Escape is pressed', () => {
+    const onStart = vi.fn();
+    render(<GuidanceModal title="T" guidance="g" onStart={onStart} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onStart).not.toHaveBeenCalled();
+  });
 });
