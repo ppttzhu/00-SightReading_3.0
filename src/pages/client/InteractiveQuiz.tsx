@@ -5,6 +5,7 @@ import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import { extractNoteAnswer, enharmonicEqual } from './noteAnswer';
+import { interactiveAOptions } from './noteOptions';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -67,20 +68,17 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
   '八度跳进':    ['C4', 'C5', 'C4', 'C5'],
 };
 
-const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const SHARP_NOTES = ['C#', 'D#', 'F#', 'G#', 'A#'];
-const FLAT_NOTES = ['Db', 'Eb', 'Gb', 'Ab', 'Bb'];
-const ALL_NOTE_ANSWERS = [...NOTE_NAMES, ...SHARP_NOTES, ...FLAT_NOTES];
-
 function generateOptions(slice: Slice): string[] {
   let correct = '';
   let pool: string[] = [];
 
   switch (slice.type) {
     case 'A':
-      correct = extractNoteAnswer(slice.content.pitch || '');
-      pool = ALL_NOTE_ANSWERS;
-      break;
+      // Show 7 naturals for natural-pitch questions (matches main); expand to
+      // all 17 spellings when the question itself is accidental, so the
+      // correct answer is always selectable. Current stage JSON has only
+      // naturals, but Extractors.parsePitch and the CMS already emit C#/Bb.
+      return interactiveAOptions(extractNoteAnswer(slice.content.pitch || ''));
     case 'B': {
       // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
       const answer = slice.content.answer;

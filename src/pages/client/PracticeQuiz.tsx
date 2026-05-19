@@ -4,10 +4,8 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflo
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import { extractNoteAnswer, enharmonicEqual } from './noteAnswer';
+import { practiceOptions } from './noteOptions';
 
-const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const SHARP_NOTES = ['C#', 'D#', 'F#', 'G#', 'A#'];
-const FLAT_NOTES = ['Db', 'Eb', 'Gb', 'Ab', 'Bb'];
 const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
 const FLAT_OK = new Set(['D', 'E', 'G', 'A', 'B']);
 
@@ -137,7 +135,6 @@ export default function PracticeQuiz() {
   const high = searchParams.get('high') || 'C6';
   const includeSharps = searchParams.get('sharp') === '1';
   const includeFlats = searchParams.get('flat') === '1';
-  const includeAccidentals = includeSharps || includeFlats;
 
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano';
 
@@ -227,21 +224,13 @@ export default function PracticeQuiz() {
   const handleAnswerRef = useRef<(a: string) => void>(() => {});
   handleAnswerRef.current = handleAnswer;
 
-  // Random 3 distractors + correct, shuffled. Only used when accidentals are on.
-  const options = useMemo(() => {
-    if (!includeAccidentals) return NOTE_NAMES;
-    const correct = extractNoteAnswer(currentPitch);
-    const pool = [
-      ...NOTE_NAMES,
-      ...(includeSharps ? SHARP_NOTES : []),
-      ...(includeFlats ? FLAT_NOTES : []),
-    ];
-    const distractors = pool
-      .filter(n => n !== correct)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
-    return [correct, ...distractors].sort(() => Math.random() - 0.5);
-  }, [currentPitch, includeAccidentals, includeSharps, includeFlats]);
+  // Exactly 7 unique options including the correct answer. When accidentals
+  // are off the pool is just the 7 naturals (stable order); otherwise we
+  // reshuffle per question so the 7-option window samples the wider pool.
+  const options = useMemo(
+    () => practiceOptions(extractNoteAnswer(currentPitch), includeSharps, includeFlats),
+    [currentPitch, includeSharps, includeFlats],
+  );
 
   // Physical keyboard listener (options mode only)
   useEffect(() => {
