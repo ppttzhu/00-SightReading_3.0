@@ -66,6 +66,7 @@ export interface CustomStage {
   title: string;
   sliceIds: string[]; // 引用 slicesPool 中的 id
   isPreset?: boolean;
+  guidance?: string;  // 老师为该关卡撰写的「学习指导」Markdown 文本
 }
 
 interface AppState {
@@ -201,6 +202,13 @@ export const useAppStore = create<AppState>()(
       })),
 
       generatePresetStages: (moduleId) => set((state) => {
+        // 先记录旧 preset 关卡的 guidance（按 id），新生成的同 id preset 沿用
+        const oldGuidanceById = new Map<string, string>();
+        for (const cs of state.customStages) {
+          if (cs.module === moduleId && cs.isPreset && cs.guidance) {
+            oldGuidanceById.set(cs.id, cs.guidance);
+          }
+        }
         // Remove old presets for this module
         const withoutOldPresets = state.customStages.filter(
           cs => !(cs.module === moduleId && cs.isPreset)
@@ -217,6 +225,7 @@ export const useAppStore = create<AppState>()(
           title: s.title,
           sliceIds: s.slices.map(sl => sl.id),
           isPreset: true,
+          guidance: oldGuidanceById.get(s.id),  // 没旧值则 undefined
         }));
         const newCustomStages = [...withoutOldPresets, ...presets];
         // Build order: presets first, then existing manual stages for this module
