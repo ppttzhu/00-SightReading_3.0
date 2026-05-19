@@ -9,6 +9,7 @@ import { audioEngine } from '../../core/engine/AudioEngine';
 import { getAutomaticClefForPitch, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
+import GuidanceModal from '../../components/GuidanceModal';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -121,6 +122,22 @@ function generateOptions(slice: Slice): string[] {
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
+const GUIDANCE_SUPPRESS_KEY = 'stage_guidance_suppressed';
+
+function readSuppressedMap(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(GUIDANCE_SUPPRESS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+function writeSuppressed(stageId: string, guidanceSnapshot: string): void {
+  const map = readSuppressedMap();
+  map[stageId] = guidanceSnapshot;
+  localStorage.setItem(GUIDANCE_SUPPRESS_KEY, JSON.stringify(map));
+}
+
 // ============================================================
 // 组件
 // ============================================================
@@ -131,6 +148,7 @@ export default function InteractiveQuiz() {
 
   const slicesPool = useAppStore(state => state.slicesPool);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
+  const customStages = useAppStore(state => state.customStages);
 
   // Track a session key that changes each time the component mounts (new attempt)
   const [sessionKey] = useState(() => Math.random());
@@ -152,6 +170,16 @@ export default function InteractiveQuiz() {
     return { stage: null, stageIndex: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageId, slicesPool, sessionKey]);
+
+  // ============================================================
+  // 学习指导蒙层（spec stage-guidance）
+  // ============================================================
+  const stageRecord = customStages.find(cs => cs.id === stageId);
+  const guidance = stageRecord?.guidance?.trim() ?? '';
+  const [introDismissed, setIntroDismissed] = useState(() => {
+    if (!stageId || !guidance) return true;
+    return readSuppressedMap()[stageId] === guidance;
+  });
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
@@ -371,6 +399,19 @@ export default function InteractiveQuiz() {
         <p style={{ color: '#6b7280', fontSize: '1.2rem' }}>Stage not found.</p>
         <button onClick={() => navigate(-1)} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Go Back</button>
       </div>
+    );
+  }
+
+  if (!introDismissed && guidance && stageRecord) {
+    return (
+      <GuidanceModal
+        title={stageRecord.title}
+        guidance={guidance}
+        onStart={(dontShowAgain) => {
+          if (dontShowAgain && stageId) writeSuppressed(stageId, guidance);
+          setIntroDismissed(true);
+        }}
+      />
     );
   }
 
