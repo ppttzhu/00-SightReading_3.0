@@ -51,6 +51,12 @@ export function resolvePlacement(pitch: string, pref: StaffPlacement): 'treble' 
   return getGrandStaffPlacement(pitch);
 }
 
+/** Get a human-readable staff label for a given pitch and optional placement preference. */
+export function getStaffLabel(pitch: string, placement?: StaffPlacement): string {
+  const actual = resolvePlacement(pitch, placement || 'auto');
+  return actual === 'treble' ? '高音' : '低音';
+}
+
 /** For practice mode: randomly choose clef type, constrained by pitch range. */
 export function getClefForPractice(pitch: string): ClefType {
   const num = pitchToMidi(pitch);
