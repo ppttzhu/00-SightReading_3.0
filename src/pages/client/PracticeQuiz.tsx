@@ -1,65 +1,18 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import { audioEngine } from '../../core/engine/AudioEngine';
+import { getClefForPractice, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
+import type { ClefType } from '../../core/engine/pitchUtils';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
-import { extractNoteAnswer, enharmonicEqual } from './noteAnswer';
+import { extractNoteAnswer } from './noteAnswer';
 import { practiceOptions } from './noteOptions';
 
+// Skip the rare enharmonic spellings (E#/B#/Cb/Fb) when generating accidentals.
 const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
 const FLAT_OK = new Set(['D', 'E', 'G', 'A', 'B']);
-
-const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-
-type Feedback = 'none' | 'correct' | 'wrong';
-
-function PianoKeyboard({
-  onAnswer,
-  lastAnswer = null,
-  feedback = 'none',
-}: {
-  onAnswer: (note: string) => void;
-  lastAnswer?: string | null;
-  feedback?: Feedback;
-}) {
-  const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
-  const whites = WHITE_KEYS;
-  const blacks: { name: string; pos: number }[] = [
-    { name: 'C#', pos: 1 }, { name: 'D#', pos: 2 },
-    { name: 'F#', pos: 4 }, { name: 'G#', pos: 5 }, { name: 'A#', pos: 6 },
-  ];
-  const totalW = whites.length * whiteW;
-
-  const okFill = '#10b981';
-  const badFill = '#ef4444';
-  const flashFill = feedback === 'correct' ? okFill : feedback === 'wrong' ? badFill : null;
-
-  return (
-    <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
-      {whites.map((name, i) => {
-        const active = lastAnswer === name && flashFill !== null;
-        return (
-          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-            <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
-              fill={active ? flashFill! : 'white'}
-              stroke={active ? flashFill! : '#d1d5db'} strokeWidth={1.5} rx={4}
-              style={{ transition: 'fill 0.2s ease, stroke 0.2s ease' }} />
-          </g>
-        );
-      })}
-      {blacks.map(({ name, pos }) => {
-        const active = lastAnswer === name && flashFill !== null;
-        return (
-          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-            <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
-              fill={active ? flashFill! : '#1f2937'} rx={4}
-              style={{ transition: 'fill 0.2s ease' }} />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
@@ -70,17 +23,9 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
   };
 }
 
-// Convert pitch string to numeric value for comparison
-function pitchToNum(pitch: string): number {
-  const noteVal: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-  const note = pitch.charAt(0).toUpperCase();
-  const octave = parseInt(pitch.charAt(1) || pitch.charAt(pitch.length - 1));
-  return octave * 7 + (noteVal[note] || 0);
-}
-
 // Generate a random pitch between low and high (inclusive), avoiding prev.
 // When includeSharps and/or includeFlats are true, ~40% of pitches get the
-// respective accidental, skipping the rare enharmonic spellings (E#/B#/Cb/Fb).
+// respective accidental.
 function randomPitch(
   low: string,
   high: string,
@@ -88,8 +33,8 @@ function randomPitch(
   includeSharps: boolean,
   includeFlats: boolean,
 ): string {
-  const lowNum = pitchToNum(low);
-  const highNum = pitchToNum(high);
+  const lowNum = pitchToStaffNum(low);
+  const highNum = pitchToStaffNum(high);
   if (highNum <= lowNum) return low;
 
   const noteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -115,15 +60,9 @@ function randomPitch(
   return pitch;
 }
 
-// Determine clef based on pitch
-function getClef(pitch: string): string {
-  const num = pitchToNum(pitch);
-  const e4Num = pitchToNum('E4');
-  const a3Num = pitchToNum('A3');
-
-  if (num >= e4Num) return 'treble';
-  if (num <= a3Num) return 'bass';
-  return Math.random() > 0.5 ? 'treble' : 'bass';
+// Get clef for practice mode (random: treble / bass / grand)
+function pickClef(pitch: string): ClefType {
+  return getClefForPractice(pitch);
 }
 
 export default function PracticeQuiz() {
@@ -136,16 +75,24 @@ export default function PracticeQuiz() {
   const includeSharps = searchParams.get('sharp') === '1';
   const includeFlats = searchParams.get('flat') === '1';
 
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'piano') === 'piano';
+  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
 
   const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high, undefined, includeSharps, includeFlats));
-  const [feedback, setFeedback] = useState<Feedback>('none');
-  const [lastAnswer, setLastAnswer] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
   const [noteVisible, setNoteVisible] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
+  const [showAudioTip, setShowAudioTip] = useState(true);
+  const [tipFading, setTipFading] = useState(false);
+  useEffect(() => {
+    setTipFading(false);
+    const t1 = setTimeout(() => setTipFading(true), 3000);
+    const t2 = setTimeout(() => setShowAudioTip(false), 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [showAudioTip]);
 
-  const clef = useMemo(() => getClef(currentPitch), [currentPitch]);
+  const clef = useMemo<ClefType>(() => pickClef(currentPitch), [currentPitch]);
 
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
@@ -176,6 +123,45 @@ export default function PracticeQuiz() {
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
     const width = Math.min(500, containerRef.current.clientWidth - 20);
+
+    if (clef === 'grand') {
+      // ── 大谱表 ──
+      renderer.resize(width, 280);
+      const context = renderer.getContext();
+      const staveW = width - 40;
+
+      const staveTop = new Stave(10, 30, staveW);
+      staveTop.addClef('treble');
+      staveTop.setContext(context).draw();
+
+      const staveBottom = new Stave(10, 130, staveW);
+      staveBottom.addClef('bass');
+      staveBottom.setContext(context).draw();
+
+      const connector = new StaveConnector(staveTop, staveBottom);
+      connector.setType(StaveConnector.type.BRACE);
+      connector.setContext(context).draw();
+
+      const placement = getGrandStaffPlacement(currentPitch);
+      const activeStave = placement === 'treble' ? staveTop : staveBottom;
+
+      try {
+        const { key, accidental } = parsePitchForVexflow(currentPitch);
+        const note = new StaveNote({ keys: [key], duration: 'w', clef: placement });
+        if (accidental) note.addModifier(new Accidental(accidental));
+
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables([note]);
+        new Formatter().joinVoices([voice]).format([voice], 350);
+        voice.draw(context, activeStave);
+      } catch (e) {
+        console.error('VexFlow error:', e);
+      }
+      return;
+    }
+
+    // ── 单五线谱 (treble / bass) ──
     renderer.resize(width, 200);
     const context = renderer.getContext();
 
@@ -198,41 +184,40 @@ export default function PracticeQuiz() {
     }
   }, [currentPitch, clef]);
 
-  const handleAnswer = (answer: string, enharmonic = false) => {
+  const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
-    const correct = extractNoteAnswer(currentPitch);
-    const isCorrect = enharmonic ? enharmonicEqual(answer, correct) : answer === correct;
+    // Piano mode submits the full pitch (e.g. "C#4") — pitchEqual checks
+    // letter, accidental, and octave together. Options mode submits the
+    // letter+accidental (e.g. "C#") so a C#4 question needs "C#", not bare "C".
+    const isCorrect = usePiano
+      ? pitchEqual(answer, currentPitch)
+      : answer === extractNoteAnswer(currentPitch);
 
     setTotal(t => t + 1);
-    setLastAnswer(answer);
     if (isCorrect) {
       setScore(s => s + 1);
       setFeedback('correct');
       setTimeout(() => {
+        audioEngine.stop();
         setFeedback('none');
-        setLastAnswer(null);
         nextQuestion();
       }, 600);
     } else {
       setFeedback('wrong');
-      setTimeout(() => {
-        setFeedback('none');
-        setLastAnswer(null);
-      }, 500);
+      setTimeout(() => setFeedback('none'), 500);
     }
   };
   const handleAnswerRef = useRef<(a: string) => void>(() => {});
   handleAnswerRef.current = handleAnswer;
 
-  // Exactly 7 unique options including the correct answer. When accidentals
-  // are off the pool is just the 7 naturals (stable order); otherwise we
-  // reshuffle per question so the 7-option window samples the wider pool.
+  // Always 7 unique options including the correct answer.
   const options = useMemo(
     () => practiceOptions(extractNoteAnswer(currentPitch), includeSharps, includeFlats),
     [currentPitch, includeSharps, includeFlats],
   );
 
-  // Physical keyboard listener (options mode only)
+  // Physical keyboard input for options mode. 300ms buffer lets "C" + "#"
+  // resolve to a single "C#" answer.
   useEffect(() => {
     if (usePiano) return;
     const WINDOW_MS = 300;
@@ -242,7 +227,9 @@ export default function PracticeQuiz() {
       if (timer) { clearTimeout(timer); timer = null; }
       const ans = parseNoteKeys(buffer);
       buffer = [];
-      if (ans) handleAnswerRef.current(ans);
+      if (!ans) return;
+      void audioEngine.playNote(pitchForAnswerLetter(ans, currentPitch));
+      handleAnswerRef.current(ans);
     };
     const onKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -258,7 +245,7 @@ export default function PracticeQuiz() {
       window.removeEventListener('keydown', onKeydown);
       if (timer) clearTimeout(timer);
     };
-  }, [usePiano]);
+  }, [usePiano, currentPitch]);
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
@@ -280,6 +267,37 @@ export default function PracticeQuiz() {
           <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 14px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem' }}>
             {score}/{total} ({accuracy}%)
           </span>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { audioEngine.setEnabled(!audioEngine.enabled); if (audioEngine.enabled) void audioEngine.prime(); setAudioEnabled(audioEngine.enabled); setShowAudioTip(true); }}
+              title={audioEnabled ? '关闭音效' : '开启音效'}
+              style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.2s ease', color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+            >
+              {audioEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <line x1="23" y1="9" x2="17" y2="15"/>
+                  <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+              )}
+            </button>
+            {showAudioTip && (
+              <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+                {audioEnabled ? '音效已开启，答题时会播放音符声音' : '音效已关闭'}
+                <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -307,42 +325,37 @@ export default function PracticeQuiz() {
         </div>
 
         {usePiano ? (
-          <PianoKeyboard onAnswer={(a) => handleAnswer(a, true)} lastAnswer={lastAnswer} feedback={feedback} />
+          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {options.map(note => {
-              const active = lastAnswer === note && feedback !== 'none';
-              const activeColor = feedback === 'correct' ? '#10b981' : '#ef4444';
-              return (
-                <button
-                  key={note}
-                  onClick={() => handleAnswer(note)}
-                  style={{
-                    width: '64px', height: '64px', borderRadius: '16px',
-                    border: active ? `2px solid ${activeColor}` : '1px solid #f3f4f6',
-                    background: active ? activeColor : 'white',
-                    fontSize: '1.6rem', fontWeight: '700',
-                    color: active ? 'white' : '#374151',
-                    cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: active ? `0 6px 16px ${activeColor}55` : '0 4px 15px rgba(0,0,0,0.03)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transform: active && feedback === 'wrong' ? 'scale(0.96)' : 'none',
-                  }}
-                  onMouseEnter={e => {
-                    if (active) return;
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                  }}
-                  onMouseLeave={e => {
-                    if (active) return;
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                  }}
-                >
-                  {note}
-                </button>
-              );
-            })}
+            {options.map(note => (
+              <button
+                key={note}
+                onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
+                onClick={() => {
+                  void audioEngine.playNote(pitchForAnswerLetter(note, currentPitch));
+                  handleAnswer(note);
+                }}
+                style={{
+                  width: '64px', height: '64px', borderRadius: '16px',
+                  border: '1px solid #f3f4f6', background: 'white',
+                  fontSize: '1.6rem', fontWeight: '700', color: '#374151',
+                  cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
+                }}
+              >
+                {note}
+              </button>
+            ))}
           </div>
         )}
       </div>

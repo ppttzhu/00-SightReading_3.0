@@ -6,6 +6,7 @@ export interface Slice {
   type: 'A' | 'B' | 'C' | 'D'; // 单音 | 符号 | 乐理 | 音型
   content: any;
   difficulty: number;
+  createdAt?: number;
 }
 
 // 类型到模块ID的映射
@@ -151,6 +152,7 @@ export const useAppStore = create<AppState>()(
       },
 
       addSlices: (slices) => set((state) => {
+        const now = Date.now();
         const newPool = [...state.slicesPool];
         slices.forEach(slice => {
           const sliceKey = slice.content.raw || slice.content.symbol || slice.content.theory || slice.content.pattern;
@@ -158,7 +160,7 @@ export const useAppStore = create<AppState>()(
             const existingKey = existing.content.raw || existing.content.symbol || existing.content.theory || existing.content.pattern;
             return existing.type === slice.type && existingKey === sliceKey;
           });
-          if (!isDuplicate) newPool.push(slice);
+          if (!isDuplicate) newPool.push({ ...slice, createdAt: slice.createdAt || now });
         });
         return { slicesPool: newPool };
       }),

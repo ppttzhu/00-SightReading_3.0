@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../../core/store/useAppStore';
+import { getStaffLabel } from '../../core/engine/pitchUtils';
 
 function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const [input, setInput] = useState('');
@@ -8,7 +9,7 @@ function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onC
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '32px', width: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <h2 style={{ margin: '0 0 8px', color: '#1f2937', fontSize: '1.2rem' }}>确认清空题库</h2>
-        <p style={{ color: '#6b7280', margin: '0 0 20px', fontSize: '0.9rem' }}>此操作将删除全部题目且不可恢复。请在下方输入框中输入 <b>我确定要删除</b> 以确认。</p>
+        <p style={{ color: '#6b7280', margin: '0 0 20px', fontSize: '0.9rem' }}>此操作将删除全部题目且不可恢复。请在下方输入框中输入 <b>确定删除</b> 以确认。</p>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -48,6 +49,7 @@ export default function StageBuilder() {
   const removeSlice = useAppStore(state => state.removeSlice);
   const clearPool = useAppStore(state => state.clearPool);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [filterType, setFilterType] = useState<string>('A');
 
   // 按类型分组统计
   const stats = {
@@ -57,8 +59,8 @@ export default function StageBuilder() {
     D: slicesPool.filter(s => s.type === 'D').length,
   };
 
-  const totalQuestions = slicesPool.length;
-  const totalStages = Math.ceil(stats.A / 5) + Math.ceil(stats.B / 5) + Math.ceil(stats.C / 5) + Math.ceil(stats.D / 5);
+  const filteredCount = stats[filterType as keyof typeof stats];
+  const filteredStages = Math.ceil(filteredCount / 5);
 
   return (
     <>
@@ -80,26 +82,40 @@ export default function StageBuilder() {
         )}
       </div>
 
-      {/* 统计卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '30px' }}>
-        {(['A', 'B', 'C', 'D'] as const).map(type => (
-          <div key={type} style={{
-            padding: '20px',
-            borderRadius: '12px',
-            background: 'white',
-            border: `1px solid ${TYPE_COLORS[type]}20`,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-          }}>
-            <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '8px' }}>{TYPE_LABELS[type]}池 ({type})</div>
-            <div style={{ fontSize: '2rem', fontWeight: '800', color: TYPE_COLORS[type] }}>{stats[type]}</div>
-            <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>→ {Math.ceil(stats[type] / 5)} 关</div>
-          </div>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>点击卡片切换题库类型</span>
       </div>
 
-      {/* 全局信息条 */}
+      {/* 统计卡片（也是筛选器） */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '20px' }}>
+        {(['A', 'B', 'C', 'D'] as const).map(type => {
+          const active = filterType === type;
+          return (
+            <div
+              key={type}
+              onClick={() => setFilterType(type)}
+              style={{
+                padding: '20px',
+                borderRadius: '12px',
+                background: 'white',
+                border: active ? `2px solid ${TYPE_COLORS[type]}` : `1px solid ${TYPE_COLORS[type]}20`,
+                boxShadow: active ? `0 4px 16px ${TYPE_COLORS[type]}30` : '0 2px 8px rgba(0,0,0,0.03)',
+                transform: active ? 'scale(1.03)' : 'scale(1)',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+              }}
+            >
+              <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '8px' }}>{TYPE_LABELS[type]}池</div>
+              <div style={{ fontSize: '2rem', fontWeight: '800', color: TYPE_COLORS[type] }}>{stats[type]}</div>
+              <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>→ {Math.ceil(stats[type] / 5)} 关</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 当前筛选信息条 */}
       <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#1e40af' }}>📊 共 <b>{totalQuestions}</b> 道题目，自动生成 <b>{totalStages}</b> 个关卡</span>
+        <span style={{ color: '#1e40af' }}>📊 {TYPE_LABELS[filterType]}池：共 <b>{filteredCount}</b> 道题目，自动生成 <b>{filteredStages}</b> 个关卡</span>
       </div>
 
       {/* 题目列表 */}
@@ -109,7 +125,12 @@ export default function StageBuilder() {
             题库为空。请通过"文件解析器"或"手动出题器"添加题目。
           </div>
         ) : (
-          slicesPool.map(slice => (
+          slicesPool
+            .filter(slice => slice.type === filterType)
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+            .map(slice => {
+              const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
+              return (
             <div
               key={slice.id}
               style={{
@@ -137,6 +158,32 @@ export default function StageBuilder() {
                 <span style={{ color: '#1f2937', fontWeight: '500' }}>
                   {slice.content.raw || slice.content.symbol || slice.content.theory || slice.content.pattern}
                 </span>
+                {slice.type === 'A' && (
+                  <span style={{
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid #e5e7eb',
+                    color: '#6b7280',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    flexShrink: 0
+                  }}>
+                    {getStaffLabel(slice.content.pitch || slice.content.raw, slice.content.placement)}
+                  </span>
+                )}
+                {isNew && (
+                  <span style={{
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: '#fee2e2',
+                    color: '#ef4444',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    flexShrink: 0
+                  }}>
+                    新
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 {/* 难度调节 */}
@@ -156,8 +203,9 @@ export default function StageBuilder() {
                 </button>
               </div>
             </div>
-          ))
-        )}
+          );
+        })
+      )}
       </div>
     </div>
     {showClearModal && (

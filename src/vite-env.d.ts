@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_GIST_ID: string;
-  readonly VITE_GIST_TOKEN: string;
-  readonly VITE_GIST_OWNER: string;
+  readonly VITE_CMS_SECRET: string;
+  readonly VITE_SUPABASE_URL: string;
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
 }
 
 interface ImportMeta {

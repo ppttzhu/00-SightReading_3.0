@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
+import { resolvePlacement } from '../../core/engine/pitchUtils';
+import type { StaffPlacement } from '../../core/engine/pitchUtils';
 
 // ── 字典数据 ──────────────────────────────────────────────────
 const SYMBOL_MAP: Record<string, string> = {
@@ -23,8 +26,8 @@ const ALL_PITCHES: string[] = (() => {
 })();
 
 const ALL_INTERVALS = [
-  '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
-  '纯四度 (P4)', '三全音 (TT)', '纯五度 (P5)',
+  '纯一度 (P1)', '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
+  '纯四度 (P4)', '增四度 (A4)', '三全音 (TT)', '减五度 (d5)', '纯五度 (P5)',
   '小六度 (m6)', '大六度 (M6)', '小七度 (m7)', '大七度 (M7)', '纯八度 (P8)',
 ];
 
@@ -32,8 +35,8 @@ const ALL_PATTERNS = ['上行音阶跑动', '下行音阶跑动', '分解和弦'
 
 // 音程名 → 半音数
 const INTERVAL_SEMITONES: Record<string, number> = {
-  '小二度 (m2)': 1, '大二度 (M2)': 2, '小三度 (m3)': 3, '大三度 (M3)': 4,
-  '纯四度 (P4)': 5, '三全音 (TT)': 6, '纯五度 (P5)': 7,
+  '纯一度 (P1)': 0, '小二度 (m2)': 1, '大二度 (M2)': 2, '小三度 (m3)': 3, '大三度 (M3)': 4,
+  '纯四度 (P4)': 5, '增四度 (A4)': 6, '三全音 (TT)': 6, '减五度 (d5)': 6, '纯五度 (P5)': 7,
   '小六度 (m6)': 8, '大六度 (M6)': 9, '小七度 (m7)': 10, '大七度 (M7)': 11, '纯八度 (P8)': 12,
 };
 
@@ -189,6 +192,58 @@ export default function ManualCreator() {
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [placement, setPlacement] = useState<StaffPlacement>('auto');
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  // ── 单音大谱表预览 ──
+  const isValidPitch = (s: string) => /^[A-Ga-g][#b]?\d$/.test(s);
+
+  useEffect(() => {
+    if (!previewRef.current || type !== 'A') return;
+    previewRef.current.innerHTML = '';
+
+    const pitch = content.trim();
+    if (!isValidPitch(pitch)) return;
+
+    const renderer = new Renderer(previewRef.current, Renderer.Backends.SVG);
+    const width = Math.min(400, previewRef.current.clientWidth - 20);
+    renderer.resize(width, 240);
+    const context = renderer.getContext();
+    const staveW = width - 40;
+
+    const staveTop = new Stave(10, 20, staveW);
+    staveTop.addClef('treble');
+    staveTop.setContext(context).draw();
+
+    const staveBottom = new Stave(10, 110, staveW);
+    staveBottom.addClef('bass');
+    staveBottom.setContext(context).draw();
+
+    const connector = new StaveConnector(staveTop, staveBottom);
+    connector.setType(StaveConnector.type.BRACE);
+    connector.setContext(context).draw();
+
+    const actualPlacement = resolvePlacement(pitch, placement);
+    const activeStave = actualPlacement === 'treble' ? staveTop : staveBottom;
+
+    const match = pitch.match(/^([A-Ga-g])(#|b)?(\d)$/);
+    if (!match) return;
+    const key = `${match[1].toLowerCase()}/${match[3]}`;
+    const accidental = match[2] || null;
+
+    try {
+      const note = new StaveNote({ keys: [key], duration: 'w', clef: actualPlacement });
+      if (accidental) note.addModifier(new Accidental(accidental));
+
+      const voice = new Voice({ numBeats: 4, beatValue: 4 });
+      voice.setMode(2);
+      voice.addTickables([note]);
+      new Formatter().joinVoices([voice]).format([voice], 300);
+      voice.draw(context, activeStave);
+    } catch (e) {
+      console.error('Preview error:', e);
+    }
+  }, [type, content, placement]);
 
   const currentTypeOption = TYPE_OPTIONS.find(t => t.value === type)!;
 
@@ -217,24 +272,50 @@ export default function ManualCreator() {
   const handleAddBatch = () => {
     if (!batchText.trim()) return;
 
-    // 按换行分割，每行为一道题
-    // B 类格式: "符号|答案"，如 "pp|极弱 (pianissimo)"
     const lines = batchText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const slices = lines.map((line, idx) => {
+    let currentPlacement = placement;
+    const slices = [];
+
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+
+      // Section markers for staff placement (Type A only)
+      if (line === '[高音]') { currentPlacement = 'treble'; continue; }
+      if (line === '[低音]') { currentPlacement = 'bass'; continue; }
+      if (line === '[自动]') { currentPlacement = 'auto'; continue; }
+
       let contentObj;
       if (type === 'B' && line.includes('|')) {
         const [symbol, answer] = line.split('|').map(s => s.trim());
         contentObj = { symbol, answer };
+      } else if (type === 'C' && !line.includes('|') && line.includes(',')) {
+        const [startNote, interval] = line.split(',').map(s => s.trim());
+        const secondNote = calcSecondNote(startNote, interval);
+        if (startNote && interval && secondNote) {
+          contentObj = {
+            theory: interval,
+            notes: [startNote, secondNote],
+            raw: `${startNote},${secondNote}|${interval}`,
+          };
+        } else {
+          contentObj = buildContent(type, line);
+        }
       } else {
         contentObj = buildContent(type, line);
       }
-      return {
+
+      // Override placement for batch Type A imports based on section markers
+      if (type === 'A') {
+        contentObj = { ...contentObj, placement: currentPlacement };
+      }
+
+      slices.push({
         id: `manual_${type}_${Date.now()}_${idx}_${line}`,
         type: type,
         content: contentObj,
         difficulty
-      };
-    });
+      });
+    }
 
     addSlices(slices);
     setBatchText('');
@@ -243,7 +324,7 @@ export default function ManualCreator() {
 
   const buildContent = (type: string, value: string) => {
     switch (type) {
-      case 'A': return { pitch: value, raw: value };
+      case 'A': return { pitch: value, raw: value, placement };
       case 'B': return { symbol: value, answer: symbolAnswer.trim() };
       case 'C': {
         if (value.includes('|')) {
@@ -391,9 +472,48 @@ export default function ManualCreator() {
                     }}>+ 添加到素材池</button>
                   </div>
                 )}
+                {/* 单音：谱号位置选择 */}
+                {type === 'A' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>在大谱表中出现位置：</span>
+                    <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '10px', padding: '3px' }}>
+                      {([
+                        { v: 'auto' as StaffPlacement, label: '自动' },
+                        { v: 'treble' as StaffPlacement, label: '高音谱号' },
+                        { v: 'bass' as StaffPlacement, label: '低音谱号' },
+                      ]).map(opt => (
+                        <button
+                          key={opt.v}
+                          onClick={() => setPlacement(opt.v)}
+                          style={{
+                            padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                            fontWeight: placement === opt.v ? '700' : '500', fontSize: '0.85rem',
+                            background: placement === opt.v ? '#1f2937' : 'transparent',
+                            color: placement === opt.v ? 'white' : '#6b7280',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
+          {/* 单音大谱表预览 */}
+          {type === 'A' && isValidPitch(content.trim()) && (
+            <div style={{
+              background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px',
+              padding: '16px', marginBottom: '15px', textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '8px' }}>
+                大谱表预览 — 音符出现在{resolvePlacement(content.trim(), placement) === 'treble' ? '高音谱号' : '低音谱号'}中
+              </div>
+              <div ref={previewRef}></div>
+            </div>
+          )}
           <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
             {type === 'B' ? '第一行输入符号（题面），第二行输入答案含义' : type === 'C' ? '输入起始音和音程，第二个音自动推算' : '按回车可快速提交'}
           </p>
@@ -403,9 +523,15 @@ export default function ManualCreator() {
           <textarea
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
-            placeholder={type === 'B'
-              ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
-              : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`}
+            placeholder={
+              type === 'B'
+                ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
+                : type === 'C'
+                ? `每行格式: 起始音,音程名  或  音1,音2|音程名\n例如：\nC4,纯五度 (P5)\nD4,大三度 (M3)\nE4,G4|大三度 (M3)`
+                : type === 'A'
+                ? `每行输入一个音高，可用 [高音] [低音] [自动] 标记谱表区域，例如：\n[高音]\nC4\nD4\n[低音]\nA2\nB2\n[自动]\nE3`
+                : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`
+            }
             style={{
               width: '100%', height: '200px', padding: '16px', borderRadius: '8px',
               border: '1px solid #d1d5db', fontSize: '1rem', resize: 'vertical',

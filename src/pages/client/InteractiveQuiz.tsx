@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
-import { extractNoteAnswer, enharmonicEqual } from './noteAnswer';
+import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import { audioEngine } from '../../core/engine/AudioEngine';
+import { getAutomaticClefForPitch, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
 
 // ============================================================
@@ -24,8 +27,8 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
 // ============================================================
 
 const ALL_INTERVALS = [
-  '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
-  '纯四度 (P4)', '三全音 (TT)', '纯五度 (P5)',
+  '纯一度 (P1)', '小二度 (m2)', '大二度 (M2)', '小三度 (m3)', '大三度 (M3)',
+  '纯四度 (P4)', '增四度 (A4)', '三全音 (TT)', '减五度 (d5)', '纯五度 (P5)',
   '小六度 (m6)', '大六度 (M6)', '小七度 (m7)', '大七度 (M7)', '纯八度 (P8)'
 ];
 
@@ -74,10 +77,8 @@ function generateOptions(slice: Slice): string[] {
 
   switch (slice.type) {
     case 'A':
-      // Show 7 naturals for natural-pitch questions (matches main); expand to
-      // all 17 spellings when the question itself is accidental, so the
-      // correct answer is always selectable. Current stage JSON has only
-      // naturals, but Extractors.parsePitch and the CMS already emit C#/Bb.
+      // Always 7 unique options including the correct answer. Pool widens to
+      // the 17-spelling set only when the question itself is accidental.
       return interactiveAOptions(extractNoteAnswer(slice.content.pitch || ''));
     case 'B': {
       // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
@@ -121,60 +122,6 @@ function generateOptions(slice: Slice): string[] {
 }
 
 // ============================================================
-// 迷你钢琴键盘（高亮显示指定音符）
-// ============================================================
-const WHITE_KEYS = ['C','D','E','F','G','A','B'];
-
-type Feedback = 'none' | 'correct' | 'wrong';
-
-function PianoKeyboard({
-  onAnswer,
-  lastAnswer = null,
-  feedback = 'none',
-}: {
-  onAnswer: (note: string) => void;
-  lastAnswer?: string | null;
-  feedback?: Feedback;
-}) {
-  const whiteW = 44, whiteH = 120, blackW = 28, blackH = 75;
-  // One octave only — A 类答案只需音名字母
-  const whites = WHITE_KEYS; // C D E F G A B
-  const blacks: { name: string; pos: number }[] = [
-    { name: 'C#', pos: 1 }, { name: 'D#', pos: 2 },
-    { name: 'F#', pos: 4 }, { name: 'G#', pos: 5 }, { name: 'A#', pos: 6 },
-  ];
-  const totalW = whites.length * whiteW;
-
-  const flashFill = feedback === 'correct' ? '#10b981' : feedback === 'wrong' ? '#ef4444' : null;
-
-  return (
-    <svg width={totalW} height={whiteH + 2} style={{ display: 'block', cursor: 'pointer' }}>
-      {whites.map((name, i) => {
-        const active = lastAnswer === name && flashFill !== null;
-        return (
-          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-            <rect x={i * whiteW} y={0} width={whiteW - 2} height={whiteH}
-              fill={active ? flashFill! : 'white'}
-              stroke={active ? flashFill! : '#d1d5db'} strokeWidth={1.5} rx={4}
-              style={{ transition: 'fill 0.2s ease, stroke 0.2s ease' }} />
-          </g>
-        );
-      })}
-      {blacks.map(({ name, pos }) => {
-        const active = lastAnswer === name && flashFill !== null;
-        return (
-          <g key={name} onClick={() => onAnswer(name)} style={{ cursor: 'pointer' }}>
-            <rect x={pos * whiteW - blackW / 2} y={0} width={blackW} height={blackH}
-              fill={active ? flashFill! : '#1f2937'} rx={4}
-              style={{ transition: 'fill 0.2s ease' }} />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// ============================================================
 // 组件
 // ============================================================
 export default function InteractiveQuiz() {
@@ -207,9 +154,17 @@ export default function InteractiveQuiz() {
   }, [stageId, slicesPool, sessionKey]);
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
-  const [feedback, setFeedback] = useState<Feedback>('none');
-  const [lastAnswer, setLastAnswer] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [noteVisible, setNoteVisible] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
+  const [showAudioTip, setShowAudioTip] = useState(true);
+  const [tipFading, setTipFading] = useState(false);
+  useEffect(() => {
+    setTipFading(false);
+    const t1 = setTimeout(() => setTipFading(true), 3000);
+    const t2 = setTimeout(() => setShowAudioTip(false), 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [showAudioTip]);
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
   // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
   // which excludes phones and most touch-only tablets.
@@ -249,28 +204,55 @@ export default function InteractiveQuiz() {
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
     const width = Math.min(500, containerRef.current.clientWidth - 20);
+    const isGrand = currentSlice.type === 'A';
+
+    if (isGrand) {
+      // ── A 类单音：使用大谱表 ──
+      renderer.resize(width, 280);
+      const context = renderer.getContext();
+
+      const staveW = width - 40;
+      const staveTop = new Stave(10, 30, staveW);
+      staveTop.addClef('treble');
+      staveTop.setContext(context).draw();
+
+      const staveBottom = new Stave(10, 130, staveW);
+      staveBottom.addClef('bass');
+      staveBottom.setContext(context).draw();
+
+      const connector = new StaveConnector(staveTop, staveBottom);
+      connector.setType(StaveConnector.type.BRACE);
+      connector.setContext(context).draw();
+
+      const pitch = currentSlice.content.pitch || '';
+      const placement = resolvePlacement(pitch, currentSlice.content.placement || 'auto');
+      const activeStave = placement === 'treble' ? staveTop : staveBottom;
+
+      try {
+        const { key, accidental } = parsePitchForVexflow(pitch);
+        const note = new StaveNote({ keys: [key], duration: 'w', clef: placement });
+        if (accidental) note.addModifier(new Accidental(accidental));
+
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables([note]);
+        new Formatter().joinVoices([voice]).format([voice], 350);
+        voice.draw(context, activeStave);
+      } catch (e) {
+        console.error('VexFlow Draw Error:', e);
+      }
+      return;
+    }
+
+    // ── C / D 类：单五线谱 ──
     renderer.resize(width, 200);
     const context = renderer.getContext();
 
-    // 根据音高决定谱号 (仅 A 类单音)
     let clef = 'treble';
-    if (currentSlice.type === 'A') {
-      const pitch = currentSlice.content.pitch || '';
-      const noteChar = pitch.charAt(0).toUpperCase();
-      const octave = parseInt(pitch.charAt(pitch.length - 1));
-      // 将音名转为数值用于比较: C=0,D=1,E=2,F=3,G=4,A=5,B=6
-      const noteVal: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-      const pitchNum = (octave * 7) + (noteVal[noteChar] || 0);
-      const e4Num = (4 * 7) + 2; // E4
-      const a3Num = (3 * 7) + 5; // A3
-
-      if (pitchNum > e4Num) {
-        clef = 'treble';
-      } else if (pitchNum < a3Num) {
-        clef = 'bass';
-      } else {
-        // Between A3 and E4: random
-        clef = Math.random() > 0.5 ? 'treble' : 'bass';
+    if (currentSlice.type === 'C') {
+      const notes: string[] = currentSlice.content.notes || [];
+      if (notes.length >= 2) {
+        clef = getAutomaticClefForPitch(notes[0]);
       }
     }
 
@@ -279,33 +261,20 @@ export default function InteractiveQuiz() {
     stave.setContext(context).draw();
 
     try {
-      if (currentSlice.type === 'A') {
-        // ---- A: 单音 → 画一个全音符 ----
-        const { key, accidental } = parsePitchForVexflow(currentSlice.content.pitch);
-        const note = new StaveNote({ keys: [key], duration: "w", clef });
-        if (accidental) note.addModifier(new Accidental(accidental));
-
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
-        voice.setMode(2); // SOFT mode
-        voice.addTickables([note]);
-        new Formatter().joinVoices([voice]).format([voice], 350);
-        voice.draw(context, stave);
-
-      } else if (currentSlice.type === 'C') {
+      if (currentSlice.type === 'C') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
         const noteNames: string[] = currentSlice.content.notes || [];
         if (noteNames.length >= 2) {
-          // 音程：用二分音符，紧缩间距
           const vfNotes = noteNames.map(n => {
             const { key, accidental } = parsePitchForVexflow(n);
-            const note = new StaveNote({ keys: [key], duration: "h" });
+            const note = new StaveNote({ keys: [key], duration: 'h', clef });
             if (accidental) note.addModifier(new Accidental(accidental));
             return note;
           });
 
           const beats = vfNotes.length * 2;
           const voice = new Voice({ numBeats: beats, beatValue: 4 });
-          voice.setMode(2); // SOFT mode
+          voice.setMode(2);
           voice.addTickables(vfNotes);
           new Formatter().joinVoices([voice]).format([voice], 160);
           voice.draw(context, stave);
@@ -316,17 +285,14 @@ export default function InteractiveQuiz() {
         const rawStr: string = currentSlice.content.raw || currentSlice.content.pattern || '';
         console.log('[Pattern] raw:', rawStr, 'content:', JSON.stringify(currentSlice.content));
 
-        // 1. 从 raw 字符串提取带八度音符，如 C4、F#3、Bb5
         let noteNames: string[] = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
         console.log('[Pattern] step1 fromRaw:', noteNames);
 
-        // 2. 没有则尝试 content.notes
         if (noteNames.length < 2 && Array.isArray(currentSlice.content.notes) && currentSlice.content.notes.length >= 2) {
           noteNames = currentSlice.content.notes;
           console.log('[Pattern] step2 fromNotes:', noteNames);
         }
 
-        // 3. 兜底：按音型名称查预置示例音符
         if (noteNames.length < 2) {
           for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
             if (rawStr.includes(key)) {
@@ -337,7 +303,6 @@ export default function InteractiveQuiz() {
           }
         }
 
-        // 4. 最终兜底：C大调上行音阶示例
         if (noteNames.length < 2) {
           noteNames = ['C4', 'D4', 'E4', 'F4', 'G4'];
           console.log('[Pattern] step4 ultimateFallback:', noteNames);
@@ -347,15 +312,14 @@ export default function InteractiveQuiz() {
 
         const vfNotes = noteNames.map(n => {
           const { key, accidental } = parsePitchForVexflow(n);
-          const note = new StaveNote({ keys: [key], duration: 'q' });
+          const note = new StaveNote({ keys: [key], duration: 'q', clef });
           if (accidental) note.addModifier(new Accidental(accidental));
           return note;
         });
 
         const totalBeats = vfNotes.length;
-        // SOFT 模式：不严格校验总拍数，避免静默失败
         const voice = new Voice({ numBeats: totalBeats, beatValue: 4 });
-        voice.setMode(2); // SOFT mode
+        voice.setMode(2);
         voice.addTickables(vfNotes);
         new Formatter().joinVoices([voice]).format([voice], Math.min(360, totalBeats * 60));
         voice.draw(context, stave);
@@ -370,21 +334,21 @@ export default function InteractiveQuiz() {
   // the hook above the early return below, satisfying Rules of Hooks.
   const handleAnswerRef = useRef<(answer: string) => void>(() => {});
   const sliceType = currentSlice?.type;
+  const referencePitch = currentSlice?.type === 'A' ? (currentSlice.content.pitch || 'C4') : '';
   useEffect(() => {
     if (sliceType !== 'A' || usePiano) return;
-    // Buffer note-letter and accidental keys within a short window so that
-    // sequences like "C" + "#" resolve to a single "C#" answer.
+    // 300ms buffer so sequences like "C" + "#" resolve to a single "C#" answer.
     const WINDOW_MS = 300;
     let buffer: string[] = [];
     let timer: ReturnType<typeof setTimeout> | null = null;
-
     const flush = () => {
       if (timer) { clearTimeout(timer); timer = null; }
       const answer = parseNoteKeys(buffer);
       buffer = [];
-      if (answer) handleAnswerRef.current(answer);
+      if (!answer) return;
+      void audioEngine.playNote(pitchForAnswerLetter(answer, referencePitch));
+      handleAnswerRef.current(answer);
     };
-
     const onKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const isLetter = mapKeyToNote(e.key) !== null;
@@ -399,7 +363,7 @@ export default function InteractiveQuiz() {
       window.removeEventListener('keydown', onKeydown);
       if (timer) clearTimeout(timer);
     };
-  }, [sliceType, usePiano]);
+  }, [sliceType, usePiano, referencePitch]);
 
   if (!stage) {
     return (
@@ -421,7 +385,14 @@ export default function InteractiveQuiz() {
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
     switch (currentSlice.type) {
-      case 'A': return extractNoteAnswer(currentSlice.content.pitch || '');
+      case 'A': {
+        const pitch = currentSlice.content.pitch || '';
+        // Piano mode wants the full pitch (with octave) so pitchEqual can
+        // check both letter and octave. Options mode keeps the accidental so
+        // a C#4 question requires "C#" — not the bare "C" letter.
+        if (usePiano) return pitch;
+        return extractNoteAnswer(pitch);
+      }
       case 'B': {
         // Prefer the explicit answer field; fall back to SYMBOL_MAP for legacy data
         if (currentSlice.content.answer) return currentSlice.content.answer;
@@ -434,19 +405,19 @@ export default function InteractiveQuiz() {
     }
   };
 
-  const handleAnswer = (answer: string, enharmonic = false) => {
+  const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
     const correct = getCorrectAnswer();
-    const isCorrect = enharmonic && currentSlice?.type === 'A'
-      ? enharmonicEqual(answer, correct)
+    const isPianoTypeA = usePiano && currentSlice?.type === 'A';
+    const isCorrect = isPianoTypeA
+      ? pitchEqual(answer, correct)
       : answer === correct;
 
-    setLastAnswer(answer);
     if (isCorrect) {
       setFeedback('correct');
       setTimeout(() => {
+        audioEngine.stop();
         setFeedback('none');
-        setLastAnswer(null);
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
@@ -457,10 +428,7 @@ export default function InteractiveQuiz() {
       }, 800);
     } else {
       setFeedback('wrong');
-      setTimeout(() => {
-        setFeedback('none');
-        setLastAnswer(null);
-      }, 600);
+      setTimeout(() => setFeedback('none'), 600);
     }
   };
   handleAnswerRef.current = handleAnswer;
@@ -484,8 +452,41 @@ export default function InteractiveQuiz() {
         <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
           {stage.title} <span style={{ color: '#9ca3af', fontWeight: '500', marginLeft: '10px' }}>{currentSliceIndex + 1} / {stage.slices.length}</span>
         </h2>
-        <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { audioEngine.setEnabled(!audioEngine.enabled); if (audioEngine.enabled) void audioEngine.prime(); setAudioEnabled(audioEngine.enabled); setShowAudioTip(true); }}
+              title={audioEnabled ? '关闭音效' : '开启音效'}
+              style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.2s ease', color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+            >
+              {audioEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <line x1="23" y1="9" x2="17" y2="15"/>
+                  <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+              )}
+            </button>
+            {showAudioTip && (
+              <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+                {audioEnabled ? '音效已开启，答题时会播放音符声音' : '音效已关闭'}
+                <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -526,73 +527,69 @@ export default function InteractiveQuiz() {
 
         {/* 选项区 */}
         {currentSlice?.type === 'A' && usePiano ? (
-          <PianoKeyboard onAnswer={(a) => handleAnswer(a, true)} lastAnswer={lastAnswer} feedback={feedback} />
+          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.type === 'A' && hasFinePointer && (
               <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 作答；
-                升号按 <strong style={{ color: '#6b7280' }}>#</strong>，降号按 <strong style={{ color: '#6b7280' }}>-</strong> 或 <strong style={{ color: '#6b7280' }}>b</strong>
+                提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 也可作答
               </div>
             )}
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
-            {options.map((opt, i) => {
-              const active = lastAnswer === opt && feedback !== 'none';
-              const activeColor = feedback === 'correct' ? '#10b981' : '#ef4444';
-              return (
-                <button
-                  key={`${currentSliceIndex}_${i}_${opt}`}
-                  onClick={() => handleAnswer(opt)}
-                  style={{
-                    minWidth: '140px',
-                    maxWidth: '260px',
-                    padding: '14px 20px',
-                    borderRadius: '20px',
-                    border: active ? `2px solid ${activeColor}` : '1px solid #f3f4f6',
-                    background: active ? activeColor : 'white',
-                    fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
-                    fontWeight: '700',
-                    color: active ? 'white' : '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: active ? `0 8px 20px ${activeColor}55` : '0 4px 15px rgba(0,0,0,0.03)',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    lineHeight: '1.4',
-                    textAlign: 'center',
-                    transform: active && feedback === 'wrong' ? 'scale(0.96)' : 'none',
-                  }}
-                  onMouseEnter={e => {
-                    if (active) return;
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                  }}
-                  onMouseDown={e => {
-                    if (active) return;
-                    e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
-                    e.currentTarget.style.background = '#f8fafc';
-                    e.currentTarget.style.color = '#3b82f6';
-                  }}
-                  onMouseUp={e => {
-                    if (active) return;
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.color = '#374151';
-                  }}
-                  onMouseLeave={e => {
-                    if (active) return;
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.color = '#374151';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                    e.currentTarget.style.borderColor = '#f3f4f6';
-                  }}
-                >
-                  {opt}
-                </button>
-              );
-            })}
+            {options.map((opt, i) => (
+              <button
+                key={`${currentSliceIndex}_${i}_${opt}`}
+                onClick={() => {
+                  if (audioEnabled && currentSlice?.type === 'A') {
+                    void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
+                  }
+                  handleAnswer(opt);
+                }}
+                style={{
+                  minWidth: '140px',
+                  maxWidth: '260px',
+                  padding: '14px 20px',
+                  borderRadius: '20px',
+                  border: '1px solid #f3f4f6',
+                  background: 'white',
+                  fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
+                  fontWeight: '700',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  lineHeight: '1.4',
+                  textAlign: 'center'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
+                onMouseDown={e => {
+                  if (audioEnabled) void audioEngine.prime();
+                  e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
+                  e.currentTarget.style.background = '#f8fafc';
+                  e.currentTarget.style.color = '#3b82f6';
+                }}
+                onMouseUp={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.color = '#374151';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.color = '#374151';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
+                  e.currentTarget.style.borderColor = '#f3f4f6';
+                }}
+              >
+                {opt}
+              </button>
+            ))}
           </div>
           </div>
         )}
