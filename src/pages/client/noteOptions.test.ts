@@ -7,27 +7,22 @@ import {
   practiceOptions,
 } from './noteOptions';
 
-// Both InteractiveQuiz A-type and PracticeQuiz single-note answers must show
-// exactly 7 unique options in options mode, always including the correct
-// answer. PR #3 originally regressed this to 4 (correct + 3 distractors); a
-// later patch overshot to 12 / 17 when accidentals were in the pool. These
-// tests pin the final contract: length 7, contains correct, no duplicates.
+// Spec: options match the question's accidental class so the user is forced
+// to identify the correct LETTER within a known class — not pick between
+// mixed sharp/flat/natural spellings.
+//   sharp question  → 7 sharps: C# D# E# F# G# A# B#
+//   flat question   → 7 flats:  Cb Db Eb Fb Gb Ab Bb
+//   natural / empty → 7 naturals: C D E F G A B
+// Always 7, always contains the correct answer, always unique, in fixed
+// letter order (C…B).
 
-const OPTION_COUNT = 7;
-const FULL_POOL = [...NOTE_NAMES, ...SHARP_NOTES, ...FLAT_NOTES];
-
-function assertSevenUniqueContaining(opts: string[], correct: string, allowed: string[]) {
-  expect(opts).toHaveLength(OPTION_COUNT);
-  expect(opts).toContain(correct);
-  expect(new Set(opts).size).toBe(OPTION_COUNT);
-  for (const opt of opts) {
-    expect(allowed).toContain(opt);
-  }
-}
+const NATURAL_SEVEN = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const SHARP_SEVEN = ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#'];
+const FLAT_SEVEN = ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'];
 
 describe('constants are well-formed', () => {
   it('NOTE_NAMES has the 7 natural letters', () => {
-    expect(NOTE_NAMES).toEqual(['C', 'D', 'E', 'F', 'G', 'A', 'B']);
+    expect(NOTE_NAMES).toEqual(NATURAL_SEVEN);
   });
   it('SHARP_NOTES has the 5 piano black-key sharp spellings', () => {
     expect(SHARP_NOTES).toEqual(['C#', 'D#', 'F#', 'G#', 'A#']);
@@ -38,68 +33,70 @@ describe('constants are well-formed', () => {
 });
 
 describe('interactiveAOptions (InteractiveQuiz A-type)', () => {
-  it('natural question: returns the 7 naturals in fixed order', () => {
-    expect(interactiveAOptions('C')).toEqual(NOTE_NAMES);
-    expect(interactiveAOptions('B')).toEqual(NOTE_NAMES);
+  it('natural question: returns the 7 naturals in C…B order', () => {
+    expect(interactiveAOptions('C')).toEqual(NATURAL_SEVEN);
+    expect(interactiveAOptions('F')).toEqual(NATURAL_SEVEN);
+    expect(interactiveAOptions('B')).toEqual(NATURAL_SEVEN);
   });
 
-  it('sharp question: 7 unique options, contains the sharp answer', () => {
-    for (let i = 0; i < 50; i++) {
-      assertSevenUniqueContaining(interactiveAOptions('C#'), 'C#', FULL_POOL);
+  it('piano-black sharp question: returns the 7 sharps in C…B order', () => {
+    expect(interactiveAOptions('C#')).toEqual(SHARP_SEVEN);
+    expect(interactiveAOptions('F#')).toEqual(SHARP_SEVEN);
+    expect(interactiveAOptions('A#')).toEqual(SHARP_SEVEN);
+  });
+
+  it('piano-black flat question: returns the 7 flats in C…B order', () => {
+    expect(interactiveAOptions('Db')).toEqual(FLAT_SEVEN);
+    expect(interactiveAOptions('Gb')).toEqual(FLAT_SEVEN);
+    expect(interactiveAOptions('Bb')).toEqual(FLAT_SEVEN);
+  });
+
+  it('rare enharmonic sharps (E#/B#): still return the 7 sharps', () => {
+    expect(interactiveAOptions('E#')).toEqual(SHARP_SEVEN);
+    expect(interactiveAOptions('B#')).toEqual(SHARP_SEVEN);
+  });
+
+  it('rare enharmonic flats (Cb/Fb): still return the 7 flats', () => {
+    expect(interactiveAOptions('Cb')).toEqual(FLAT_SEVEN);
+    expect(interactiveAOptions('Fb')).toEqual(FLAT_SEVEN);
+  });
+
+  it('empty correct: falls back to the 7 naturals', () => {
+    expect(interactiveAOptions('')).toEqual(NATURAL_SEVEN);
+  });
+
+  it('every result has exactly 7 unique entries containing the correct answer', () => {
+    for (const correct of ['C', 'F#', 'Bb', 'E#', 'Cb', '']) {
+      const opts = interactiveAOptions(correct);
+      expect(opts).toHaveLength(7);
+      expect(new Set(opts).size).toBe(7);
+      if (correct) expect(opts).toContain(correct);
     }
-  });
-
-  it('flat question: 7 unique options, contains the flat answer', () => {
-    for (let i = 0; i < 50; i++) {
-      assertSevenUniqueContaining(interactiveAOptions('Bb'), 'Bb', FULL_POOL);
-    }
-  });
-
-  it('empty correct (edge case): falls back to the 7 naturals', () => {
-    expect(interactiveAOptions('')).toEqual(NOTE_NAMES);
   });
 });
 
-describe('practiceOptions (PracticeQuiz toggle-driven options)', () => {
-  it('both toggles off: returns the 7 naturals in fixed order', () => {
-    expect(practiceOptions('C', false, false)).toEqual(NOTE_NAMES);
-    expect(practiceOptions('G', false, false)).toEqual(NOTE_NAMES);
+describe('practiceOptions (PracticeQuiz single-note options)', () => {
+  it('natural correct: returns the 7 naturals', () => {
+    expect(practiceOptions('C')).toEqual(NATURAL_SEVEN);
+    expect(practiceOptions('A')).toEqual(NATURAL_SEVEN);
   });
 
-  it('sharps only, natural correct: 7 unique from naturals+sharps, contains correct', () => {
-    const allowed = [...NOTE_NAMES, ...SHARP_NOTES];
-    for (let i = 0; i < 50; i++) {
-      assertSevenUniqueContaining(practiceOptions('C', true, false), 'C', allowed);
-    }
+  it('sharp correct: returns the 7 sharps', () => {
+    expect(practiceOptions('C#')).toEqual(SHARP_SEVEN);
+    expect(practiceOptions('G#')).toEqual(SHARP_SEVEN);
   });
 
-  it('sharps only, sharp correct: 7 unique, contains the sharp answer, no flats', () => {
-    const allowed = [...NOTE_NAMES, ...SHARP_NOTES];
-    for (let i = 0; i < 50; i++) {
-      const opts = practiceOptions('F#', true, false);
-      assertSevenUniqueContaining(opts, 'F#', allowed);
-      expect(opts).not.toContain('Gb');
-    }
+  it('flat correct: returns the 7 flats', () => {
+    expect(practiceOptions('Bb')).toEqual(FLAT_SEVEN);
+    expect(practiceOptions('Eb')).toEqual(FLAT_SEVEN);
   });
 
-  it('flats only, flat correct: 7 unique, contains the flat answer, no sharps', () => {
-    const allowed = [...NOTE_NAMES, ...FLAT_NOTES];
-    for (let i = 0; i < 50; i++) {
-      const opts = practiceOptions('Bb', false, true);
-      assertSevenUniqueContaining(opts, 'Bb', allowed);
-      expect(opts).not.toContain('A#');
-    }
-  });
-
-  it('both toggles on, accidental correct: 7 unique from the full 17-pool', () => {
-    for (let i = 0; i < 50; i++) {
-      assertSevenUniqueContaining(practiceOptions('Eb', true, true), 'Eb', FULL_POOL);
-    }
-  });
-
-  it('both toggles on, natural correct: 7 unique from the full 17-pool', () => {
-    for (let i = 0; i < 50; i++) {
-      assertSevenUniqueContaining(practiceOptions('G', true, true), 'G', FULL_POOL);
+  it('every result has exactly 7 unique entries containing the correct answer', () => {
+    for (const correct of ['G', 'D#', 'Ab']) {
+      const opts = practiceOptions(correct);
+      expect(opts).toHaveLength(7);
+      expect(new Set(opts).size).toBe(7);
+      expect(opts).toContain(correct);
     }
   });
 });

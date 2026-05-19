@@ -210,10 +210,11 @@ export default function PracticeQuiz() {
   const handleAnswerRef = useRef<(a: string) => void>(() => {});
   handleAnswerRef.current = handleAnswer;
 
-  // Always 7 unique options including the correct answer.
+  // Options match the question's accidental class: sharp pitch → 7 sharps,
+  // flat → 7 flats, natural → 7 naturals. Always 7, in fixed C…B order.
   const options = useMemo(
-    () => practiceOptions(extractNoteAnswer(currentPitch), includeSharps, includeFlats),
-    [currentPitch, includeSharps, includeFlats],
+    () => practiceOptions(extractNoteAnswer(currentPitch)),
+    [currentPitch],
   );
 
   // Physical keyboard input for options mode. 300ms buffer lets "C" + "#"
