@@ -84,3 +84,47 @@ export function pitchForAnswerLetter(letter: string, referencePitch: string): st
   }
   return pitchAtOctave(baseLetter, getOctaveFromPitch(referencePitch));
 }
+
+// Five accidental pairs the app treats as the same key on the piano.
+// Intentionally excludes B#/Cb and E#/Fb because those spellings don't
+// appear in any question or option list in this app.
+const ENHARMONIC_PAIRS: Record<string, string> = {
+  'C#': 'Db', 'Db': 'C#',
+  'D#': 'Eb', 'Eb': 'D#',
+  'F#': 'Gb', 'Gb': 'F#',
+  'G#': 'Ab', 'Ab': 'G#',
+  'A#': 'Bb', 'Bb': 'A#',
+};
+
+const PITCH_RE = /^([A-G])(#|b)?(\d+)$/;
+
+type ParsedPitch = { letter: string; accidental: '' | '#' | 'b'; octave: number };
+
+function parsePitch(pitch: string): ParsedPitch | null {
+  const m = PITCH_RE.exec(pitch);
+  if (!m) return null;
+  return {
+    letter: m[1],
+    accidental: (m[2] as '' | '#' | 'b') ?? '',
+    octave: parseInt(m[3], 10),
+  };
+}
+
+/**
+ * True iff `answer` and `correct` denote the same piano key.
+ * Octave must match exactly; accidentals match either literally or via the
+ * five enharmonic sharp/flat pairs (C#↔Db, D#↔Eb, F#↔Gb, G#↔Ab, A#↔Bb).
+ *
+ * Used by piano-keyboard input mode so clicking the C4 key when the question
+ * is C5 does NOT count as correct.
+ */
+export function pitchEqual(answer: string, correct: string): boolean {
+  const a = parsePitch(answer);
+  const c = parsePitch(correct);
+  if (!a || !c) return false;
+  if (a.octave !== c.octave) return false;
+  const aName = `${a.letter}${a.accidental}`;
+  const cName = `${c.letter}${c.accidental}`;
+  if (aName === cName) return true;
+  return ENHARMONIC_PAIRS[aName] === cName;
+}
