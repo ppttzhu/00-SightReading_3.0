@@ -272,10 +272,18 @@ export default function ManualCreator() {
   const handleAddBatch = () => {
     if (!batchText.trim()) return;
 
-    // 按换行分割，每行为一道题
-    // B 类格式: "符号|答案"，如 "pp|极弱 (pianissimo)"
     const lines = batchText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const slices = lines.map((line, idx) => {
+    let currentPlacement = placement;
+    const slices = [];
+
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+
+      // Section markers for staff placement (Type A only)
+      if (line === '[高音]') { currentPlacement = 'treble'; continue; }
+      if (line === '[低音]') { currentPlacement = 'bass'; continue; }
+      if (line === '[自动]') { currentPlacement = 'auto'; continue; }
+
       let contentObj;
       if (type === 'B' && line.includes('|')) {
         const [symbol, answer] = line.split('|').map(s => s.trim());
@@ -295,13 +303,19 @@ export default function ManualCreator() {
       } else {
         contentObj = buildContent(type, line);
       }
-      return {
+
+      // Override placement for batch Type A imports based on section markers
+      if (type === 'A') {
+        contentObj = { ...contentObj, placement: currentPlacement };
+      }
+
+      slices.push({
         id: `manual_${type}_${Date.now()}_${idx}_${line}`,
         type: type,
         content: contentObj,
         difficulty
-      };
-    });
+      });
+    }
 
     addSlices(slices);
     setBatchText('');
@@ -514,6 +528,8 @@ export default function ManualCreator() {
                 ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
                 : type === 'C'
                 ? `每行格式: 起始音,音程名  或  音1,音2|音程名\n例如：\nC4,纯五度 (P5)\nD4,大三度 (M3)\nE4,G4|大三度 (M3)`
+                : type === 'A'
+                ? `每行输入一个音高，可用 [高音] [低音] [自动] 标记谱表区域，例如：\n[高音]\nC4\nD4\n[低音]\nA2\nB2\n[自动]\nE3`
                 : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`
             }
             style={{

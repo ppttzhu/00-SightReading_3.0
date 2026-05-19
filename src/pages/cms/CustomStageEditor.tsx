@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAppStore, type CustomStage, type AutoStage } from '../../core/store/useAppStore';
+import { getStaffLabel } from '../../core/engine/pitchUtils';
 
 const MODULE_OPTIONS = [
   { value: 'notes',    label: '🎵 单音 (Notes)',          color: '#3b82f6' },
@@ -43,7 +44,9 @@ export default function CustomStageEditor() {
     customStages.filter(cs => cs.id !== editingId).flatMap(cs => cs.sliceIds)
   );
   const filteredPool = slicesPool.filter(s => s.type === relevantType && !usedByOthers.has(s.id));
-  const visiblePool = filteredPool.filter(s => diffFilter === null || s.difficulty === diffFilter);
+  const visiblePool = filteredPool
+    .filter(s => diffFilter === null || s.difficulty === diffFilter)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const moduleStages = customStages.filter(cs => cs.module === module && !cs.isPreset);
   const moduleColor = MODULE_OPTIONS.find(m => m.value === module)?.color || '#3b82f6';
   const hasOrder = stageOrder[module] && stageOrder[module].length > 0;
@@ -206,6 +209,7 @@ export default function CustomStageEditor() {
                 const checked = selectedIds.has(slice.id);
                 const c = slice.content;
                 const label = (typeof c === 'string' ? c : c.raw || c.symbol || c.theory || c.pattern) || slice.id;
+                const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
                 return (
                   <label
                     key={slice.id}
@@ -230,6 +234,32 @@ export default function CustomStageEditor() {
                       {TYPE_LABELS[slice.type]}
                     </span>
                     <span style={{ color: '#374151', fontSize: '0.95rem' }}>{label}</span>
+                    {slice.type === 'A' && (
+                      <span style={{
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        border: '1px solid #e5e7eb',
+                        color: '#6b7280',
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        flexShrink: 0
+                      }}>
+                        {getStaffLabel(slice.content.pitch || slice.content.raw, slice.content.placement)}
+                      </span>
+                    )}
+                    {isNew && (
+                      <span style={{
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: '#fee2e2',
+                        color: '#ef4444',
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold',
+                        flexShrink: 0
+                      }}>
+                        新
+                      </span>
+                    )}
                     <span style={{ marginLeft: 'auto', color: '#f59e0b', fontSize: '0.8rem', flexShrink: 0 }}>L{slice.difficulty}</span>
                   </label>
                 );
@@ -384,10 +414,37 @@ export default function CustomStageEditor() {
                       {stageSlices.map(slice => {
                         const c = slice.content;
                         const label = (typeof c === 'string' ? c : c.raw || c.symbol || c.theory || c.pattern) || slice.id;
+                        const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
                         return (
                           <div key={slice.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#374151' }}>
                             <span style={{ padding: '2px 8px', borderRadius: '4px', background: `${TYPE_COLORS[slice.type]}18`, color: TYPE_COLORS[slice.type], fontWeight: 600, fontSize: '0.75rem' }}>{TYPE_LABELS[slice.type]}</span>
                             <span style={{ flex: 1 }}>{label}</span>
+                            {slice.type === 'A' && (
+                              <span style={{
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                border: '1px solid #e5e7eb',
+                                color: '#6b7280',
+                                fontSize: '0.75rem',
+                                fontWeight: 500,
+                                flexShrink: 0
+                              }}>
+                                {getStaffLabel(slice.content.pitch || slice.content.raw, slice.content.placement)}
+                              </span>
+                            )}
+                            {isNew && (
+                              <span style={{
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                background: '#fee2e2',
+                                color: '#ef4444',
+                                fontSize: '0.7rem',
+                                fontWeight: 'bold',
+                                flexShrink: 0
+                              }}>
+                                新
+                              </span>
+                            )}
                             <span style={{ color: '#f59e0b', fontSize: '0.8rem' }}>L{slice.difficulty}</span>
                           </div>
                         );

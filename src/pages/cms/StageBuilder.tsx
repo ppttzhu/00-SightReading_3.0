@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../../core/store/useAppStore';
+import { getStaffLabel } from '../../core/engine/pitchUtils';
 
 function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const [input, setInput] = useState('');
@@ -126,7 +127,10 @@ export default function StageBuilder() {
         ) : (
           slicesPool
             .filter(slice => slice.type === filterType)
-            .map(slice => (
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+            .map(slice => {
+              const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
+              return (
             <div
               key={slice.id}
               style={{
@@ -154,6 +158,32 @@ export default function StageBuilder() {
                 <span style={{ color: '#1f2937', fontWeight: '500' }}>
                   {slice.content.raw || slice.content.symbol || slice.content.theory || slice.content.pattern}
                 </span>
+                {slice.type === 'A' && (
+                  <span style={{
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid #e5e7eb',
+                    color: '#6b7280',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    flexShrink: 0
+                  }}>
+                    {getStaffLabel(slice.content.pitch || slice.content.raw, slice.content.placement)}
+                  </span>
+                )}
+                {isNew && (
+                  <span style={{
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: '#fee2e2',
+                    color: '#ef4444',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    flexShrink: 0
+                  }}>
+                    新
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 {/* 难度调节 */}
@@ -173,8 +203,9 @@ export default function StageBuilder() {
                 </button>
               </div>
             </div>
-          ))
-        )}
+          );
+        })
+      )}
       </div>
     </div>
     {showClearModal && (
