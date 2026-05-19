@@ -226,7 +226,9 @@ export default function InteractiveQuiz() {
     };
     cycle();
     return () => clearTimeout(timeout);
-  }, [currentSliceIndex]);
+    // Include introDismissed so the blink resets after the guidance modal closes
+    // (initial fire happens during modal display when noteVisible toggle is irrelevant).
+  }, [currentSliceIndex, introDismissed]);
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -363,7 +365,9 @@ export default function InteractiveQuiz() {
     } catch (e) {
       console.error("VexFlow Draw Error:", e);
     }
-  }, [currentSlice]);
+    // Include introDismissed so VexFlow re-renders after the guidance modal
+    // closes (the initial fire saw containerRef.current === null).
+  }, [currentSlice, introDismissed]);
 
   // Physical keyboard input for Notes (A-type) options mode.
   // Ref lets us reference the latest handleAnswer (defined further down) while keeping
