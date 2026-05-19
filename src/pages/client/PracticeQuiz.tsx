@@ -4,7 +4,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnecto
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { getClefForPractice, getGrandStaffPlacement, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
+import { getClefForPractice, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 import type { ClefType } from '../../core/engine/pitchUtils';
 
 const NOTE_NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -161,8 +161,12 @@ export default function PracticeQuiz() {
 
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
-    const correct = currentPitch.charAt(0).toUpperCase();
-    const isCorrect = answer === correct;
+    // Piano mode submits the full pitch (e.g. "C#4"); options mode submits
+    // just the letter. Match accordingly so a different octave of the same
+    // letter is judged wrong on the piano keyboard.
+    const isCorrect = usePiano
+      ? pitchEqual(answer, currentPitch)
+      : answer === currentPitch.charAt(0).toUpperCase();
 
     setTotal(t => t + 1);
     if (isCorrect) {

@@ -83,7 +83,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback }: Props) {
     if (disabled) return;
     setLastClickedId(k.id);
     void audioEngine.playNote(k.id);
-    onAnswer(k.letter);
+    onAnswer(k.id);
   };
 
   // Mouse-only drag-to-pan. Avoid setPointerCapture: it retargets the
