@@ -1,6 +1,8 @@
 import type { StageData, StorageProvider } from './types';
 
 /**
+ * @deprecated 已被 SupabaseStorageProvider 替换；保留代码以便回滚（VITE_STORAGE_PROVIDER=cloudflare）。
+ *
  * Cloudflare KV Storage Provider
  *
  * Uses a Cloudflare Pages Function (/api/stages) as the backend.
