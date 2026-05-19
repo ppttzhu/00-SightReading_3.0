@@ -70,9 +70,13 @@ Notes(A 类) piano 模式 SHALL 渲染覆盖标准 88 键(A0–C8)的钢琴键�
 - **WHEN** 键盘渲染完成
 - **THEN** 每个 C 键(C2、C3、C4、C5、C6、C7…)下方 SHALL 显示其八度名称；C4 MUST 使用比其他 C 更突出的视觉样式(如更深字色或小色块)以便快速定位
 
-#### Scenario: 作答语义仅取音名
-- **WHEN** 用户在键盘任意八度上点击 `C`(或 `C#`、`Db` 等)键
-- **THEN** 系统 MUST 以纯音名(`C`/`C#`/`Db`)作为答案提交，不携带八度，并复用现有 `enharmonicEqual` 判分；同名键(如 C3 与 C4)在判分上等价
+#### Scenario: 作答语义按八度精确匹配
+- **WHEN** 题目音高为 C4，用户在键盘上点击某个 C 键
+- **THEN** 仅当被点击的键是 C4 时系统 MUST 判为正确；点击 C2/C3/C5/C6/… 任意其他八度的 C MUST 判为错误
+
+#### Scenario: 同八度内 sharp/flat 等音对等价
+- **WHEN** 题目音高为 F#4，用户在键盘上点击 F#4 键（系统内部即 F#/Gb 那一个黑键，等音对：C#↔Db、D#↔Eb、F#↔Gb、G#↔Ab、A#↔Bb）
+- **THEN** 系统 MUST 判为正确，无论题目原始拼写是 F#4 还是 Gb4；但跨八度（如 Gb5）MUST 判为错误
 
 ### Requirement: Swipe And Drag To Pan Keyboard
 全键盘 MUST 支持横向平移以让用户查看不同音域：移动端使用原生横向滑动手势(touch swipe)；桌面端使用鼠标 / pointer 拖拽，按下并水平拖动即可改变 `scrollLeft`。拖拽与点击 MUST 互斥——拖拽位移超过点击阈值后，本次 pointerup MUST NOT 被判定为答题；位移在阈值以内时则 MUST 作为正常单击作答。
@@ -87,9 +91,9 @@ Notes(A 类) piano 模式 SHALL 渲染覆盖标准 88 键(A0–C8)的钢琴键�
 
 #### Scenario: 短按视为作答
 - **WHEN** 用户在键盘上按下并松开鼠标，且 pointerdown→pointerup 的水平位移在阈值以内
-- **THEN** 系统 MUST 以被按下的琴键音名为答案，走与原单八度键盘等价的判题路径
+- **THEN** 系统 MUST 以被按下的琴键音高(含八度，例如 `C#4`)为答案提交，走与原单八度键盘等价的判题路径
 
 #### Scenario: 反馈期点击被忽略
-- **WHEN** 当前题目处于答题后的反馈展示期
+- **WHEN** 当前题目正处于答题后的反馈展示期
 - **THEN** 键盘上的点击 MUST 被忽略(与现有 `feedback !== 'none'` 锁定行为一致)
 
