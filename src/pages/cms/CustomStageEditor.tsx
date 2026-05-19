@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { useAppStore, type CustomStage, type AutoStage } from '../../core/store/useAppStore';
 import { getStaffLabel } from '../../core/engine/pitchUtils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const MODULE_OPTIONS = [
   { value: 'notes',    label: '🎵 单音 (Notes)',          color: '#3b82f6' },
@@ -30,6 +32,7 @@ export default function CustomStageEditor() {
 
   const [module, setModule] = useState<'notes' | 'symbols' | 'theory' | 'patterns'>('notes');
   const [stageName, setStageName] = useState('');
+  const [guidance, setGuidance] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -39,6 +42,9 @@ export default function CustomStageEditor() {
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
 
+  const editingStage = editingId ? customStages.find(cs => cs.id === editingId) : null;
+  const editingPreset = !!editingStage?.isPreset;
+
   const relevantType = MODULE_TYPE[module];
   const usedByOthers = new Set(
     customStages.filter(cs => cs.id !== editingId).flatMap(cs => cs.sliceIds)
@@ -47,7 +53,7 @@ export default function CustomStageEditor() {
   const visiblePool = filteredPool
     .filter(s => diffFilter === null || s.difficulty === diffFilter)
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  const moduleStages = customStages.filter(cs => cs.module === module && !cs.isPreset);
+  const moduleStages = customStages.filter(cs => cs.module === module);
   const moduleColor = MODULE_OPTIONS.find(m => m.value === module)?.color || '#3b82f6';
   const hasOrder = stageOrder[module] && stageOrder[module].length > 0;
   const orderedStages: AutoStage[] = hasOrder ? getAllStages(module) : [];
@@ -85,9 +91,11 @@ export default function CustomStageEditor() {
       module,
       title: stageName.trim(),
       sliceIds: Array.from(selectedIds),
+      guidance: guidance.trim() || undefined,
     };
     addCustomStage(stage);
     setStageName('');
+    setGuidance('');
     setSelectedIds(new Set());
     setDiffFilter(null);
     showMsg(`✓ 已创建关卡「${stage.title}」（${stage.sliceIds.length} 道题）`);
@@ -98,15 +106,21 @@ export default function CustomStageEditor() {
     setStageName(cs.title);
     setSelectedIds(new Set(cs.sliceIds));
     setModule(cs.module);
+    setGuidance(cs.guidance ?? '');
   };
 
   const handleUpdate = () => {
     if (!editingId) return;
-    if (!stageName.trim()) return showMsg('请输入关卡名称');
-    if (selectedIds.size === 0) return showMsg('至少选择 1 道题目');
-    updateCustomStage(editingId, { title: stageName.trim(), sliceIds: Array.from(selectedIds) });
+    const isPreset = !!customStages.find(cs => cs.id === editingId)?.isPreset;
+    if (!isPreset && !stageName.trim()) return showMsg('请输入关卡名称');
+    if (!isPreset && selectedIds.size === 0) return showMsg('至少选择 1 道题目');
+    const patch: Partial<CustomStage> = isPreset
+      ? { guidance: guidance.trim() || undefined }
+      : { title: stageName.trim(), sliceIds: Array.from(selectedIds), guidance: guidance.trim() || undefined };
+    updateCustomStage(editingId, patch);
     setEditingId(null);
     setStageName('');
+    setGuidance('');
     setSelectedIds(new Set());
     showMsg('✓ 关卡已更新');
   };
@@ -114,6 +128,7 @@ export default function CustomStageEditor() {
   const handleCancel = () => {
     setEditingId(null);
     setStageName('');
+    setGuidance('');
     setSelectedIds(new Set());
   };
 
@@ -163,18 +178,71 @@ export default function CustomStageEditor() {
 
         {/* 关卡名称 */}
         <div style={{ marginBottom: '18px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>关卡名称</label>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+            关卡名称
+            {editingPreset && <span style={{ marginLeft: 8, color: '#9ca3af', fontWeight: 400, fontSize: '0.8rem' }}>🔒 预设关卡不可改名</span>}
+          </label>
           <input
             type="text"
             value={stageName}
             onChange={e => setStageName(e.target.value)}
+            disabled={editingPreset}
             placeholder="例如：基础单音识别、升降号练习..."
-            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box' }}
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: '8px',
+              border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box',
+              background: editingPreset ? '#f3f4f6' : 'white',
+              color: editingPreset ? '#9ca3af' : '#1f2937',
+            }}
           />
         </div>
 
+        {/* 学习指导（可选，支持 Markdown） */}
+        <div style={{ marginBottom: '18px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+            学习指导 <span style={{ color: '#9ca3af', fontWeight: 400 }}>（可选，支持 Markdown：**加粗**、- 列表、[链接](url)）</span>
+          </label>
+          <textarea
+            value={guidance}
+            onChange={e => setGuidance(e.target.value)}
+            rows={5}
+            placeholder={'例如：\n这一关主要练习升降号识别。\n\n**注意**：C# 和 Db 是同一个琴键。'}
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: '8px',
+              border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box',
+              fontFamily: 'inherit', resize: 'vertical', minHeight: '100px',
+            }}
+          />
+          {guidance.trim() && (
+            <details open style={{ marginTop: '8px', background: '#f9fafb', borderRadius: '8px', padding: '10px 14px' }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>👁 预览</summary>
+              <div style={{ marginTop: '8px', color: '#374151', fontSize: '0.95rem', lineHeight: 1.65 }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+                  }}
+                >{guidance}</ReactMarkdown>
+              </div>
+            </details>
+          )}
+        </div>
+
         {/* 题目勾选 */}
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '20px', position: 'relative' }}>
+          {editingPreset && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 2,
+              background: 'rgba(243,244,246,0.85)',
+              borderRadius: '10px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', padding: '20px', color: '#6b7280', fontWeight: 600,
+              pointerEvents: 'all',
+            }}>
+              🔒 预设关卡的题目由系统自动生成，不可在此修改。<br/>
+              如需调整题目，请先「取消预设」。
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <label style={{ fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
               选择题目 <span style={{ color: '#9ca3af', fontWeight: 400 }}>（已选 {selectedIds.size} 道）</span>
@@ -373,7 +441,7 @@ export default function CustomStageEditor() {
       {/* ===== 已创建的自定义关卡（按当前模块筛选） ===== */}
       <div>
         <h2 style={{ fontSize: '1.15rem', color: '#374151', fontWeight: 700, marginBottom: '14px' }}>
-          当前模块的手动关卡
+          当前模块的所有关卡
           <span style={{ marginLeft: '10px', fontSize: '0.85rem', color: '#9ca3af', fontWeight: 400 }}>
             （共 {moduleStages.length} 个）
           </span>
@@ -381,7 +449,7 @@ export default function CustomStageEditor() {
 
         {moduleStages.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', background: '#f9fafb', borderRadius: '12px', color: '#9ca3af' }}>
-            暂无手动关卡，点击上方「创建关卡」按钮开始编排
+            暂无关卡，请先点上方「生成预设关卡」或「创建关卡」
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -396,7 +464,19 @@ export default function CustomStageEditor() {
                       {idx + 1}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, color: '#1f2937', marginBottom: '2px' }}>{cs.title}</div>
+                      <div style={{ fontWeight: 700, color: '#1f2937', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {cs.title}
+                        {cs.isPreset && (
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#f3f4f6', color: '#9ca3af', fontWeight: 600 }}>
+                            🔒 预设
+                          </span>
+                        )}
+                        {cs.guidance?.trim() && (
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#eff6ff', color: '#3b82f6', fontWeight: 600 }}>
+                            📖 含指导
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '0.82rem', color: '#9ca3af' }}>{sliceCount} 道题</div>
                     </div>
                     <button onClick={() => setExpandedId(isExpanded ? null : cs.id)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #d1d5db', background: isExpanded ? '#f3f4f6' : 'white', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -405,12 +485,27 @@ export default function CustomStageEditor() {
                     <button onClick={() => handleEdit(cs)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #d1d5db', background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
                       编辑
                     </button>
-                    <button onClick={() => setDeleteTarget(cs)} style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: '#fee2e2', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
-                      删除
-                    </button>
+                    {!cs.isPreset && (
+                      <button onClick={() => setDeleteTarget(cs)} style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: '#fee2e2', color: '#ef4444', fontWeight: 600, cursor: 'pointer', fontSize: '0.85rem' }}>
+                        删除
+                      </button>
+                    )}
                   </div>
                   {isExpanded && (
-                    <div style={{ borderTop: '1px solid #f3f4f6', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ borderTop: '1px solid #f3f4f6', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {cs.guidance?.trim() && (
+                        <div style={{ background: '#f9fafb', padding: '12px 14px', borderRadius: '8px', marginBottom: '4px' }}>
+                          <div style={{ fontSize: '0.78rem', color: '#9ca3af', marginBottom: '6px', fontWeight: 600 }}>📖 学习指导</div>
+                          <div style={{ color: '#374151', fontSize: '0.9rem', lineHeight: 1.65 }}>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+                              }}
+                            >{cs.guidance}</ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
                       {stageSlices.map(slice => {
                         const c = slice.content;
                         const label = (typeof c === 'string' ? c : c.raw || c.symbol || c.theory || c.pattern) || slice.id;

@@ -84,7 +84,7 @@ interface AppState {
   clearPool: () => void;
 
   addCustomStage: (stage: CustomStage) => void;
-  updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds'>>) => void;
+  updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds' | 'guidance'>>) => void;
   removeCustomStage: (id: string) => void;
 
   generatePresetStages: (moduleId: string) => void;
