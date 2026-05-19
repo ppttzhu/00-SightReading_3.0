@@ -6,6 +6,7 @@ import AccountMenu from '../../components/auth/AccountMenu';
 
 const NAV_ITEMS = [
   { to: '/cms', label: '总览', end: true },
+  { to: '/cms/stats', label: '学生统计', end: false },
   { to: '/cms/parser', label: '文件解析器', end: false },
   { to: '/cms/creator', label: '手动出题器', end: false },
   { to: '/cms/builder', label: '题库管理', end: false },

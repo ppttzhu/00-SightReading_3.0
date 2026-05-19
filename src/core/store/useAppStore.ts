@@ -164,6 +164,19 @@ interface AppState {
   /** 拉取当前学生各类型的统计汇总。 */
   fetchUserTypeStats: () => Promise<UserTypeStats[]>;
 
+  // ── Admin 查询 action ──
+  /** 列出全体学生（role = 'student'），仅 admin 可调用。 */
+  fetchAllProfiles: () => Promise<{ id: string; nickname: string; role: string }[]>;
+  /** 拉取全体学生的类型统计，仅 admin 可调用。 */
+  fetchAllUserTypeStats: () => Promise<UserTypeStats[]>;
+  /** 拉取全体学生的模块解锁进度，仅 admin 可调用。 */
+  fetchAllStudentProgress: () => Promise<{ userId: string; module: string; unlocked: number }[]>;
+  /** 拉取指定学生的答题记录，仅 admin 可调用。支持分页和错题筛选。 */
+  fetchStudentPracticeRecords: (
+    userId: string,
+    params?: { isCorrect?: boolean; limit?: number; offset?: number },
+  ) => Promise<PracticeRecord[]>;
+
   /** 拉取远端全量数据并替换本地 slicesPool / customStages / stageOrder。 */
   loadFromRemote: () => Promise<void>;
 }
@@ -467,6 +480,98 @@ export const useAppStore = create<AppState>()(
           wrongCount: (r.wrong_count ?? 0) as number,
           lastPracticedAt: (r.last_practiced_at as string) ?? null,
         })) satisfies UserTypeStats[];
+      },
+
+      // ── Admin 查询 action 实现 ──
+      fetchAllProfiles: async () => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id,nickname,role')
+          .eq('del_status', false)
+          .order('created_at', { ascending: true });
+        if (error) {
+          console.error('[fetchAllProfiles]', error);
+          set({ lastSyncError: `fetchAllProfiles: ${error.message}` });
+          return [];
+        }
+        return (data ?? []) as { id: string; nickname: string; role: string }[];
+      },
+
+      fetchAllUserTypeStats: async () => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('user_type_stats')
+          .select('*')
+          .order('slice_type', { ascending: true });
+        if (error) {
+          console.error('[fetchAllUserTypeStats]', error);
+          set({ lastSyncError: `fetchAllUserTypeStats: ${error.message}` });
+          return [];
+        }
+        const rows = data as unknown as Array<Record<string, any>>;
+        return rows.map((r) => ({
+          userId: r.user_id as string,
+          sliceType: r.slice_type as UserTypeStats['sliceType'],
+          totalCount: (r.total_count ?? 0) as number,
+          correctCount: (r.correct_count ?? 0) as number,
+          wrongCount: (r.wrong_count ?? 0) as number,
+          lastPracticedAt: (r.last_practiced_at as string) ?? null,
+        })) satisfies UserTypeStats[];
+      },
+
+      fetchAllStudentProgress: async () => {
+        if (!supabase) return [];
+        const { data, error } = await supabase
+          .from('student_progress')
+          .select('user_id,module,unlocked')
+          .eq('del_status', false);
+        if (error) {
+          console.error('[fetchAllStudentProgress]', error);
+          set({ lastSyncError: `fetchAllStudentProgress: ${error.message}` });
+          return [];
+        }
+        const rows = data as unknown as Array<Record<string, any>>;
+        return rows.map((r) => ({
+          userId: r.user_id as string,
+          module: r.module as string,
+          unlocked: (r.unlocked ?? 1) as number,
+        }));
+      },
+
+      fetchStudentPracticeRecords: async (userId, params) => {
+        if (!supabase) return [];
+        let query = supabase
+          .from('practice_records')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('del_status', false)
+          .order('created_at', { ascending: false })
+          .limit(params?.limit ?? 50);
+
+        if (params?.offset) query = query.range(params.offset, params.offset + (params.limit ?? 50) - 1);
+        if (params?.isCorrect !== undefined) query = query.eq('is_correct', params.isCorrect);
+
+        const { data, error } = await query;
+        if (error) {
+          console.error('[fetchStudentPracticeRecords]', error);
+          set({ lastSyncError: `fetchStudentPracticeRecords: ${error.message}` });
+          return [];
+        }
+        const rows = data as unknown as Array<Record<string, any>>;
+        return rows.map((r) => ({
+          id: r.id as number,
+          userId: r.user_id as string,
+          stageId: (r.stage_id as string) ?? null,
+          sliceId: r.slice_id as string,
+          sliceType: r.slice_type as PracticeRecord['sliceType'],
+          module: r.module as string,
+          isCorrect: r.is_correct as boolean,
+          answeredWrong: (r.answered_wrong as string) ?? null,
+          timeSpentMs: (r.time_spent_ms as number) ?? null,
+          score: (r.score as number) ?? null,
+          createdAt: r.created_at as string,
+        })) satisfies PracticeRecord[];
       },
 
       loadFromRemote: async () => {
