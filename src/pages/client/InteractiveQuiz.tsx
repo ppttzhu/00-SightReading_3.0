@@ -203,6 +203,14 @@ export default function InteractiveQuiz() {
 
   const currentSlice = stage?.slices[currentSliceIndex];
 
+  // ============================================================
+  // 选项与判题
+  // ============================================================
+  const options = useMemo(() => {
+    if (!currentSlice) return [];
+    return generateOptions(currentSlice);
+  }, [currentSlice]);
+
   // Blink effect: show note for 3s, hide for 6s, loop
   useEffect(() => {
     setNoteVisible(true);
@@ -414,14 +422,6 @@ export default function InteractiveQuiz() {
       />
     );
   }
-
-  // ============================================================
-  // 选项与判题
-  // ============================================================
-  const options = useMemo(() => {
-    if (!currentSlice) return [];
-    return generateOptions(currentSlice);
-  }, [currentSlice]);
 
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
