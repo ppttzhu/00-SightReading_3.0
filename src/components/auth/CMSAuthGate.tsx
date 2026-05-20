@@ -9,11 +9,6 @@ interface CMSAuthGateProps {
 export default function CMSAuthGate({ children }: CMSAuthGateProps) {
   const { user, profile, loading, profileLoading, configured } = useAuth();
 
-  // [LOCAL DEV ONLY] — REVERT BEFORE PR. Bypasses Supabase gate so we can
-  // exercise the teacher UI locally without running Supabase. Not committed
-  // to the feature PR (see plan Task 8).
-  if (import.meta.env.DEV) return <>{children}</>;
-
   if (loading || profileLoading) {
     return (
       <div className="cms-auth-state">
