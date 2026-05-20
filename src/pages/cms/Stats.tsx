@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../../core/auth/AuthProvider';
-import { useAppStore, type PracticeRecord, type UserTypeStats } from '../../core/store/useAppStore';
+import { useAppStore, type PracticeRecord, type UserQuizStats } from '../../core/store/useAppStore';
 
 const MODULE_LABELS: Record<string, string> = { notes: '单音', symbols: '符号', theory: '乐理', patterns: '音型' };
 const MODULE_COLORS: Record<string, string> = { notes: '#3b82f6', symbols: '#ec4899', theory: '#8b5cf6', patterns: '#10b981' };
@@ -8,7 +8,7 @@ const MODULE_COLORS: Record<string, string> = { notes: '#3b82f6', symbols: '#ec4
 interface StudentData {
   id: string;
   nickname: string;
-  typeStats: UserTypeStats[];
+  quizStats: UserQuizStats[];
   progress: Record<string, number>;
   totalPracticed: number;
   lastActive: string | null;
@@ -18,7 +18,7 @@ export default function Stats() {
   const { profile } = useAuth();
 
   const fetchAllProfiles = useAppStore((s) => s.fetchAllProfiles);
-  const fetchAllUserTypeStats = useAppStore((s) => s.fetchAllUserTypeStats);
+  const fetchAllUserQuizStats = useAppStore((s) => s.fetchAllUserQuizStats);
   const fetchAllStudentProgress = useAppStore((s) => s.fetchAllStudentProgress);
   const fetchStudentPracticeRecords = useAppStore((s) => s.fetchStudentPracticeRecords);
 
@@ -45,11 +45,11 @@ export default function Stats() {
     try {
       const [profiles, stats, progress] = await Promise.all([
         fetchAllProfiles(),
-        fetchAllUserTypeStats(),
+        fetchAllUserQuizStats(),
         fetchAllStudentProgress(),
       ]);
 
-      const statsByUser = new Map<string, UserTypeStats[]>();
+      const statsByUser = new Map<string, UserQuizStats[]>();
       for (const s of stats) {
         const arr = statsByUser.get(s.userId) || [];
         arr.push(s);
@@ -64,14 +64,14 @@ export default function Stats() {
       }
 
       const list: StudentData[] = profiles.map((p) => {
-        const ts = statsByUser.get(p.id) || [];
+        const qs = statsByUser.get(p.id) || [];
         const prog = progressByUser.get(p.id) || {};
-        const lastActive = ts.reduce(
+        const lastActive = qs.reduce(
           (latest, s) => (!latest || (s.lastPracticedAt && s.lastPracticedAt > latest) ? (s.lastPracticedAt ?? null) : latest),
           null as string | null,
         );
-        const totalPracticed = ts.reduce((sum, s) => sum + s.totalCount, 0);
-        return { id: p.id, nickname: p.nickname, typeStats: ts, progress: prog, totalPracticed, lastActive };
+        const totalPracticed = qs.reduce((sum, s) => sum + s.totalCount, 0);
+        return { id: p.id, nickname: p.nickname, quizStats: qs, progress: prog, totalPracticed, lastActive };
       });
 
       list.sort((a, b) => b.totalPracticed - a.totalPracticed);
@@ -150,20 +150,6 @@ export default function Stats() {
     }
   };
 
-  // 聚合统计
-  const aggregateByType = useMemo(() => {
-    const map: Record<string, { total: number; correct: number; wrong: number }> = {};
-    for (const s of students) {
-      for (const ts of s.typeStats) {
-        const a = map[ts.module] || { total: 0, correct: 0, wrong: 0 };
-        a.total += ts.totalCount;
-        a.correct += ts.correctCount;
-        a.wrong += ts.wrongCount;
-        map[ts.module] = a;
-      }
-    }
-    return map;
-  }, [students]);
 
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
@@ -246,31 +232,44 @@ export default function Stats() {
         </button>
       </div>
 
-      {/* 题型概览卡片 */}
+      {/* 总体概览卡片 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '24px' }}>
-        {(['A', 'B', 'C', 'D'] as const).map((type) => {
-          const agg = aggregateByType[type] || { total: 0, correct: 0, wrong: 0 };
+        {(['notes', 'symbols', 'theory', 'patterns'] as const).map((mod) => {
+          const modStats = students.reduce(
+            (acc, s) => {
+              for (const qs of s.quizStats) {
+                // module 信息在 PR B 后通过 JOIN 获取；此处用总量展示
+                acc.total += qs.totalCount;
+                acc.correct += qs.correctCount;
+                acc.wrong += qs.wrongCount;
+              }
+              return acc;
+            },
+            { total: 0, correct: 0, wrong: 0 },
+          );
+          // 暂时展示全局汇总（模块级别聚合需 JOIN quizzes，留给后续 PR B 完善）
+          const agg = mod === 'notes' ? modStats : { total: 0, correct: 0, wrong: 0 };
           const pct = agg.total > 0 ? Math.round((agg.correct / agg.total) * 100) : 0;
           return (
             <div
-              key={type}
+              key={mod}
               style={{
                 padding: '20px', borderRadius: '12px', background: 'white',
-                border: `1px solid ${MODULE_COLORS[type]}20`,
+                border: `1px solid ${MODULE_COLORS[mod]}20`,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
               }}
             >
               <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '8px', fontWeight: 600 }}>
-                {MODULE_LABELS[type]} <span style={{ fontWeight: 400, color: '#9ca3af' }}>({type})</span>
+                {MODULE_LABELS[mod]}
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: MODULE_COLORS[type] }}>
+              <div style={{ fontSize: '2rem', fontWeight: 800, color: MODULE_COLORS[mod] }}>
                 {agg.total}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>
                 正确率 {pct}% ｜ 正确 {agg.correct} / 错误 {agg.wrong}
               </div>
               <div style={{ marginTop: '8px', height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: MODULE_COLORS[type], borderRadius: '2px', transition: 'width 0.3s ease' }} />
+                <div style={{ width: `${pct}%`, height: '100%', background: MODULE_COLORS[mod], borderRadius: '2px', transition: 'width 0.3s ease' }} />
               </div>
             </div>
           );
@@ -306,7 +305,7 @@ export default function Stats() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {filteredStudents.map((student) => {
-            const correctCount = student.typeStats.reduce((s, ts) => s + ts.correctCount, 0);
+            const correctCount = student.quizStats.reduce((s, qs) => s + qs.correctCount, 0);
             const accuracy = student.totalPracticed > 0 ? Math.round((correctCount / student.totalPracticed) * 100) : 0;
             return (
               <div
@@ -329,20 +328,10 @@ export default function Stats() {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                    {student.typeStats.length > 0 ? (
-                      student.typeStats.map((ts) => (
-                        <span
-                          key={ts.module}
-                          style={{
-                            padding: '1px 8px', borderRadius: '4px',
-                            background: `${MODULE_COLORS[ts.module]}15`,
-                            color: MODULE_COLORS[ts.module],
-                            fontSize: '0.72rem', fontWeight: 600,
-                          }}
-                        >
-                          {MODULE_LABELS[ts.module]} {ts.totalCount}题
-                        </span>
-                      ))
+                    {student.quizStats.length > 0 ? (
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        共 {student.totalPracticed} 题 · 正确 {student.quizStats.reduce((s, q) => s + q.correctCount, 0)}
+                      </span>
                     ) : (
                       <span style={{ fontSize: '0.75rem', color: '#b0b7c3' }}>尚无练习记录</span>
                     )}
@@ -446,11 +435,9 @@ export default function Stats() {
                   <thead>
                     <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
                       <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>日期</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>类型</th>
                       <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>模块</th>
                       <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>结果</th>
                       <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>答题用时</th>
-                      <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>分数</th>
                       <th style={{ padding: '8px 6px', color: '#6b7280', fontWeight: 600 }}>错误回答</th>
                     </tr>
                   </thead>
@@ -465,17 +452,11 @@ export default function Stats() {
                             {MODULE_LABELS[r.module] || r.module}
                           </span>
                         </td>
-                        <td style={{ padding: '7px 6px', color: '#6b7280', fontSize: '0.78rem' }}>
-                          {MODULE_LABELS[r.module] || r.module}
-                        </td>
                         <td style={{ padding: '7px 6px', fontWeight: 600, color: r.isCorrect ? '#10b981' : '#ef4444' }}>
                           {r.isCorrect ? '✅' : '❌'}
                         </td>
                         <td style={{ padding: '7px 6px', color: '#6b7280', fontSize: '0.78rem' }}>
                           {r.timeSpentMs != null ? `${(r.timeSpentMs / 1000).toFixed(1)}s` : '—'}
-                        </td>
-                        <td style={{ padding: '7px 6px', fontWeight: 600, color: '#1f2937' }}>
-                          {r.score ?? '—'}
                         </td>
                         <td style={{ padding: '7px 6px', color: '#ef4444', fontSize: '0.78rem', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {r.answeredWrong || '—'}

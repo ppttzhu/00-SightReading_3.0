@@ -92,18 +92,17 @@ export interface PracticeRecord {
   id: number;
   userId: string;
   stageId: string | null;
-  sliceId: string;
+  quizId: string;
   module: string;
   isCorrect: boolean;
   answeredWrong: string | null;
   timeSpentMs: number | null;
-  score: number | null;
   createdAt: string;
 }
 
-export interface UserTypeStats {
+export interface UserQuizStats {
   userId: string;
-  module: 'notes' | 'symbols' | 'theory' | 'patterns';
+  quizId: string;
   totalCount: number;
   correctCount: number;
   wrongCount: number;
@@ -141,25 +140,24 @@ interface AppState {
   /** 记录一次答题；仅已登录学生会写入 practice_records。 */
   recordPractice: (params: {
     stageId?: string;
-    sliceId: string;
+    quizId: string;
     module: 'notes' | 'symbols' | 'theory' | 'patterns';
     isCorrect: boolean;
     answeredWrong?: string;
     timeSpentMs?: number;
-    score?: number;
   }) => void;
 
   /** 拉取当前学生错题列表（isCorrect=false）或全部历史。 */
   fetchPracticeRecords: (params?: { isCorrect?: boolean }) => Promise<PracticeRecord[]>;
 
-  /** 拉取当前学生各类型的统计汇总。 */
-  fetchUserTypeStats: () => Promise<UserTypeStats[]>;
+  /** 拉取当前学生各题目的统计汇总。 */
+  fetchUserQuizStats: () => Promise<UserQuizStats[]>;
 
   // ── Admin 查询 action ──
   /** 列出全体学生（role = 'student'），仅 admin 可调用。 */
   fetchAllProfiles: () => Promise<{ id: string; nickname: string; role: string }[]>;
-  /** 拉取全体学生的类型统计，仅 admin 可调用。 */
-  fetchAllUserTypeStats: () => Promise<UserTypeStats[]>;
+  /** 拉取全体学生的题目统计，仅 admin 可调用。 */
+  fetchAllUserQuizStats: () => Promise<UserQuizStats[]>;
   /** 拉取全体学生的模块解锁进度，仅 admin 可调用。 */
   fetchAllStudentProgress: () => Promise<{ userId: string; module: string; unlocked: number }[]>;
   /** 拉取指定学生的答题记录，仅 admin 可调用。支持分页和错题筛选。 */
@@ -417,7 +415,6 @@ export const useAppStore = create<AppState>()(
           .from('practice_records')
           .select('*')
           .eq('user_id', userId)
-          .eq('del_status', false)
           .order('created_at', { ascending: false })
           .limit(500);
 
@@ -436,40 +433,39 @@ export const useAppStore = create<AppState>()(
           id: r.id as number,
           userId: r.user_id as string,
           stageId: (r.stage_id as string) ?? null,
-          sliceId: r.slice_id as string,
+          quizId: r.quiz_id as string,
           module: r.module as string,
           isCorrect: r.is_correct as boolean,
           answeredWrong: (r.answered_wrong as string) ?? null,
           timeSpentMs: (r.time_spent_ms as number) ?? null,
-          score: (r.score as number) ?? null,
           createdAt: r.created_at as string,
         })) satisfies PracticeRecord[];
       },
 
-      fetchUserTypeStats: async () => {
+      fetchUserQuizStats: async () => {
         if (!supabase) return [];
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) return [];
         const userId = sessionData.session.user.id;
 
         const { data, error } = await supabase
-          .from('user_type_stats')
+          .from('user_slice_stats')
           .select('*')
           .eq('user_id', userId);
         if (error) {
-          console.error('[fetchUserTypeStats]', error);
-          set({ lastSyncError: `fetchUserTypeStats: ${error.message}` });
+          console.error('[fetchUserQuizStats]', error);
+          set({ lastSyncError: `fetchUserQuizStats: ${error.message}` });
           return [];
         }
         const rows = data as unknown as Array<Record<string, any>>;
         return rows.map((r) => ({
           userId: r.user_id as string,
-          module: r.slice_type as UserTypeStats['module'],
+          quizId: r.quiz_id as string,
           totalCount: (r.total_count ?? 0) as number,
           correctCount: (r.correct_count ?? 0) as number,
           wrongCount: (r.wrong_count ?? 0) as number,
           lastPracticedAt: (r.last_practiced_at as string) ?? null,
-        })) satisfies UserTypeStats[];
+        })) satisfies UserQuizStats[];
       },
 
       // ── Admin 查询 action 实现 ──
@@ -488,34 +484,33 @@ export const useAppStore = create<AppState>()(
         return (data ?? []) as { id: string; nickname: string; role: string }[];
       },
 
-      fetchAllUserTypeStats: async () => {
+      fetchAllUserQuizStats: async () => {
         if (!supabase) return [];
         const { data, error } = await supabase
-          .from('user_type_stats')
+          .from('user_slice_stats')
           .select('*')
-          .order('slice_type', { ascending: true });
+          .order('user_id', { ascending: true });
         if (error) {
-          console.error('[fetchAllUserTypeStats]', error);
-          set({ lastSyncError: `fetchAllUserTypeStats: ${error.message}` });
+          console.error('[fetchAllUserQuizStats]', error);
+          set({ lastSyncError: `fetchAllUserQuizStats: ${error.message}` });
           return [];
         }
         const rows = data as unknown as Array<Record<string, any>>;
         return rows.map((r) => ({
           userId: r.user_id as string,
-          module: r.slice_type as UserTypeStats['module'],
+          quizId: r.quiz_id as string,
           totalCount: (r.total_count ?? 0) as number,
           correctCount: (r.correct_count ?? 0) as number,
           wrongCount: (r.wrong_count ?? 0) as number,
           lastPracticedAt: (r.last_practiced_at as string) ?? null,
-        })) satisfies UserTypeStats[];
+        })) satisfies UserQuizStats[];
       },
 
       fetchAllStudentProgress: async () => {
         if (!supabase) return [];
         const { data, error } = await supabase
           .from('student_progress')
-          .select('user_id,module,unlocked')
-          .eq('del_status', false);
+          .select('user_id,module,unlocked');
         if (error) {
           console.error('[fetchAllStudentProgress]', error);
           set({ lastSyncError: `fetchAllStudentProgress: ${error.message}` });
@@ -535,7 +530,6 @@ export const useAppStore = create<AppState>()(
           .from('practice_records')
           .select('*')
           .eq('user_id', userId)
-          .eq('del_status', false)
           .order('created_at', { ascending: false })
           .limit(params?.limit ?? 50);
 
@@ -553,12 +547,11 @@ export const useAppStore = create<AppState>()(
           id: r.id as number,
           userId: r.user_id as string,
           stageId: (r.stage_id as string) ?? null,
-          sliceId: r.slice_id as string,
+          quizId: r.quiz_id as string,
           module: r.module as string,
           isCorrect: r.is_correct as boolean,
           answeredWrong: (r.answered_wrong as string) ?? null,
           timeSpentMs: (r.time_spent_ms as number) ?? null,
-          score: (r.score as number) ?? null,
           createdAt: r.created_at as string,
         })) satisfies PracticeRecord[];
       },

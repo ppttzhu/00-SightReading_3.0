@@ -253,12 +253,11 @@ export async function syncUnpresetStage(stageId: string): Promise<void> {
 /** 记录一次答题到 practice_records；仅已登录学生写入。 */
 export async function syncRecordPractice(params: {
   stageId?: string;
-  sliceId: string;
+  quizId: string;
   module: 'notes' | 'symbols' | 'theory' | 'patterns';
   isCorrect: boolean;
   answeredWrong?: string;
   timeSpentMs?: number;
-  score?: number;
 }): Promise<void> {
   if (!supabase) return;
   const { data } = await supabase.auth.getSession();
@@ -267,13 +266,11 @@ export async function syncRecordPractice(params: {
   const row = {
     user_id: data.session.user.id,
     stage_id: params.stageId ?? null,
-    slice_id: params.sliceId,
+    quiz_id: params.quizId,
     module: params.module,
     is_correct: params.isCorrect,
     answered_wrong: params.isCorrect ? null : (params.answeredWrong ?? null),
     time_spent_ms: params.timeSpentMs ?? null,
-    score: params.score ?? null,
-    del_status: false,
   };
   const { error } = await supabase
     .from('practice_records')
@@ -297,7 +294,7 @@ export async function syncUpsertStudentProgress(
   const { error } = await supabase
     .from('student_progress')
     .upsert(
-      { user_id: data.session.user.id, module, unlocked, del_status: false } as never,
+      { user_id: data.session.user.id, module, unlocked } as never,
       { onConflict: 'user_id,module' },
     );
   if (error) return reportSyncError('upsert student_progress', error);
@@ -317,7 +314,7 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
   // 检查远端是否已有进度
   const { data: existing, error: checkErr } = await supabase
     .from('student_progress')
-    .select('id')
+    .select('user_id')
     .eq('user_id', data.session.user.id)
     .limit(1);
   if (checkErr) return;
@@ -337,7 +334,7 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
       const { error } = await supabase
         .from('student_progress')
         .upsert(
-          { user_id: data.session.user.id, module: mod, unlocked, del_status: false } as never,
+          { user_id: data.session.user.id, module: mod, unlocked } as never,
           { onConflict: 'user_id,module' },
         );
       if (error) console.warn(`[migrateProgress] ${mod}:`, error.message);
@@ -345,4 +342,34 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
   } catch {
     // localStorage key 不存在或 JSON 损坏 → 忽略
   }
+}
+
+/** 记录闯关成功到 test_success_records（UPSERT，每人每关保留最新）。 */
+export async function syncRecordTestSuccess(params: {
+  stageId: string;
+  correctCount: number;
+  wrongCount: number;
+  timeSpentSec: number;
+  score: number;
+}): Promise<void> {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+
+  const { error } = await supabase
+    .from('test_success_records')
+    .upsert(
+      {
+        user_id: data.session.user.id,
+        stage_id: params.stageId,
+        correct_count: params.correctCount,
+        wrong_count: params.wrongCount,
+        time_spent_sec: params.timeSpentSec,
+        score: params.score,
+        created_at: new Date().toISOString(),
+      } as never,
+      { onConflict: 'user_id,stage_id' },
+    );
+  if (error) return reportSyncError('record test success', error);
+  await reportSyncOk();
 }

@@ -419,7 +419,7 @@ export default function InteractiveQuiz() {
     // 记录答题：fire-and-forget，不阻塞反馈动画
     recordPractice({
       stageId: stage.id,
-      sliceId: currentSlice.id,
+      quizId: currentSlice.id,
       module: currentSlice.module,
       isCorrect,
       answeredWrong: isCorrect ? undefined : answer,
