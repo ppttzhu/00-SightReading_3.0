@@ -28,6 +28,7 @@ export default function CustomStageEditor() {
   const [module, setModule] = useState<'notes' | 'symbols' | 'theory' | 'patterns'>('notes');
   const [stageName, setStageName] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [questionCount, setQuestionCount] = useState(5);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [diffFilter, setDiffFilter] = useState<number | null>(null);
@@ -37,10 +38,7 @@ export default function CustomStageEditor() {
   const dragOver = useRef<number | null>(null);
 
   const relevantType = module;
-  const usedByOthers = new Set(
-    customStages.filter(cs => cs.id !== editingId).flatMap(cs => cs.sliceIds)
-  );
-  const filteredPool = slicesPool.filter(s => s.module === relevantType && !usedByOthers.has(s.id));
+  const filteredPool = slicesPool.filter(s => s.module === relevantType);
   const visiblePool = filteredPool
     .filter(s => diffFilter === null || s.difficulty === diffFilter)
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -77,17 +75,20 @@ export default function CustomStageEditor() {
   const handleCreate = () => {
     if (!stageName.trim()) return showMsg('请输入关卡名称');
     if (selectedIds.size === 0) return showMsg('至少选择 1 道题目');
+    if (questionCount < selectedIds.size) return showMsg(`题数不能小于已选题目数（${selectedIds.size}）`);
     const stage: CustomStage = {
       id: `custom_${Date.now()}`,
       module,
       title: stageName.trim(),
       sliceIds: Array.from(selectedIds),
+      questionCount,
     };
     addCustomStage(stage);
     setStageName('');
     setSelectedIds(new Set());
+    setQuestionCount(5);
     setDiffFilter(null);
-    showMsg(`✓ 已创建关卡「${stage.title}」（${stage.sliceIds.length} 道题）`);
+    showMsg(`✓ 已创建关卡「${stage.title}」（${stage.sliceIds.length} 道题，出题 ${questionCount} 次）`);
   };
 
   const handleEdit = (cs: CustomStage) => {
@@ -95,16 +96,19 @@ export default function CustomStageEditor() {
     setStageName(cs.title);
     setSelectedIds(new Set(cs.sliceIds));
     setModule(cs.module);
+    setQuestionCount(cs.questionCount || cs.sliceIds.length || 5);
   };
 
   const handleUpdate = () => {
     if (!editingId) return;
     if (!stageName.trim()) return showMsg('请输入关卡名称');
     if (selectedIds.size === 0) return showMsg('至少选择 1 道题目');
-    updateCustomStage(editingId, { title: stageName.trim(), sliceIds: Array.from(selectedIds) });
+    if (questionCount < selectedIds.size) return showMsg(`题数不能小于已选题目数（${selectedIds.size}）`);
+    updateCustomStage(editingId, { title: stageName.trim(), sliceIds: Array.from(selectedIds), questionCount });
     setEditingId(null);
     setStageName('');
     setSelectedIds(new Set());
+    setQuestionCount(5);
     showMsg('✓ 关卡已更新');
   };
 
@@ -112,6 +116,7 @@ export default function CustomStageEditor() {
     setEditingId(null);
     setStageName('');
     setSelectedIds(new Set());
+    setQuestionCount(5);
   };
 
   return (
@@ -158,16 +163,33 @@ export default function CustomStageEditor() {
           </div>
         </div>
 
-        {/* 关卡名称 */}
-        <div style={{ marginBottom: '18px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>关卡名称</label>
-          <input
-            type="text"
-            value={stageName}
-            onChange={e => setStageName(e.target.value)}
-            placeholder="例如：基础单音识别、升降号练习..."
-            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box' }}
-          />
+        {/* 关卡名称 + 题数 */}
+        <div style={{ marginBottom: '18px', display: 'flex', gap: '12px' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>关卡名称</label>
+            <input
+              type="text"
+              value={stageName}
+              onChange={e => setStageName(e.target.value)}
+              placeholder="例如：基础单音识别、升降号练习..."
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div style={{ width: '120px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+              题数
+              {questionCount > selectedIds.size && selectedIds.size > 0 && (
+                <span style={{ fontWeight: 400, color: '#f59e0b', fontSize: '0.75rem', marginLeft: '4px' }}>（会重复）</span>
+              )}
+            </label>
+            <input
+              type="number"
+              value={questionCount}
+              min={Math.max(1, selectedIds.size)}
+              onChange={e => setQuestionCount(Math.max(selectedIds.size || 1, parseInt(e.target.value) || 1))}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box' }}
+            />
+          </div>
         </div>
 
         {/* 题目勾选 */}

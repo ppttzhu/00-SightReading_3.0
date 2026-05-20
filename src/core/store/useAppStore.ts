@@ -62,6 +62,7 @@ function autoGenerateStages(pool: Slice[]) {
         stageNum,
         title: `第${stageNum}关 (${diffLabel})`,
         slices: batch,
+        questionCount: batch.length,
       });
     }
   });
@@ -75,6 +76,7 @@ export interface AutoStage {
   stageNum: number;
   title: string;
   slices: Slice[];
+  questionCount: number;
 }
 
 // ============================================================
@@ -86,6 +88,7 @@ export interface CustomStage {
   title: string;
   sliceIds: string[]; // 引用 slicesPool 中的 id
   isPreset?: boolean;
+  questionCount?: number;
 }
 
 export interface PracticeRecord {
@@ -127,7 +130,7 @@ interface AppState {
   clearPool: () => void;
 
   addCustomStage: (stage: CustomStage) => void;
-  updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds'>>) => void;
+  updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds' | 'questionCount'>>) => void;
   removeCustomStage: (id: string) => void;
 
   generatePresetStages: (moduleId: string) => void;
@@ -215,7 +218,7 @@ export const useAppStore = create<AppState>()(
                 .map(sid => state.slicesPool.find(s => s.id === sid))
                 .filter(Boolean) as Slice[];
               if (slices.length > 0) {
-                stageMap.set(cs.id, { id: cs.id, module: cs.module, stageNum: idx + 1, title: cs.title, slices });
+                stageMap.set(cs.id, { id: cs.id, module: cs.module, stageNum: idx + 1, title: cs.title, slices, questionCount: cs.questionCount || slices.length });
               }
             });
           return order.flatMap((id, idx) => {
@@ -224,17 +227,15 @@ export const useAppStore = create<AppState>()(
           });
         }
 
-        // Fallback: original dynamic generation
-        const usedInCustom = new Set(state.customStages.flatMap(cs => cs.sliceIds));
-        const freePool = state.slicesPool.filter(s => !usedInCustom.has(s.id));
-        const auto = autoGenerateStages(freePool).filter(s => s.module === moduleId);
+        // Fallback: all slices can be used by any stage (cross-stage reuse)
+        const auto = autoGenerateStages(state.slicesPool).filter(s => s.module === moduleId);
         const custom: AutoStage[] = state.customStages
           .filter(cs => cs.module === moduleId)
           .map((cs, idx) => {
             const slices = cs.sliceIds
               .map(sid => state.slicesPool.find(s => s.id === sid))
               .filter(Boolean) as Slice[];
-            return { id: cs.id, module: cs.module, stageNum: auto.length + idx + 1, title: cs.title, slices };
+            return { id: cs.id, module: cs.module, stageNum: auto.length + idx + 1, title: cs.title, slices, questionCount: cs.questionCount || slices.length };
           })
           .filter(s => s.slices.length > 0);
         return [...auto, ...custom];

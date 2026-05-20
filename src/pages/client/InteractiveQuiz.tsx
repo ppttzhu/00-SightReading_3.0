@@ -145,8 +145,12 @@ export default function InteractiveQuiz() {
     const idx = stages.findIndex(s => s.id === stageId);
     const found = idx >= 0 ? stages[idx] : null;
     if (found) {
-      const shuffled = [...found.slices].sort(() => Math.random() - 0.5);
-      return { stage: { ...found, slices: shuffled }, stageIndex: idx + 1 };
+      const targetCount = found.questionCount || found.slices.length;
+      const questions: typeof found.slices = [];
+      for (let i = 0; i < targetCount; i++) {
+        questions.push(found.slices[Math.floor(Math.random() * found.slices.length)]);
+      }
+      return { stage: { ...found, slices: questions }, stageIndex: idx + 1 };
     }
     return { stage: null, stageIndex: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
