@@ -21,13 +21,11 @@ const CHUNK_SIZE = 500;
 
 type SliceRow = {
   id: string;
-  type: 'A' | 'B' | 'C' | 'D';
+  module: 'notes' | 'symbols' | 'theory' | 'patterns';
   content: Record<string, unknown>;
   difficulty: number;
-  pitch: string | null;
-  placement: string | null;
   del_status: boolean;
-  created_at?: string; // load() 时从 DB 返回，save() 时不留
+  created_at?: string;
 };
 
 type StageRow = {
@@ -41,7 +39,7 @@ type StageRow = {
 
 type StageSliceRow = {
   stage_id: string;
-  slice_id: string;
+  quiz_id: string;
   position: number;
   del_status: boolean;
 };
@@ -54,17 +52,11 @@ function ensureClient() {
 }
 
 function sliceToRow(slice: Slice): SliceRow {
-  const isA = slice.type === 'A';
-  const content = slice.content ?? {};
-  const pitch = isA ? (content.pitch ?? content.raw ?? null) : null;
-  const placement = isA ? (content.placement ?? null) : null;
   return {
     id: slice.id,
-    type: slice.type,
-    content,
+    module: slice.module,
+    content: slice.content ?? {},
     difficulty: slice.difficulty,
-    pitch: typeof pitch === 'string' ? pitch : null,
-    placement: typeof placement === 'string' ? placement : null,
     del_status: false,
   };
 }
@@ -72,7 +64,7 @@ function sliceToRow(slice: Slice): SliceRow {
 function rowToSlice(row: SliceRow): Slice {
   return {
     id: row.id,
-    type: row.type,
+    module: row.module,
     content: row.content ?? {},
     difficulty: row.difficulty,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
@@ -83,7 +75,7 @@ async function chunkedUpsertSlices(rows: SliceRow[]): Promise<void> {
   const client = ensureClient();
   for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
     const { error } = await client
-      .from('slices')
+      .from('quizzes')
       .upsert(rows.slice(i, i + CHUNK_SIZE) as never, { onConflict: 'id' });
     if (error) throw new Error(`[Supabase] upsert slices 失败：${error.message}`);
   }
@@ -103,8 +95,8 @@ async function chunkedUpsertStageSlices(rows: StageSliceRow[]): Promise<void> {
   const client = ensureClient();
   for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
     const { error } = await client
-      .from('stage_slices')
-      .upsert(rows.slice(i, i + CHUNK_SIZE) as never, { onConflict: 'stage_id,slice_id' });
+      .from('stage_quizzes')
+      .upsert(rows.slice(i, i + CHUNK_SIZE) as never, { onConflict: 'stage_id,quiz_id' });
     if (error) throw new Error(`[Supabase] upsert stage_slices 失败：${error.message}`);
   }
 }
@@ -148,7 +140,7 @@ export class SupabaseStorageProvider implements StorageProvider {
       stage.sliceIds.forEach((sliceId, position) => {
         stageSliceRows.push({
           stage_id: stage.id,
-          slice_id: sliceId,
+          quiz_id: sliceId,
           position,
           del_status: false,
         });
@@ -165,7 +157,7 @@ export class SupabaseStorageProvider implements StorageProvider {
     // --- slices 差集 ---
     {
       const { data: dbRows, error: fetchErr } = await client
-        .from('slices')
+        .from('quizzes')
         .select('id')
         .eq('del_status', false);
       if (fetchErr) throw new Error(`[Supabase] 拉取 slices 差集失败：${fetchErr.message}`);
@@ -175,7 +167,7 @@ export class SupabaseStorageProvider implements StorageProvider {
       for (const staleId of dbIds) {
         if (!localIds.has(staleId)) {
           const { error: delErr } = await client
-            .from('slices')
+            .from('quizzes')
             .update({ del_status: true })
             .eq('id', staleId);
           if (delErr) throw new Error(`[Supabase] 软删 slice ${staleId} 失败：${delErr.message}`);
@@ -207,20 +199,20 @@ export class SupabaseStorageProvider implements StorageProvider {
     // --- stage_slices 差集 ---
     {
       const { data: dbRows, error: fetchErr } = await client
-        .from('stage_slices')
-        .select('stage_id,slice_id')
+        .from('stage_quizzes')
+        .select('stage_id,quiz_id')
         .eq('del_status', false);
       if (fetchErr) throw new Error(`[Supabase] 拉取 stage_slices 差集失败：${fetchErr.message}`);
 
-      const localPairs = new Set(stageSliceRows.map((r) => `${r.stage_id}::${r.slice_id}`));
+      const localPairs = new Set(stageSliceRows.map((r) => `${r.stage_id}::${r.quiz_id}`));
       for (const row of (dbRows ?? []) as any[]) {
-        const key = `${row.stage_id}::${row.slice_id}`;
+        const key = `${row.stage_id}::${row.quiz_id}`;
         if (!localPairs.has(key)) {
           const { error: delErr } = await client
-            .from('stage_slices')
+            .from('stage_quizzes')
             .update({ del_status: true })
             .eq('stage_id', row.stage_id)
-            .eq('slice_id', row.slice_id);
+            .eq('quiz_id', row.quiz_id);
           if (delErr) throw new Error(`[Supabase] 软删 stage_slice ${key} 失败：${delErr.message}`);
         }
       }
@@ -232,8 +224,8 @@ export class SupabaseStorageProvider implements StorageProvider {
 
     const [slicesRes, stagesRes, stageSlicesRes] = await Promise.all([
       client
-        .from('slices')
-        .select('id,type,content,difficulty,pitch,placement,del_status,created_at')
+        .from('quizzes')
+        .select('id,module,content,difficulty,del_status,created_at')
         .eq('del_status', false),
       client
         .from('stages')
@@ -242,8 +234,8 @@ export class SupabaseStorageProvider implements StorageProvider {
         .order('module', { ascending: true })
         .order('sort_index', { ascending: true }),
       client
-        .from('stage_slices')
-        .select('stage_id,slice_id,position,del_status')
+        .from('stage_quizzes')
+        .select('stage_id,quiz_id,position,del_status')
         .eq('del_status', false)
         .order('stage_id', { ascending: true })
         .order('position', { ascending: true }),
@@ -262,7 +254,7 @@ export class SupabaseStorageProvider implements StorageProvider {
     const stageIdToSliceIds = new Map<string, string[]>();
     for (const r of stageSliceRows) {
       const arr = stageIdToSliceIds.get(r.stage_id) ?? [];
-      arr.push(r.slice_id);
+      arr.push(r.quiz_id);
       stageIdToSliceIds.set(r.stage_id, arr);
     }
 

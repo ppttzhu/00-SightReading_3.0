@@ -8,7 +8,7 @@ import { getGrandStaffPlacement } from './pitchUtils';
 
 export interface ExtractedSlice {
   id: string;
-  type: 'A' | 'B' | 'C' | 'D';
+  module: 'notes' | 'symbols' | 'theory' | 'patterns';
   content: any;
   difficulty: number;
 }
@@ -146,7 +146,7 @@ export class EngineExtractor {
 
           slices.push({
             id: `A_note_${index}_${pitch.name}_${placement}`,
-            type: 'A',
+            module: 'notes',
             content: { pitch: pitch.name, raw: pitch.name, placement },
             difficulty: calcNoteDifficulty(step, octave, alter)
           });
@@ -156,9 +156,9 @@ export class EngineExtractor {
 
     if (slices.length === 0) {
       slices.push(
-        { id: 'A_mock_C4_treble', type: 'A', content: { pitch: 'C4', raw: 'C4', placement: 'treble' }, difficulty: 1 },
-        { id: 'A_mock_G4_treble', type: 'A', content: { pitch: 'G4', raw: 'G4', placement: 'treble' }, difficulty: 2 },
-        { id: 'A_mock_D5_treble', type: 'A', content: { pitch: 'D5', raw: 'D5', placement: 'treble' }, difficulty: 3 }
+        { id: 'A_mock_C4_treble', module: 'notes', content: { pitch: 'C4', raw: 'C4', placement: 'treble' }, difficulty: 1 },
+        { id: 'A_mock_G4_treble', module: 'notes', content: { pitch: 'G4', raw: 'G4', placement: 'treble' }, difficulty: 2 },
+        { id: 'A_mock_D5_treble', module: 'notes', content: { pitch: 'D5', raw: 'D5', placement: 'treble' }, difficulty: 3 }
       );
     }
     return slices;
@@ -180,7 +180,7 @@ export class EngineExtractor {
           const symbol = child.tagName; // e.g. "ff", "pp", "mf"
           slices.push({
             id: `B_dyn_${idx}_${symbol}`,
-            type: 'B',
+            module: 'symbols',
             content: { symbol, raw: symbol },
             difficulty: calcSymbolDifficulty(symbol)
           });
@@ -196,7 +196,7 @@ export class EngineExtractor {
         Array.from(articulationsEl.children).forEach(art => {
           slices.push({
             id: `B_art_${idx}_${art.tagName}`,
-            type: 'B',
+            module: 'symbols',
             content: { symbol: art.tagName, raw: art.tagName },
             difficulty: calcSymbolDifficulty(art.tagName)
           });
@@ -207,7 +207,7 @@ export class EngineExtractor {
       if (fermata) {
         slices.push({
           id: `B_fermata_${idx}`,
-          type: 'B',
+          module: 'symbols',
           content: { symbol: 'fermata', raw: 'fermata' },
           difficulty: calcSymbolDifficulty('fermata')
         });
@@ -216,9 +216,9 @@ export class EngineExtractor {
 
     if (slices.length === 0) {
       slices.push(
-        { id: 'B_mock_ff', type: 'B', content: { symbol: 'ff', raw: 'ff' }, difficulty: 1 },
-        { id: 'B_mock_staccato', type: 'B', content: { symbol: 'staccato', raw: 'staccato' }, difficulty: 2 },
-        { id: 'B_mock_fermata', type: 'B', content: { symbol: 'fermata', raw: 'fermata' }, difficulty: 3 }
+        { id: 'B_mock_ff', module: 'symbols', content: { symbol: 'ff', raw: 'ff' }, difficulty: 1 },
+        { id: 'B_mock_staccato', module: 'symbols', content: { symbol: 'staccato', raw: 'staccato' }, difficulty: 2 },
+        { id: 'B_mock_fermata', module: 'symbols', content: { symbol: 'fermata', raw: 'fermata' }, difficulty: 3 }
       );
     }
     return slices;
@@ -247,7 +247,7 @@ export class EngineExtractor {
         const display = `${pitches[i].name} → ${pitches[i + 1].name} (${intervalName})`;
         slices.push({
           id: `C_interval_${i}_${interval}`,
-          type: 'C',
+          module: 'theory',
           content: {
             theory: intervalName,
             raw: display,
@@ -276,7 +276,7 @@ export class EngineExtractor {
           const chordDisplay = sorted.map(p => p.name).join(' + ');
           slices.push({
             id: `C_chord_${idx}_${chordDisplay}`,
-            type: 'C',
+            module: 'theory',
             content: {
               theory: `和弦: ${chordDisplay}`,
               raw: chordDisplay,
@@ -294,7 +294,7 @@ export class EngineExtractor {
       const chordDisplay = sorted.map(p => p.name).join(' + ');
       slices.push({
         id: `C_chord_last_${chordDisplay}`,
-        type: 'C',
+        module: 'theory',
         content: {
           theory: `和弦: ${chordDisplay}`,
           raw: chordDisplay,
@@ -318,7 +318,7 @@ export class EngineExtractor {
         const keyName = keyNames[fifths || '0'] || `调号(${fifths})`;
         slices.push({
           id: `C_key_${idx}_${fifths}`,
-          type: 'C',
+          module: 'theory',
           content: { theory: keyName, raw: keyName },
           difficulty: Math.abs(parseInt(fifths || '0')) + 1
         });
@@ -327,8 +327,8 @@ export class EngineExtractor {
 
     if (slices.length === 0) {
       slices.push(
-        { id: 'C_mock_CMaj', type: 'C', content: { theory: 'C Major Chord', raw: 'C Major Chord', notes: ['C4', 'E4', 'G4'] }, difficulty: 4 },
-        { id: 'C_mock_P5', type: 'C', content: { theory: '纯五度 (P5)', raw: '纯五度 (P5)', notes: ['C4', 'G4'] }, difficulty: 3 }
+        { id: 'C_mock_CMaj', module: 'theory', content: { theory: 'C Major Chord', raw: 'C Major Chord', notes: ['C4', 'E4', 'G4'] }, difficulty: 4 },
+        { id: 'C_mock_P5', module: 'theory', content: { theory: '纯五度 (P5)', raw: '纯五度 (P5)', notes: ['C4', 'G4'] }, difficulty: 3 }
       );
     }
     return slices;
@@ -352,8 +352,8 @@ export class EngineExtractor {
 
     if (pitches.length < 4) {
       slices.push(
-        { id: 'D_mock_alberti', type: 'D', content: { pattern: 'Alberti Bass (C-G-E-G)', raw: 'Alberti Bass (C-G-E-G)' }, difficulty: 6 },
-        { id: 'D_mock_scale', type: 'D', content: { pattern: 'C Major Scale Run', raw: 'C Major Scale Run' }, difficulty: 7 }
+        { id: 'D_mock_alberti', module: 'patterns', content: { pattern: 'Alberti Bass (C-G-E-G)', raw: 'Alberti Bass (C-G-E-G)' }, difficulty: 6 },
+        { id: 'D_mock_scale', module: 'patterns', content: { pattern: 'C Major Scale Run', raw: 'C Major Scale Run' }, difficulty: 7 }
       );
       return slices;
     }
@@ -370,7 +370,7 @@ export class EngineExtractor {
           const fragment = pitches.slice(scaleStart, scaleStart + len).map(p => p.name).join('-');
           slices.push({
             id: `D_scale_${scaleStart}_${len}`,
-            type: 'D',
+            module: 'patterns',
             content: {
               pattern: `${direction}音阶跑动 (${len}音)`,
               raw: `${direction}音阶: ${fragment}`,
@@ -394,7 +394,7 @@ export class EngineExtractor {
           const fragment = pitches.slice(arpStart, arpStart + len).map(p => p.name).join('-');
           slices.push({
             id: `D_arp_${arpStart}_${len}`,
-            type: 'D',
+            module: 'patterns',
             content: {
               pattern: `分解和弦 (${len}音)`,
               raw: `琶音: ${fragment}`,
@@ -409,8 +409,8 @@ export class EngineExtractor {
 
     if (slices.length === 0) {
       slices.push(
-        { id: 'D_mock_alberti', type: 'D', content: { pattern: 'Alberti Bass (C-G-E-G)', raw: 'Alberti Bass (C-G-E-G)' }, difficulty: 6 },
-        { id: 'D_mock_scale', type: 'D', content: { pattern: 'C Major Scale Run', raw: 'C Major Scale Run' }, difficulty: 7 }
+        { id: 'D_mock_alberti', module: 'patterns', content: { pattern: 'Alberti Bass (C-G-E-G)', raw: 'Alberti Bass (C-G-E-G)' }, difficulty: 6 },
+        { id: 'D_mock_scale', module: 'patterns', content: { pattern: 'C Major Scale Run', raw: 'C Major Scale Run' }, difficulty: 7 }
       );
     }
     return slices;

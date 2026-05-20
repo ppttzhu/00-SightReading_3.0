@@ -75,12 +75,10 @@ function generateOptions(slice: Slice): string[] {
   let correct = '';
   let pool: string[] = [];
 
-  switch (slice.type) {
-    case 'A':
-      // Always 7 unique options including the correct answer. Pool widens to
-      // the 17-spelling set only when the question itself is accidental.
+  switch (slice.module) {
+    case 'notes':
       return interactiveAOptions(extractNoteAnswer(slice.content.pitch || ''));
-    case 'B': {
+    case 'symbols': {
       // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
       const answer = slice.content.answer;
       if (answer) {
@@ -94,7 +92,7 @@ function generateOptions(slice: Slice): string[] {
       pool = ALL_SYMBOLS;
       break;
     }
-    case 'C':
+    case 'theory':
       correct = slice.content.theory || slice.content.raw || '';
       // 如果是音程，用音程池；如果是和弦或调号，用自身作为正确答案
       pool = correct.includes('度') || correct.includes('P') || correct.includes('m')
@@ -103,7 +101,7 @@ function generateOptions(slice: Slice): string[] {
            'C Major Chord', 'G Major Chord', 'D Minor Chord', 'F Major Chord',
            'Am Chord', 'Em Chord', 'Dm Chord'];
       break;
-    case 'D':
+    case 'patterns':
       correct = slice.content.raw || slice.content.pattern || '';
       pool = ALL_PATTERNS;
       break;
@@ -207,11 +205,11 @@ export default function InteractiveQuiz() {
     containerRef.current.innerHTML = '';
 
     // B 类（符号）不使用 VexFlow，用纯文字展示
-    if (currentSlice.type === 'B') return;
+    if (currentSlice.module === 'symbols') return;
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
     const width = Math.min(500, containerRef.current.clientWidth - 20);
-    const isGrand = currentSlice.type === 'A';
+    const isGrand = currentSlice.module === 'notes';
 
     if (isGrand) {
       // ── A 类单音：使用大谱表 ──
@@ -256,7 +254,7 @@ export default function InteractiveQuiz() {
     const context = renderer.getContext();
 
     let clef = 'treble';
-    if (currentSlice.type === 'C') {
+    if (currentSlice.module === 'theory') {
       const notes: string[] = currentSlice.content.notes || [];
       if (notes.length >= 2) {
         clef = getAutomaticClefForPitch(notes[0]);
@@ -268,7 +266,7 @@ export default function InteractiveQuiz() {
     stave.setContext(context).draw();
 
     try {
-      if (currentSlice.type === 'C') {
+      if (currentSlice.module === 'theory') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
         const noteNames: string[] = currentSlice.content.notes || [];
         if (noteNames.length >= 2) {
@@ -287,7 +285,7 @@ export default function InteractiveQuiz() {
           voice.draw(context, stave);
         }
 
-      } else if (currentSlice.type === 'D') {
+      } else if (currentSlice.module === 'patterns') {
         // ---- D: 音型 → 画四分音符序列 ----
         const rawStr: string = currentSlice.content.raw || currentSlice.content.pattern || '';
         console.log('[Pattern] raw:', rawStr, 'content:', JSON.stringify(currentSlice.content));
@@ -340,10 +338,10 @@ export default function InteractiveQuiz() {
   // Ref lets us reference the latest handleAnswer (defined further down) while keeping
   // the hook above the early return below, satisfying Rules of Hooks.
   const handleAnswerRef = useRef<(answer: string) => void>(() => {});
-  const sliceType = currentSlice?.type;
-  const referencePitch = currentSlice?.type === 'A' ? (currentSlice.content.pitch || 'C4') : '';
+  const sliceModule = currentSlice?.module;
+  const referencePitch = currentSlice?.module === 'notes' ? (currentSlice.content.pitch || 'C4') : '';
   useEffect(() => {
-    if (sliceType !== 'A' || usePiano) return;
+    if (sliceModule !== 'notes' || usePiano) return;
     // 300ms buffer so sequences like "C" + "#" resolve to a single "C#" answer.
     const WINDOW_MS = 300;
     let buffer: string[] = [];
@@ -370,7 +368,7 @@ export default function InteractiveQuiz() {
       window.removeEventListener('keydown', onKeydown);
       if (timer) clearTimeout(timer);
     };
-  }, [sliceType, usePiano, referencePitch]);
+  }, [sliceModule, usePiano, referencePitch]);
 
   if (!stage) {
     return (
@@ -391,23 +389,19 @@ export default function InteractiveQuiz() {
 
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
-    switch (currentSlice.type) {
-      case 'A': {
+    switch (currentSlice.module) {
+      case 'notes': {
         const pitch = currentSlice.content.pitch || '';
-        // Piano mode wants the full pitch (with octave) so pitchEqual can
-        // check both letter and octave. Options mode keeps the accidental so
-        // a C#4 question requires "C#" — not the bare "C" letter.
         if (usePiano) return pitch;
         return extractNoteAnswer(pitch);
       }
-      case 'B': {
-        // Prefer the explicit answer field; fall back to SYMBOL_MAP for legacy data
+      case 'symbols': {
         if (currentSlice.content.answer) return currentSlice.content.answer;
         const rawSymbol = currentSlice.content.raw || currentSlice.content.symbol || '';
         return SYMBOL_MAP[rawSymbol] || rawSymbol;
       }
-      case 'C': return currentSlice.content.theory || currentSlice.content.raw || '';
-      case 'D': return currentSlice.content.raw || currentSlice.content.pattern || '';
+      case 'theory': return currentSlice.content.theory || currentSlice.content.raw || '';
+      case 'patterns': return currentSlice.content.raw || currentSlice.content.pattern || '';
       default: return '';
     }
   };
@@ -415,7 +409,7 @@ export default function InteractiveQuiz() {
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none' || !currentSlice) return;
     const correct = getCorrectAnswer();
-    const isPianoTypeA = usePiano && currentSlice.type === 'A';
+    const isPianoTypeA = usePiano && currentSlice.module === 'notes';
     const isCorrect = isPianoTypeA
       ? pitchEqual(answer, correct)
       : answer === correct;
@@ -426,11 +420,10 @@ export default function InteractiveQuiz() {
     recordPractice({
       stageId: stage.id,
       sliceId: currentSlice.id,
-      sliceType: currentSlice.type,
+      module: currentSlice.module,
       isCorrect,
       answeredWrong: isCorrect ? undefined : answer,
       timeSpentMs,
-      score: isCorrect ? currentSlice.difficulty * 10 : 0,
     });
 
     if (isCorrect) {
@@ -456,7 +449,7 @@ export default function InteractiveQuiz() {
   const progressPercent = ((currentSliceIndex) / stage.slices.length) * 100;
 
   // B 类的题目用纯文字大卡片展示（不用 VexFlow）
-  const isSymbolType = currentSlice?.type === 'B';
+  const isSymbolType = currentSlice?.module === 'symbols';
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease',
@@ -546,11 +539,11 @@ export default function InteractiveQuiz() {
         </div>
 
         {/* 选项区 */}
-        {currentSlice?.type === 'A' && usePiano ? (
+        {currentSlice?.module === 'notes' && usePiano ? (
           <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-            {currentSlice?.type === 'A' && hasFinePointer && (
+            {currentSlice?.module === 'notes' && hasFinePointer && (
               <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
                 提示: 按键盘 <strong style={{ color: '#6b7280' }}>C D E F G A B</strong> 也可作答
               </div>
@@ -560,7 +553,7 @@ export default function InteractiveQuiz() {
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
                 onClick={() => {
-                  if (audioEnabled && currentSlice?.type === 'A') {
+                  if (audioEnabled && currentSlice?.module === 'notes') {
                     void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
                   }
                   handleAnswer(opt);

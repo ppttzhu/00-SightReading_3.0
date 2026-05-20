@@ -13,11 +13,9 @@ import type { Slice, CustomStage } from '../store/useAppStore';
 
 type SliceRow = {
   id: string;
-  type: 'A' | 'B' | 'C' | 'D';
+  module: 'notes' | 'symbols' | 'theory' | 'patterns';
   content: Record<string, unknown>;
   difficulty: number;
-  pitch: string | null;
-  placement: string | null;
   del_status: boolean;
 };
 
@@ -32,23 +30,17 @@ type StageRow = {
 
 type StageSliceRow = {
   stage_id: string;
-  slice_id: string;
+  quiz_id: string;
   position: number;
   del_status: boolean;
 };
 
 function sliceToRow(slice: Slice): SliceRow {
-  const isA = slice.type === 'A';
-  const content = slice.content ?? {};
-  const pitch = isA ? (content.pitch ?? content.raw ?? null) : null;
-  const placement = isA ? (content.placement ?? null) : null;
   return {
     id: slice.id,
-    type: slice.type,
-    content,
+    module: slice.module,
+    content: slice.content ?? {},
     difficulty: slice.difficulty,
-    pitch: typeof pitch === 'string' ? pitch : null,
-    placement: typeof placement === 'string' ? placement : null,
     del_status: false,
   };
 }
@@ -93,7 +85,7 @@ export async function syncUpsertSlices(slices: Slice[]): Promise<void> {
   if (!(await hasWriteSession())) return;
 
   const rows = slices.map(sliceToRow);
-  const { error } = await supabase.from('slices').upsert(rows as never, { onConflict: 'id' });
+  const { error } = await supabase.from('quizzes').upsert(rows as never, { onConflict: 'id' });
   if (error) return reportSyncError('upsert slices', error);
   await reportSyncOk();
 }
@@ -103,7 +95,7 @@ export async function syncUpdateSliceDifficulty(id: string, difficulty: number):
   if (!(await hasWriteSession())) return;
 
   const { error } = await supabase
-    .from('slices')
+    .from('quizzes')
     .update({ difficulty } as never)
     .eq('id', id);
   if (error) return reportSyncError('update slice difficulty', error);
@@ -115,7 +107,7 @@ export async function syncSoftDeleteSlice(id: string): Promise<void> {
   if (!(await hasWriteSession())) return;
 
   const { error } = await supabase
-    .from('slices')
+    .from('quizzes')
     .update({ del_status: true } as never)
     .eq('id', id);
   if (error) return reportSyncError('soft delete slice', error);
@@ -127,7 +119,7 @@ export async function syncSoftDeleteAllSlices(): Promise<void> {
   if (!(await hasWriteSession())) return;
 
   const { error } = await supabase
-    .from('slices')
+    .from('quizzes')
     .update({ del_status: true } as never)
     .eq('del_status', false);
   if (error) return reportSyncError('soft delete all slices', error);
@@ -164,27 +156,27 @@ export async function syncUpsertStage(stage: CustomStage, sortIndex: number): Pr
   if (currentIds.length > 0) {
     const list = currentIds.map((s) => `"${s}"`).join(',');
     const { error: pruneErr } = await supabase
-      .from('stage_slices')
+      .from('stage_quizzes')
       .update({ del_status: true } as never)
       .eq('stage_id', stage.id)
       .eq('del_status', false)
-      .not('slice_id', 'in', `(${list})`);
+      .not('quiz_id', 'in', `(${list})`);
     if (pruneErr) return reportSyncError('prune stage_slices', pruneErr);
 
     const rows: StageSliceRow[] = currentIds.map((sliceId, position) => ({
       stage_id: stage.id,
-      slice_id: sliceId,
+      quiz_id: sliceId,
       position,
       del_status: false,
     }));
     const { error: linkErr } = await supabase
-      .from('stage_slices')
-      .upsert(rows as never, { onConflict: 'stage_id,slice_id' });
+      .from('stage_quizzes')
+      .upsert(rows as never, { onConflict: 'stage_id,quiz_id' });
     if (linkErr) return reportSyncError('upsert stage_slices', linkErr);
   } else {
     // 空 sliceIds：把所有当前关联软删
     const { error: pruneErr } = await supabase
-      .from('stage_slices')
+      .from('stage_quizzes')
       .update({ del_status: true } as never)
       .eq('stage_id', stage.id)
       .eq('del_status', false);
@@ -258,18 +250,11 @@ export async function syncUnpresetStage(stageId: string): Promise<void> {
 // （所有认证用户都可写自己的行；RLS 已配 auth.uid() = user_id）
 // ============================================================
 
-const TYPE_TO_MODULE: Record<string, string> = {
-  A: 'notes',
-  B: 'symbols',
-  C: 'theory',
-  D: 'patterns',
-};
-
 /** 记录一次答题到 practice_records；仅已登录学生写入。 */
 export async function syncRecordPractice(params: {
   stageId?: string;
   sliceId: string;
-  sliceType: 'A' | 'B' | 'C' | 'D';
+  module: 'notes' | 'symbols' | 'theory' | 'patterns';
   isCorrect: boolean;
   answeredWrong?: string;
   timeSpentMs?: number;
@@ -279,13 +264,11 @@ export async function syncRecordPractice(params: {
   const { data } = await supabase.auth.getSession();
   if (!data.session) return;
 
-  const module = TYPE_TO_MODULE[params.sliceType] ?? 'notes';
   const row = {
     user_id: data.session.user.id,
     stage_id: params.stageId ?? null,
     slice_id: params.sliceId,
-    slice_type: params.sliceType,
-    module,
+    module: params.module,
     is_correct: params.isCorrect,
     answered_wrong: params.isCorrect ? null : (params.answeredWrong ?? null),
     time_spent_ms: params.timeSpentMs ?? null,

@@ -9,11 +9,8 @@ const MODULE_OPTIONS = [
   { value: 'patterns', label: '🎹 音型 (Patterns)',        color: '#10b981' },
 ] as const;
 
-const TYPE_LABELS: Record<string, string> = { A: '单音', B: '音乐表情记号', C: '双音/音程关系', D: '音型' };
-const TYPE_COLORS: Record<string, string> = { A: '#3b82f6', B: '#ec4899', C: '#8b5cf6', D: '#10b981' };
-const MODULE_TYPE: Record<string, string> = {
-  notes: 'A', symbols: 'B', theory: 'C', patterns: 'D',
-};
+const TYPE_LABELS: Record<string, string> = { notes: '单音', symbols: '音乐表情记号', theory: '双音/音程关系', patterns: '音型' };
+const TYPE_COLORS: Record<string, string> = { notes: '#3b82f6', symbols: '#ec4899', theory: '#8b5cf6', patterns: '#10b981' };
 
 export default function CustomStageEditor() {
   const slicesPool = useAppStore(s => s.slicesPool);
@@ -39,11 +36,11 @@ export default function CustomStageEditor() {
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
 
-  const relevantType = MODULE_TYPE[module];
+  const relevantType = module;
   const usedByOthers = new Set(
     customStages.filter(cs => cs.id !== editingId).flatMap(cs => cs.sliceIds)
   );
-  const filteredPool = slicesPool.filter(s => s.type === relevantType && !usedByOthers.has(s.id));
+  const filteredPool = slicesPool.filter(s => s.module === relevantType && !usedByOthers.has(s.id));
   const visiblePool = filteredPool
     .filter(s => diffFilter === null || s.difficulty === diffFilter)
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -228,13 +225,13 @@ export default function CustomStageEditor() {
                     />
                     <span style={{
                       display: 'inline-block', padding: '2px 8px', borderRadius: '4px',
-                      background: `${TYPE_COLORS[slice.type]}18`, color: TYPE_COLORS[slice.type],
+                      background: `${TYPE_COLORS[slice.module]}18`, color: TYPE_COLORS[slice.module],
                       fontSize: '0.75rem', fontWeight: 700, flexShrink: 0
                     }}>
-                      {TYPE_LABELS[slice.type]}
+                      {TYPE_LABELS[slice.module]}
                     </span>
                     <span style={{ color: '#374151', fontSize: '0.95rem' }}>{label}</span>
-                    {slice.type === 'A' && (
+                    {slice.module === 'notes' && (
                       <span style={{
                         padding: '1px 6px',
                         borderRadius: '4px',
@@ -417,9 +414,9 @@ export default function CustomStageEditor() {
                         const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
                         return (
                           <div key={slice.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: '#374151' }}>
-                            <span style={{ padding: '2px 8px', borderRadius: '4px', background: `${TYPE_COLORS[slice.type]}18`, color: TYPE_COLORS[slice.type], fontWeight: 600, fontSize: '0.75rem' }}>{TYPE_LABELS[slice.type]}</span>
+                            <span style={{ padding: '2px 8px', borderRadius: '4px', background: `${TYPE_COLORS[slice.module]}18`, color: TYPE_COLORS[slice.module], fontWeight: 600, fontSize: '0.75rem' }}>{TYPE_LABELS[slice.module]}</span>
                             <span style={{ flex: 1 }}>{label}</span>
-                            {slice.type === 'A' && (
+                            {slice.module === 'notes' && (
                               <span style={{
                                 padding: '1px 6px',
                                 borderRadius: '4px',

@@ -18,26 +18,19 @@ import {
 
 export interface Slice {
   id: string;
-  type: 'A' | 'B' | 'C' | 'D'; // 单音 | 符号 | 乐理 | 音型
+  module: 'notes' | 'symbols' | 'theory' | 'patterns';
   content: any;
   difficulty: number;
   createdAt?: number;
 }
 
-// 类型到模块ID的映射
-const TYPE_TO_MODULE: Record<string, string> = {
-  'A': 'notes',
-  'B': 'symbols',
-  'C': 'theory',
-  'D': 'patterns',
-};
 
 /** True when two slices represent the same question (after placement resolution). */
 export function areSlicesDuplicate(a: Slice, b: Slice): boolean {
   const keyA = a.content.raw || a.content.symbol || a.content.theory || a.content.pattern;
   const keyB = b.content.raw || b.content.symbol || b.content.theory || b.content.pattern;
-  if (a.type !== b.type || keyA !== keyB) return false;
-  if (a.type === 'A') {
+  if (a.module !== b.module || keyA !== keyB) return false;
+  if (a.module === 'notes') {
     const pa = a.content.placement || getGrandStaffPlacement(a.content.pitch || a.content.raw);
     const pb = b.content.placement || getGrandStaffPlacement(b.content.pitch || b.content.raw);
     return pa === pb;
@@ -45,17 +38,16 @@ export function areSlicesDuplicate(a: Slice, b: Slice): boolean {
   return true;
 }
 
-// 自动根据素材池生成关卡 (按类型分组，再按难度区间切分)
+// 自动根据素材池生成关卡 (按模块分组，再按难度区间切分)
 function autoGenerateStages(pool: Slice[]) {
   const stages: AutoStage[] = [];
   const QUESTIONS_PER_STAGE = 5; // 每关 5 道题
 
-  (['A', 'B', 'C', 'D'] as const).forEach(type => {
-    const moduleId = TYPE_TO_MODULE[type];
-    const typeSlices = pool.filter(s => s.type === type);
-    if (typeSlices.length === 0) return;
+  (['notes', 'symbols', 'theory', 'patterns'] as const).forEach(module => {
+    const moduleSlices = pool.filter(s => s.module === module);
+    if (moduleSlices.length === 0) return;
 
-    const sorted = [...typeSlices].sort((a, b) => a.difficulty - b.difficulty);
+    const sorted = [...moduleSlices].sort((a, b) => a.difficulty - b.difficulty);
 
     for (let i = 0; i < sorted.length; i += QUESTIONS_PER_STAGE) {
       const batch = sorted.slice(i, i + QUESTIONS_PER_STAGE);
@@ -65,8 +57,8 @@ function autoGenerateStages(pool: Slice[]) {
       const diffLabel = minDiff === maxDiff ? `L${minDiff}` : `L${minDiff}-${maxDiff}`;
 
       stages.push({
-        id: `auto_${moduleId}_stage_${stageNum}`,
-        module: moduleId,
+        id: `auto_${module}_stage_${stageNum}`,
+        module,
         stageNum,
         title: `第${stageNum}关 (${diffLabel})`,
         slices: batch,
@@ -101,7 +93,6 @@ export interface PracticeRecord {
   userId: string;
   stageId: string | null;
   sliceId: string;
-  sliceType: 'A' | 'B' | 'C' | 'D';
   module: string;
   isCorrect: boolean;
   answeredWrong: string | null;
@@ -112,7 +103,7 @@ export interface PracticeRecord {
 
 export interface UserTypeStats {
   userId: string;
-  sliceType: 'A' | 'B' | 'C' | 'D';
+  module: 'notes' | 'symbols' | 'theory' | 'patterns';
   totalCount: number;
   correctCount: number;
   wrongCount: number;
@@ -151,7 +142,7 @@ interface AppState {
   recordPractice: (params: {
     stageId?: string;
     sliceId: string;
-    sliceType: 'A' | 'B' | 'C' | 'D';
+    module: 'notes' | 'symbols' | 'theory' | 'patterns';
     isCorrect: boolean;
     answeredWrong?: string;
     timeSpentMs?: number;
@@ -446,7 +437,6 @@ export const useAppStore = create<AppState>()(
           userId: r.user_id as string,
           stageId: (r.stage_id as string) ?? null,
           sliceId: r.slice_id as string,
-          sliceType: r.slice_type as PracticeRecord['sliceType'],
           module: r.module as string,
           isCorrect: r.is_correct as boolean,
           answeredWrong: (r.answered_wrong as string) ?? null,
@@ -474,7 +464,7 @@ export const useAppStore = create<AppState>()(
         const rows = data as unknown as Array<Record<string, any>>;
         return rows.map((r) => ({
           userId: r.user_id as string,
-          sliceType: r.slice_type as UserTypeStats['sliceType'],
+          module: r.slice_type as UserTypeStats['module'],
           totalCount: (r.total_count ?? 0) as number,
           correctCount: (r.correct_count ?? 0) as number,
           wrongCount: (r.wrong_count ?? 0) as number,
@@ -512,7 +502,7 @@ export const useAppStore = create<AppState>()(
         const rows = data as unknown as Array<Record<string, any>>;
         return rows.map((r) => ({
           userId: r.user_id as string,
-          sliceType: r.slice_type as UserTypeStats['sliceType'],
+          module: r.slice_type as UserTypeStats['module'],
           totalCount: (r.total_count ?? 0) as number,
           correctCount: (r.correct_count ?? 0) as number,
           wrongCount: (r.wrong_count ?? 0) as number,
@@ -564,7 +554,6 @@ export const useAppStore = create<AppState>()(
           userId: r.user_id as string,
           stageId: (r.stage_id as string) ?? null,
           sliceId: r.slice_id as string,
-          sliceType: r.slice_type as PracticeRecord['sliceType'],
           module: r.module as string,
           isCorrect: r.is_correct as boolean,
           answeredWrong: (r.answered_wrong as string) ?? null,

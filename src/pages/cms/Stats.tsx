@@ -2,9 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../../core/auth/AuthProvider';
 import { useAppStore, type PracticeRecord, type UserTypeStats } from '../../core/store/useAppStore';
 
-const TYPE_LABELS: Record<string, string> = { A: '单音', B: '符号', C: '乐理', D: '音型' };
-const TYPE_COLORS: Record<string, string> = { A: '#3b82f6', B: '#ec4899', C: '#8b5cf6', D: '#10b981' };
 const MODULE_LABELS: Record<string, string> = { notes: '单音', symbols: '符号', theory: '乐理', patterns: '音型' };
+const MODULE_COLORS: Record<string, string> = { notes: '#3b82f6', symbols: '#ec4899', theory: '#8b5cf6', patterns: '#10b981' };
 
 interface StudentData {
   id: string;
@@ -156,11 +155,11 @@ export default function Stats() {
     const map: Record<string, { total: number; correct: number; wrong: number }> = {};
     for (const s of students) {
       for (const ts of s.typeStats) {
-        const a = map[ts.sliceType] || { total: 0, correct: 0, wrong: 0 };
+        const a = map[ts.module] || { total: 0, correct: 0, wrong: 0 };
         a.total += ts.totalCount;
         a.correct += ts.correctCount;
         a.wrong += ts.wrongCount;
-        map[ts.sliceType] = a;
+        map[ts.module] = a;
       }
     }
     return map;
@@ -257,21 +256,21 @@ export default function Stats() {
               key={type}
               style={{
                 padding: '20px', borderRadius: '12px', background: 'white',
-                border: `1px solid ${TYPE_COLORS[type]}20`,
+                border: `1px solid ${MODULE_COLORS[type]}20`,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
               }}
             >
               <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '8px', fontWeight: 600 }}>
-                {TYPE_LABELS[type]} <span style={{ fontWeight: 400, color: '#9ca3af' }}>({type})</span>
+                {MODULE_LABELS[type]} <span style={{ fontWeight: 400, color: '#9ca3af' }}>({type})</span>
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: TYPE_COLORS[type] }}>
+              <div style={{ fontSize: '2rem', fontWeight: 800, color: MODULE_COLORS[type] }}>
                 {agg.total}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>
                 正确率 {pct}% ｜ 正确 {agg.correct} / 错误 {agg.wrong}
               </div>
               <div style={{ marginTop: '8px', height: '4px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: TYPE_COLORS[type], borderRadius: '2px', transition: 'width 0.3s ease' }} />
+                <div style={{ width: `${pct}%`, height: '100%', background: MODULE_COLORS[type], borderRadius: '2px', transition: 'width 0.3s ease' }} />
               </div>
             </div>
           );
@@ -333,15 +332,15 @@ export default function Stats() {
                     {student.typeStats.length > 0 ? (
                       student.typeStats.map((ts) => (
                         <span
-                          key={ts.sliceType}
+                          key={ts.module}
                           style={{
                             padding: '1px 8px', borderRadius: '4px',
-                            background: `${TYPE_COLORS[ts.sliceType]}15`,
-                            color: TYPE_COLORS[ts.sliceType],
+                            background: `${MODULE_COLORS[ts.module]}15`,
+                            color: MODULE_COLORS[ts.module],
                             fontSize: '0.72rem', fontWeight: 600,
                           }}
                         >
-                          {TYPE_LABELS[ts.sliceType]} {ts.totalCount}题
+                          {MODULE_LABELS[ts.module]} {ts.totalCount}题
                         </span>
                       ))
                     ) : (
@@ -462,8 +461,8 @@ export default function Stats() {
                           {new Date(r.createdAt).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td style={{ padding: '7px 6px' }}>
-                          <span style={{ padding: '1px 6px', borderRadius: '4px', background: `${TYPE_COLORS[r.sliceType] || '#6b7280'}15`, color: TYPE_COLORS[r.sliceType] || '#6b7280', fontSize: '0.75rem', fontWeight: 600 }}>
-                            {TYPE_LABELS[r.sliceType] || r.sliceType}
+                          <span style={{ padding: '1px 6px', borderRadius: '4px', background: `${MODULE_COLORS[r.module] || '#6b7280'}15`, color: MODULE_COLORS[r.module] || '#6b7280', fontSize: '0.75rem', fontWeight: 600 }}>
+                            {MODULE_LABELS[r.module] || r.module}
                           </span>
                         </td>
                         <td style={{ padding: '7px 6px', color: '#6b7280', fontSize: '0.78rem' }}>
