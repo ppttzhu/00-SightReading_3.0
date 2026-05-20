@@ -10,8 +10,6 @@ import {
   syncUpsertStage,
   syncSoftDeleteStage,
   syncRewriteStageOrder,
-  syncSoftDeletePresetStages,
-  syncUnpresetStage,
   syncRecordPractice,
   syncUpsertStudentProgress,
 } from '../storage/syncOps';
@@ -38,37 +36,6 @@ export function areSlicesDuplicate(a: Slice, b: Slice): boolean {
   return true;
 }
 
-// 自动根据素材池生成关卡 (按模块分组，再按难度区间切分)
-function autoGenerateStages(pool: Slice[]) {
-  const stages: AutoStage[] = [];
-  const QUESTIONS_PER_STAGE = 5; // 每关 5 道题
-
-  (['notes', 'symbols', 'theory', 'patterns'] as const).forEach(module => {
-    const moduleSlices = pool.filter(s => s.module === module);
-    if (moduleSlices.length === 0) return;
-
-    const sorted = [...moduleSlices].sort((a, b) => a.difficulty - b.difficulty);
-
-    for (let i = 0; i < sorted.length; i += QUESTIONS_PER_STAGE) {
-      const batch = sorted.slice(i, i + QUESTIONS_PER_STAGE);
-      const stageNum = Math.floor(i / QUESTIONS_PER_STAGE) + 1;
-      const minDiff = batch[0].difficulty;
-      const maxDiff = batch[batch.length - 1].difficulty;
-      const diffLabel = minDiff === maxDiff ? `L${minDiff}` : `L${minDiff}-${maxDiff}`;
-
-      stages.push({
-        id: `auto_${module}_stage_${stageNum}`,
-        module,
-        stageNum,
-        title: `第${stageNum}关 (${diffLabel})`,
-        slices: batch,
-        questionCount: batch.length,
-      });
-    }
-  });
-
-  return stages;
-}
 
 export interface AutoStage {
   id: string;
@@ -121,7 +88,6 @@ interface AppState {
   /** 最近一次远端同步失败的描述；为 null 表示 OK 或尚未同步过。 */
   lastSyncError: string | null;
 
-  getAutoStages: (moduleId: string) => AutoStage[];
   getAllStages: (moduleId: string) => AutoStage[];
 
   addSlices: (slices: Slice[]) => void;
@@ -133,9 +99,6 @@ interface AppState {
   updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds' | 'questionCount'>>) => void;
   removeCustomStage: (id: string) => void;
 
-  generatePresetStages: (moduleId: string) => void;
-  unpresetStage: (stageId: string) => void;
-  clearPresetStages: (moduleId: string) => void;
   setStageOrder: (moduleId: string, orderedIds: string[]) => void;
 
   unlockNextStage: (moduleId: string, completedStageIndex: number) => void;
@@ -199,46 +162,27 @@ export const useAppStore = create<AppState>()(
       },
       lastSyncError: null,
 
-      getAutoStages: (moduleId) => {
-        const pool = get().slicesPool;
-        return autoGenerateStages(pool).filter(s => s.module === moduleId);
-      },
-
       getAllStages: (moduleId) => {
         const state = get();
-        const order = state.stageOrder[moduleId];
-
-        // If preset stages have been generated, use stageOrder
-        if (order && order.length > 0) {
-          const stageMap = new Map<string, AutoStage>();
-          state.customStages
-            .filter(cs => cs.module === moduleId)
-            .forEach((cs, idx) => {
-              const slices = cs.sliceIds
-                .map(sid => state.slicesPool.find(s => s.id === sid))
-                .filter(Boolean) as Slice[];
-              if (slices.length > 0) {
-                stageMap.set(cs.id, { id: cs.id, module: cs.module, stageNum: idx + 1, title: cs.title, slices, questionCount: cs.questionCount || slices.length });
-              }
-            });
-          return order.flatMap((id, idx) => {
-            const s = stageMap.get(id);
-            return s ? [{ ...s, stageNum: idx + 1 }] : [];
-          });
-        }
-
-        // Fallback: all slices can be used by any stage (cross-stage reuse)
-        const auto = autoGenerateStages(state.slicesPool).filter(s => s.module === moduleId);
-        const custom: AutoStage[] = state.customStages
+        const stages: AutoStage[] = state.customStages
           .filter(cs => cs.module === moduleId)
           .map((cs, idx) => {
             const slices = cs.sliceIds
               .map(sid => state.slicesPool.find(s => s.id === sid))
               .filter(Boolean) as Slice[];
-            return { id: cs.id, module: cs.module, stageNum: auto.length + idx + 1, title: cs.title, slices, questionCount: cs.questionCount || slices.length };
+            return { id: cs.id, module: cs.module, stageNum: idx + 1, title: cs.title, slices, questionCount: cs.questionCount || slices.length };
           })
           .filter(s => s.slices.length > 0);
-        return [...auto, ...custom];
+
+        const order = state.stageOrder[moduleId];
+        if (order && order.length > 0) {
+          const stageMap = new Map(stages.map(s => [s.id, s]));
+          return order.flatMap((id, idx) => {
+            const s = stageMap.get(id);
+            return s ? [{ ...s, stageNum: idx + 1 }] : [];
+          });
+        }
+        return stages;
       },
 
       addSlices: (slices) => {
@@ -289,6 +233,10 @@ export const useAppStore = create<AppState>()(
       addCustomStage: (stage) => {
         set((state) => ({
           customStages: [...state.customStages, stage],
+          stageOrder: {
+            ...state.stageOrder,
+            [stage.module]: [...(state.stageOrder[stage.module] || []), stage.id],
+          },
         }));
         const sortIndex = moduleSortIndexOf(get().customStages, stage.id);
         void syncUpsertStage(stage, sortIndex);
@@ -315,71 +263,6 @@ export const useAppStore = create<AppState>()(
           ),
         }));
         void syncSoftDeleteStage(id);
-      },
-
-      generatePresetStages: (moduleId) => {
-        let newPresets: CustomStage[] = [];
-        let newOrder: string[] = [];
-        set((state) => {
-          // Remove old presets for this module
-          const withoutOldPresets = state.customStages.filter(
-            cs => !(cs.module === moduleId && cs.isPreset)
-          );
-          // Compute free pool (not used by non-preset custom stages)
-          const usedByCustom = new Set(
-            withoutOldPresets.filter(cs => cs.module === moduleId).flatMap(cs => cs.sliceIds)
-          );
-          const freePool = state.slicesPool.filter(s => !usedByCustom.has(s.id));
-          const autoStages = autoGenerateStages(freePool).filter(s => s.module === moduleId);
-          const presets: CustomStage[] = autoStages.map(s => ({
-            id: s.id,
-            module: moduleId as CustomStage['module'],
-            title: s.title,
-            sliceIds: s.slices.map(sl => sl.id),
-            isPreset: true,
-          }));
-          const newCustomStages = [...withoutOldPresets, ...presets];
-          // Build order: presets first, then existing manual stages for this module
-          const manualIds = withoutOldPresets.filter(cs => cs.module === moduleId).map(cs => cs.id);
-          newPresets = presets;
-          newOrder = [...presets.map(p => p.id), ...manualIds];
-          return {
-            customStages: newCustomStages,
-            stageOrder: { ...state.stageOrder, [moduleId]: newOrder },
-          };
-        });
-        // 同步：先把旧 preset 软删，再 upsert 新 preset，最后写 sort_index
-        void (async () => {
-          await syncSoftDeletePresetStages(moduleId);
-          for (let i = 0; i < newPresets.length; i++) {
-            await syncUpsertStage(newPresets[i], i);
-          }
-          await syncRewriteStageOrder(moduleId, newOrder);
-        })();
-      },
-
-      unpresetStage: (stageId) => {
-        set((state) => ({
-          customStages: state.customStages.map(cs =>
-            cs.id === stageId ? { ...cs, isPreset: false } : cs
-          ),
-        }));
-        void syncUnpresetStage(stageId);
-      },
-
-      clearPresetStages: (moduleId) => {
-        set((state) => ({
-          customStages: state.customStages.filter(
-            cs => !(cs.module === moduleId && cs.isPreset)
-          ),
-          stageOrder: {
-            ...state.stageOrder,
-            [moduleId]: (state.stageOrder[moduleId] || []).filter(
-              id => !state.customStages.some(cs => cs.id === id && cs.isPreset && cs.module === moduleId)
-            ),
-          },
-        }));
-        void syncSoftDeletePresetStages(moduleId);
       },
 
       setStageOrder: (moduleId, orderedIds) => {

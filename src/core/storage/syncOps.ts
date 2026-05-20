@@ -219,34 +219,6 @@ export async function syncRewriteStageOrder(
   await reportSyncOk();
 }
 
-/** 把 module 下所有 preset 关卡软删。 */
-export async function syncSoftDeletePresetStages(moduleId: string): Promise<void> {
-  if (!supabase) return;
-  if (!(await hasWriteSession())) return;
-
-  const { error } = await supabase
-    .from('stages')
-    .update({ del_status: true } as never)
-    .eq('module', moduleId)
-    .eq('is_preset', true)
-    .eq('del_status', false);
-  if (error) return reportSyncError('soft delete preset stages', error);
-  await reportSyncOk();
-}
-
-/** 把 stage 从 preset 转为手动。 */
-export async function syncUnpresetStage(stageId: string): Promise<void> {
-  if (!supabase) return;
-  if (!(await hasWriteSession())) return;
-
-  const { error } = await supabase
-    .from('stages')
-    .update({ is_preset: false } as never)
-    .eq('id', stageId);
-  if (error) return reportSyncError('unpreset stage', error);
-  await reportSyncOk();
-}
-
 // ============================================================
 // Student: 答题记录 & 进度
 // （所有认证用户都可写自己的行；RLS 已配 auth.uid() = user_id）
