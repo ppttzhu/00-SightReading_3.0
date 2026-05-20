@@ -1,24 +1,15 @@
 /**
- * localStorage → Supabase 数据迁移脚本
+ * localStorage → Supabase 数据迁移脚本（适配 refactor-quiz-schema + refactor-stats-schema）
  *
  * 用法：
- *   1. 在浏览器 Console（已打开 SightReading 页面后）运行：
+ *   1. 在浏览器 Console 运行：
  *      copy(JSON.stringify(localStorage.getItem('sight-reading-v2-store')))
- *      这会把整个 localStorage key 复制到剪贴板。
  *
- *   2. 粘贴到一个文件，例如 sightreading-backup.txt：
- *      echo '粘贴的内容' > sightreading-backup.txt
+ *   2. 粘贴到文件：echo '粘贴的内容' > sightreading-backup.txt
  *
- *   3. 设置环境变量 SUPABASE_SERVICE_ROLE_KEY（从 Supabase Dashboard → Settings → API 获取）：
+ *   3. 设置环境变量后运行：
  *      export SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxx
- *
- *   4. 运行：
  *      npx tsx scripts/migrate-localstorage-to-supabase.ts sightreading-backup.txt
- *
- * 脚本会：
- *   - 读取 backup 文件，解析 zustand persist 的 JSON
- *   - 逐行 upsert slices / stages / stage_slices 到 Supabase
- *   - 完成后提示清除浏览器 localStorage
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -31,7 +22,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('❌ 缺少环境变量。请设置：');
   console.error('   VITE_SUPABASE_URL=https://your-project.supabase.co');
-  console.error('   SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxx  (来自 Supabase Dashboard → Settings → API → service_role key)');
+  console.error('   SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxx');
   process.exit(1);
 }
 
@@ -43,12 +34,10 @@ if (!filePath) {
 }
 
 const raw = fs.readFileSync(path.resolve(filePath), 'utf-8').trim();
-// 去掉可能的 JSON 外层双引号（如果是从 console 复制的整个 JSON.stringify 结果）
 const parsed = JSON.parse(raw.startsWith('"') && raw.endsWith('"') ? JSON.parse(raw) : raw);
 const inner = typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
 if (!inner || !inner.state || !inner.state.slicesPool) {
   console.error('❌ 文件格式不正确：缺少 state.slicesPool。');
-  console.error('   请确认是从浏览器 console 运行 copy(JSON.stringify(localStorage.getItem("sight-reading-v2-store"))) 并粘贴完整。');
   process.exit(1);
 }
 
@@ -56,7 +45,14 @@ const slices: Array<any> = inner.state.slicesPool ?? [];
 const customStages: Array<any> = inner.state.customStages ?? [];
 const studentProgress: Record<string, number> = inner.state.studentProgress ?? {};
 
-console.log(`📦 读取到 ${slices.length} 个题目 (slices)、${customStages.length} 个关卡 (stages)`);
+const TYPE_TO_MODULE: Record<string, string> = {
+  A: 'notes',
+  B: 'symbols',
+  C: 'theory',
+  D: 'patterns',
+};
+
+console.log(`📦 读取到 ${slices.length} 个题目、${customStages.length} 个关卡`);
 console.log(`   学生进度: ${JSON.stringify(studentProgress)}`);
 console.log('');
 
@@ -76,28 +72,23 @@ async function chunkedUpsert(table: string, rows: any[], onConflict: string) {
 }
 
 async function main() {
-  // 1. slices
-  const sliceRows = slices.map((s: any) => {
-    const isA = s.type === 'A';
-    const content = s.content ?? {};
-    const pitch = isA ? (content.pitch ?? content.raw ?? null) : null;
-    const placement = isA ? (content.placement ?? null) : null;
+  // 1. quizzes（旧 slices）：type → module，去掉 pitch/placement 独立列
+  const quizRows = slices.map((s: any) => {
+    const moduleId = TYPE_TO_MODULE[s.type] ?? 'notes';
     return {
       id: s.id,
-      type: s.type,
-      content,
+      module: moduleId,
+      content: s.content ?? {},
       difficulty: s.difficulty ?? 1,
-      pitch: typeof pitch === 'string' ? pitch : null,
-      placement: typeof placement === 'string' ? placement : null,
       del_status: false,
       created_at: s.createdAt ? new Date(s.createdAt).toISOString() : undefined,
     };
   });
-  if (sliceRows.length > 0) await chunkedUpsert('slices', sliceRows, 'id');
+  if (quizRows.length > 0) await chunkedUpsert('quizzes', quizRows, 'id');
 
-  // 2. stages + stage_slices
+  // 2. stages + stage_quizzes
   const stageRows: any[] = [];
-  const stageSliceRows: any[] = [];
+  const stageQuizRows: any[] = [];
   for (let sortIdx = 0; sortIdx < customStages.length; sortIdx++) {
     const cs = customStages[sortIdx];
     stageRows.push({
@@ -109,16 +100,28 @@ async function main() {
       del_status: false,
     });
     (cs.sliceIds ?? []).forEach((sliceId: string, pos: number) => {
-      stageSliceRows.push({
+      stageQuizRows.push({
         stage_id: cs.id,
-        slice_id: sliceId,
+        quiz_id: sliceId,
         position: pos,
         del_status: false,
       });
     });
   }
   if (stageRows.length > 0) await chunkedUpsert('stages', stageRows, 'id');
-  if (stageSliceRows.length > 0) await chunkedUpsert('stage_slices', stageSliceRows, 'stage_id,slice_id');
+  if (stageQuizRows.length > 0) await chunkedUpsert('stage_quizzes', stageQuizRows, 'stage_id,quiz_id');
+
+  // 3. student_progress（已有 Supabase 账号时有用）
+  const progressRows = Object.entries(studentProgress).map(([module, unlocked]) => ({
+    user_id: null, // 需要手动填入目标用户 UUID，或用 service role key 配合用户列表
+    module,
+    unlocked,
+  }));
+
+  if (progressRows.length > 0) {
+    console.log(`   ⚠️  student_progress: ${progressRows.length} 行（user_id 为 null，需手动填入目标用户 UUID 后 upsert）`);
+    console.log('      如需迁移某个学生的进度，请修改脚本中的 user_id 字段后再运行。');
+  }
 
   console.log('');
   console.log('🎉 迁移完成！');
