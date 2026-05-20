@@ -173,16 +173,16 @@ function IntervalRow({ noteA, setNoteA, intervalName, setIntervalName, onAdd }: 
 }
 
 const TYPE_OPTIONS = [
-  { value: 'A', label: '单音 (A)', placeholder: '输入音高，如 C4、F#5、Bb3' },
-  { value: 'B', label: '音乐表情记号 (B)', placeholder: '输入符号名称，如 ff、staccato、fermata' },
-  { value: 'C', label: '双音/音程关系 (C)', placeholder: '格式: 音符1,音符2|名称，如 C4,G4|纯五度 (P5)' },
-  { value: 'D', label: '音型 (D)', placeholder: '输入音型描述，如 上行音阶 C-D-E-F-G' },
+  { value: 'notes',    label: '单音',           placeholder: '输入音高，如 C4、F#5、Bb3' },
+  { value: 'symbols',  label: '音乐表情记号',   placeholder: '输入符号名称，如 ff、staccato、fermata' },
+  { value: 'theory',   label: '双音/音程关系',  placeholder: '格式: 音符1,音符2|名称，如 C4,G4|纯五度 (P5)' },
+  { value: 'patterns', label: '音型',           placeholder: '输入音型描述，如 上行音阶 C-D-E-F-G' },
 ];
 
 export default function ManualCreator() {
   const addSlices = useAppStore(state => state.addSlices);
 
-  const [type, setType] = useState<'A' | 'B' | 'C' | 'D'>('A');
+  const [type, setType] = useState<'notes' | 'symbols' | 'theory' | 'patterns'>('notes');
   const [content, setContent] = useState('');
   const [symbolAnswer, setSymbolAnswer] = useState('');
   // C 类分步字段
@@ -199,7 +199,7 @@ export default function ManualCreator() {
   const isValidPitch = (s: string) => /^[A-Ga-g][#b]?\d$/.test(s);
 
   useEffect(() => {
-    if (!previewRef.current || type !== 'A') return;
+    if (!previewRef.current || type !== 'notes') return;
     previewRef.current.innerHTML = '';
 
     const pitch = content.trim();
@@ -251,7 +251,7 @@ export default function ManualCreator() {
     let sliceContent: object;
     let idKey: string;
 
-    if (type === 'C') {
+    if (type === 'theory') {
       const noteB = calcSecondNote(noteA.trim(), intervalName.trim());
       if (!noteA.trim() || !intervalName.trim() || !noteB) return;
       const raw = `${noteA},${noteB}|${intervalName}`;
@@ -259,12 +259,12 @@ export default function ManualCreator() {
       idKey = raw;
     } else {
       if (!content.trim()) return;
-      if (type === 'B' && !symbolAnswer.trim()) return;
+      if (type === 'symbols' && !symbolAnswer.trim()) return;
       sliceContent = buildContent(type, content.trim());
       idKey = content.trim();
     }
 
-    addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, type, content: sliceContent, difficulty }]);
+    addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent, difficulty }]);
     setContent(''); setSymbolAnswer(''); setNoteA(''); setIntervalName('');
     showSuccess('已添加 1 道题目');
   };
@@ -285,10 +285,10 @@ export default function ManualCreator() {
       if (line === '[自动]') { currentPlacement = 'auto'; continue; }
 
       let contentObj;
-      if (type === 'B' && line.includes('|')) {
+      if (type === 'symbols' && line.includes('|')) {
         const [symbol, answer] = line.split('|').map(s => s.trim());
         contentObj = { symbol, answer };
-      } else if (type === 'C' && !line.includes('|') && line.includes(',')) {
+      } else if (type === 'theory' && !line.includes('|') && line.includes(',')) {
         const [startNote, interval] = line.split(',').map(s => s.trim());
         const secondNote = calcSecondNote(startNote, interval);
         if (startNote && interval && secondNote) {
@@ -305,13 +305,13 @@ export default function ManualCreator() {
       }
 
       // Override placement for batch Type A imports based on section markers
-      if (type === 'A') {
-        contentObj = { ...contentObj, placement: currentPlacement };
+      if (type === 'notes') {
+        contentObj = { ...contentObj, placement: resolvePlacement(line, currentPlacement) };
       }
 
       slices.push({
         id: `manual_${type}_${Date.now()}_${idx}_${line}`,
-        type: type,
+        module: type,
         content: contentObj,
         difficulty
       });
@@ -324,9 +324,9 @@ export default function ManualCreator() {
 
   const buildContent = (type: string, value: string) => {
     switch (type) {
-      case 'A': return { pitch: value, raw: value, placement };
-      case 'B': return { symbol: value, answer: symbolAnswer.trim() };
-      case 'C': {
+      case 'notes': return { pitch: value, raw: value, placement: resolvePlacement(value, placement) };
+      case 'symbols': return { symbol: value, answer: symbolAnswer.trim() };
+      case 'theory': {
         if (value.includes('|')) {
           const [notesPart, theory] = value.split('|').map(s => s.trim());
           const notes = notesPart.split(',').map(s => s.trim()).filter(Boolean);
@@ -334,7 +334,7 @@ export default function ManualCreator() {
         }
         return { theory: value, raw: value };
       }
-      case 'D': return { pattern: value, raw: value };
+      case 'patterns': return { pattern: value, raw: value };
       default: return { raw: value };
     }
   };
@@ -432,7 +432,7 @@ export default function ManualCreator() {
       {!batchMode ? (
         <div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
-            {type === 'C' ? (
+            {type === 'theory' ? (
               <IntervalRow
                 noteA={noteA} setNoteA={setNoteA}
                 intervalName={intervalName} setIntervalName={setIntervalName}
@@ -444,11 +444,11 @@ export default function ManualCreator() {
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <AutocompleteInput
                     value={content} onChange={setContent}
-                    candidates={type === 'A' ? ALL_PITCHES : type === 'B' ? Object.keys(SYMBOL_MAP) : ALL_PATTERNS}
+                    candidates={type === 'notes' ? ALL_PITCHES : type === 'symbols' ? Object.keys(SYMBOL_MAP) : ALL_PATTERNS}
                     placeholder={currentTypeOption.placeholder}
-                    onKeyDown={(e) => e.key === 'Enter' && type !== 'B' && handleAddSingle()}
+                    onKeyDown={(e) => e.key === 'Enter' && type !== 'symbols' && handleAddSingle()}
                   />
-                  {type !== 'B' && (
+                  {type !== 'symbols' && (
                     <button onClick={handleAddSingle} disabled={!content.trim()} style={{
                       padding: '12px 24px', borderRadius: '8px', border: 'none', whiteSpace: 'nowrap',
                       background: content.trim() ? '#3b82f6' : '#94a3b8', color: 'white', fontWeight: 'bold',
@@ -456,7 +456,7 @@ export default function ManualCreator() {
                     }}>+ 添加到素材池</button>
                   )}
                 </div>
-                {type === 'B' && (
+                {type === 'symbols' && (
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <AutocompleteInput
                       value={symbolAnswer} onChange={v => setSymbolAnswer(v)}
@@ -473,7 +473,7 @@ export default function ManualCreator() {
                   </div>
                 )}
                 {/* 单音：谱号位置选择 */}
-                {type === 'A' && (
+                {type === 'notes' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>在大谱表中出现位置：</span>
                     <div style={{ display: 'flex', gap: '4px', background: '#f3f4f6', borderRadius: '10px', padding: '3px' }}>
@@ -503,7 +503,7 @@ export default function ManualCreator() {
             )}
           </div>
           {/* 单音大谱表预览 */}
-          {type === 'A' && isValidPitch(content.trim()) && (
+          {type === 'notes' && isValidPitch(content.trim()) && (
             <div style={{
               background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px',
               padding: '16px', marginBottom: '15px', textAlign: 'center'
@@ -515,7 +515,7 @@ export default function ManualCreator() {
             </div>
           )}
           <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-            {type === 'B' ? '第一行输入符号（题面），第二行输入答案含义' : type === 'C' ? '输入起始音和音程，第二个音自动推算' : '按回车可快速提交'}
+            {type === 'symbols' ? '第一行输入符号（题面），第二行输入答案含义' : type === 'theory' ? '输入起始音和音程，第二个音自动推算' : '按回车可快速提交'}
           </p>
         </div>
       ) : (
@@ -524,11 +524,11 @@ export default function ManualCreator() {
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
             placeholder={
-              type === 'B'
+              type === 'symbols'
                 ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
-                : type === 'C'
+                : type === 'theory'
                 ? `每行格式: 起始音,音程名  或  音1,音2|音程名\n例如：\nC4,纯五度 (P5)\nD4,大三度 (M3)\nE4,G4|大三度 (M3)`
-                : type === 'A'
+                : type === 'notes'
                 ? `每行输入一个音高，可用 [高音] [低音] [自动] 标记谱表区域，例如：\n[高音]\nC4\nD4\n[低音]\nA2\nB2\n[自动]\nE3`
                 : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`
             }

@@ -1,21 +1,24 @@
 /**
  * Storage module entry point.
  *
- * Uses Cloudflare KV storage via Pages Functions API route.
- * In dev mode, loads from a local JSON file instead.
- * The rest of the app only imports from this file.
+ * 生产 / 预览：使用 SupabaseStorageProvider（slices/stages/stage_slices 三张表）
+ * 开发环境：可读 /stages-local-test.json 作为种子，但发布走 Supabase
+ *
+ * 旧的 CloudflareStorageProvider 仍保留代码以备回滚，但默认不再启用。
  */
 
 export type { StageData, StorageProvider } from './types';
-export { CloudflareStorageProvider } from './CloudflareStorageProvider';
 
+import { SupabaseStorageProvider } from './SupabaseStorageProvider';
 import { CloudflareStorageProvider } from './CloudflareStorageProvider';
+import { isSupabaseConfigured } from '../auth/supabaseClient';
 import type { StorageProvider, StageData } from './types';
+
+export { SupabaseStorageProvider, CloudflareStorageProvider };
 
 /**
  * Local file storage provider for dev/testing.
- * Reads from /stages-local-test.json (served by Vite from public/).
- * Save is a no-op (use CMS in production to publish).
+ * 读 /stages-local-test.json（Vite 从 public/ 提供），save 是 no-op。
  */
 class LocalFileStorageProvider implements StorageProvider {
   name = 'Local File (dev)';
@@ -39,15 +42,33 @@ class LocalFileStorageProvider implements StorageProvider {
 }
 
 /**
- * Get the configured storage provider.
+ * 选择当前生效的 StorageProvider。
  *
- * - Dev mode: reads from /stages-local-test.json (local file)
- * - Production: uses Cloudflare KV via /api/stages endpoint
+ * 优先级：
+ *   1. VITE_STORAGE_PROVIDER 显式指定（"supabase" | "cloudflare" | "local"），用于回滚
+ *   2. Supabase 已配置 → SupabaseStorageProvider
+ *   3. DEV 模式 → LocalFileStorageProvider
+ *   4. 否则 → CloudflareStorageProvider（向后兼容）
  */
 export function getStorageProvider(): StorageProvider | null {
+  const override = (import.meta.env.VITE_STORAGE_PROVIDER || '').toLowerCase();
+
+  if (override === 'supabase') return new SupabaseStorageProvider();
+  if (override === 'local') return new LocalFileStorageProvider();
+  if (override === 'cloudflare') {
+    return new CloudflareStorageProvider({
+      cmsSecret: import.meta.env.VITE_CMS_SECRET || '',
+    });
+  }
+
+  if (isSupabaseConfigured) {
+    return new SupabaseStorageProvider();
+  }
+
   if (import.meta.env.DEV) {
     return new LocalFileStorageProvider();
   }
+
   return new CloudflareStorageProvider({
     cmsSecret: import.meta.env.VITE_CMS_SECRET || '',
   });

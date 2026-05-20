@@ -30,17 +30,17 @@ function ClearConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onC
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  'A': '单音',
-  'B': '音乐表情记号',
-  'C': '双音/音程关系',
-  'D': '音型',
+  'notes': '单音',
+  'symbols': '音乐表情记号',
+  'theory': '双音/音程关系',
+  'patterns': '音型',
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  'A': '#3b82f6',
-  'B': '#ec4899',
-  'C': '#8b5cf6',
-  'D': '#10b981',
+  'notes': '#3b82f6',
+  'symbols': '#ec4899',
+  'theory': '#8b5cf6',
+  'patterns': '#10b981',
 };
 
 export default function StageBuilder() {
@@ -49,17 +49,17 @@ export default function StageBuilder() {
   const removeSlice = useAppStore(state => state.removeSlice);
   const clearPool = useAppStore(state => state.clearPool);
   const [showClearModal, setShowClearModal] = useState(false);
-  const [filterType, setFilterType] = useState<string>('A');
+  const [filterType, setFilterType] = useState<string>('notes');
 
-  // 按类型分组统计
+  // 按模块分组统计
   const stats = {
-    A: slicesPool.filter(s => s.type === 'A').length,
-    B: slicesPool.filter(s => s.type === 'B').length,
-    C: slicesPool.filter(s => s.type === 'C').length,
-    D: slicesPool.filter(s => s.type === 'D').length,
+    notes:    slicesPool.filter(s => s.module === 'notes').length,
+    symbols:  slicesPool.filter(s => s.module === 'symbols').length,
+    theory:   slicesPool.filter(s => s.module === 'theory').length,
+    patterns: slicesPool.filter(s => s.module === 'patterns').length,
   };
 
-  const filteredCount = stats[filterType as keyof typeof stats];
+  const filteredCount = stats[filterType as keyof typeof stats] ?? 0;
   const filteredStages = Math.ceil(filteredCount / 5);
 
   return (
@@ -88,7 +88,7 @@ export default function StageBuilder() {
 
       {/* 统计卡片（也是筛选器） */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '20px' }}>
-        {(['A', 'B', 'C', 'D'] as const).map(type => {
+        {(['notes', 'symbols', 'theory', 'patterns'] as const).map(type => {
           const active = filterType === type;
           return (
             <div
@@ -126,7 +126,7 @@ export default function StageBuilder() {
           </div>
         ) : (
           slicesPool
-            .filter(slice => slice.type === filterType)
+            .filter(slice => slice.module === filterType)
             .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             .map(slice => {
               const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
@@ -139,26 +139,26 @@ export default function StageBuilder() {
                 alignItems: 'center',
                 padding: '12px 16px',
                 background: 'white',
-                borderLeft: `4px solid ${TYPE_COLORS[slice.type]}`,
+                borderLeft: `4px solid ${TYPE_COLORS[slice.module]}`,
                 borderRadius: '6px',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{
-                  background: `${TYPE_COLORS[slice.type]}15`,
-                  color: TYPE_COLORS[slice.type],
+                  background: `${TYPE_COLORS[slice.module]}15`,
+                  color: TYPE_COLORS[slice.module],
                   padding: '2px 8px',
                   borderRadius: '4px',
                   fontSize: '0.8rem',
                   fontWeight: 'bold'
                 }}>
-                  {TYPE_LABELS[slice.type]}
+                  {TYPE_LABELS[slice.module]}
                 </span>
                 <span style={{ color: '#1f2937', fontWeight: '500' }}>
                   {slice.content.raw || slice.content.symbol || slice.content.theory || slice.content.pattern}
                 </span>
-                {slice.type === 'A' && (
+                {slice.module === 'notes' && (
                   <span style={{
                     padding: '1px 6px',
                     borderRadius: '4px',

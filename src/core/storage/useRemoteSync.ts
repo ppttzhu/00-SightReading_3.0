@@ -1,10 +1,14 @@
 import { useState, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { getStorageProvider } from './index';
+import { migrateLocalProgressToSupabase } from './syncOps';
 import type { StageData } from './types';
 
 /**
  * Hook for publishing data to remote storage (teacher CMS).
+ *
+ * 注意：在 Supabase 实时同步模式下，每次 mutation 都已经 fire-and-forget 写库；
+ * 此 hook 保留为 "全量重推" 兜底按钮，触发一次 SupabaseStorageProvider.save() 整包同步。
  */
 export function usePublish() {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -30,9 +34,9 @@ export function usePublish() {
       };
 
       await provider.save(data);
+      useAppStore.setState({ lastSyncError: null });
       setStatus('success');
 
-      // Reset to idle after 3 seconds
       setTimeout(() => setStatus('idle'), 3000);
     } catch (e: any) {
       setStatus('error');
@@ -44,7 +48,7 @@ export function usePublish() {
 }
 
 /**
- * Hook for loading data from remote storage (student side).
+ * Hook for loading data from remote storage (student side / CMS startup).
  */
 export function useFetchRemote() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -52,13 +56,12 @@ export function useFetchRemote() {
 
   const fetchRemote = useCallback(async () => {
     const provider = getStorageProvider();
-    if (!provider) {
-      // No provider configured — silently skip (student might be using local data)
-      return;
-    }
+    if (!provider) return;
 
-    // In dev mode, only load from local file if store is empty (seed data).
-    // This prevents overwriting CMS edits stored in localStorage.
+    // 一次性迁移：已登录学生首次加载时，把 localStorage 进度推送到 Supabase
+    void migrateLocalProgressToSupabase();
+
+    // 开发模式：本地 store 已有数据则跳过，避免覆盖未提交的 CMS 编辑
     if (import.meta.env.DEV && useAppStore.getState().slicesPool.length > 0) {
       return;
     }
@@ -67,17 +70,14 @@ export function useFetchRemote() {
     setError('');
 
     try {
-      const data = await provider.load();
-      if (data && data.slicesPool && data.slicesPool.length > 0) {
-        // Replace pool and custom stages with remote data
-        useAppStore.setState({
-          slicesPool: data.slicesPool,
-          customStages: data.customStages || [],
-        });
-
-        setStatus('success');
+      await useAppStore.getState().loadFromRemote();
+      const syncErr = useAppStore.getState().lastSyncError;
+      if (syncErr) {
+        setStatus('error');
+        setError(syncErr);
       } else {
-        setStatus('idle'); // No remote data available
+        const pool = useAppStore.getState().slicesPool;
+        setStatus(pool.length > 0 ? 'success' : 'idle');
       }
     } catch (e: any) {
       setStatus('error');
@@ -87,3 +87,4 @@ export function useFetchRemote() {
 
   return { fetchRemote, status, error };
 }
+
