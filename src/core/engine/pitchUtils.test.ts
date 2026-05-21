@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { pitchEqual } from './pitchUtils';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import {
+  getClefForPitches,
+  pitchEqual,
+} from './pitchUtils';
 
 // pitchEqual compares two pitch strings (letter[+#|b]octave, e.g. "C4", "C#4",
 // "Db4") and is true iff:
@@ -9,6 +12,10 @@ import { pitchEqual } from './pitchUtils';
 // Five enharmonic pairs are recognized: C#↔Db, D#↔Eb, F#↔Gb, G#↔Ab, A#↔Bb.
 // Rare cross-octave spellings (B#/Cb, E#/Fb) are intentionally NOT treated as
 // enharmonic — they don't appear in our question/answer vocabulary.
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('pitchEqual — natural pitches', () => {
   it('returns true for identical pitches', () => {
@@ -87,5 +94,44 @@ describe('pitchEqual — invalid input', () => {
   it('handles multi-digit octaves correctly (e.g. C10 should not be C1)', () => {
     expect(pitchEqual('C10', 'C1')).toBe(false);
     expect(pitchEqual('C10', 'C10')).toBe(true);
+  });
+});
+
+describe('automatic clef selection', () => {
+  it('forces bass for pitches lower than G3', () => {
+    expect(getClefForPitches('F3')).toBe('bass');
+    expect(getClefForPitches('F#3')).toBe('bass');
+  });
+
+  it('forces treble for pitches higher than F4', () => {
+    expect(getClefForPitches('F#4')).toBe('treble');
+    expect(getClefForPitches('G4')).toBe('treble');
+  });
+
+  it('uses the full note group when choosing a clef for intervals or chords', () => {
+    expect(getClefForPitches(['C4', 'F3'])).toBe('bass');
+    expect(getClefForPitches(['D4', 'G4'])).toBe('treble');
+  });
+});
+
+describe('practice clef selection', () => {
+  it('does not choose treble-only for pitches lower than G3', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.75);
+    expect(getClefForPitches('F3', { allowGrand: true })).toBe('bass');
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    expect(getClefForPitches('F3', { allowGrand: true })).toBe('grand');
+  });
+
+  it('can use grand for pitches higher than F4', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.75);
+    expect(getClefForPitches('G4', { allowGrand: true })).toBe('treble');
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    expect(getClefForPitches('G4', { allowGrand: true })).toBe('grand');
+  });
+
+  it('uses grand when a pitch group crosses both forced ranges', () => {
+    expect(getClefForPitches(['F3', 'G4'], { allowGrand: true })).toBe('grand');
   });
 });

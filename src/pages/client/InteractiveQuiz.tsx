@@ -6,7 +6,7 @@ import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { getAutomaticClefForPitch, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
 
@@ -261,7 +261,7 @@ export default function InteractiveQuiz() {
     if (currentSlice.module === 'theory') {
       const notes: string[] = currentSlice.content.notes || [];
       if (notes.length >= 2) {
-        clef = getAutomaticClefForPitch(notes[0]);
+        clef = getClefForPitches(notes);
       }
     }
 
