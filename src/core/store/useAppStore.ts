@@ -29,14 +29,13 @@ export interface SymbolContent {
   answer: string;
 }
 
-/** 双音/音程题目 content（新格式） */
+/** 双音/音程题目 content */
 export interface IntervalContent {
   noteA: string;
   noteB: string;
-  theory: string; // 音程名称，可编辑
+  theory: string;
   placement: StaffPlacement;
-  options: string[] | null; // null 表示使用自动生成
-  raw: string; // 保留旧格式兼容
+  raw: string;
 }
 
 /** 音型题目 content */
@@ -44,13 +43,6 @@ export interface PatternContent {
   pattern: string;
   raw: string;
   notes?: string[];
-}
-
-/** 旧版双音/音程题目 content（向后兼容） */
-export interface LegacyIntervalContent {
-  theory: string;
-  notes: string[];
-  raw: string;
 }
 
 export type SliceContent = NoteContent | SymbolContent | IntervalContent | PatternContent;

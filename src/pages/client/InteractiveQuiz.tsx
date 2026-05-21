@@ -92,12 +92,6 @@ function generateOptions(slice: Slice): string[] {
       break;
     }
     case 'theory': {
-      // 优先使用手动配置的选项（新格式）
-      const manualOptions = content.options as string[] | undefined;
-      if (manualOptions && manualOptions.length > 0) {
-        return manualOptions;
-      }
-      // 旧格式或自动生成
       correct = (content.theory as string) || (content.raw as string) || '';
       pool = correct.includes('度') || correct.includes('P') || correct.includes('m')
         ? ALL_INTERVALS

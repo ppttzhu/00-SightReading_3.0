@@ -191,9 +191,7 @@ export default function ManualCreator() {
   const [noteA, setNoteA] = useState('');
   const [noteB, setNoteB] = useState('');
   const [intervalName, setIntervalName] = useState('');
-  const [intervalPlacement, setIntervalPlacement] = useState<StaffPlacement>('auto');
-  const [intervalOptions, setIntervalOptions] = useState<string[]>([]);
-  const [optionsMode, setOptionsMode] = useState<'auto' | 'manual'>('auto');
+  const [intervalPlacement, setIntervalPlacement] = useState<StaffPlacement>('treble');
   const [difficulty, setDifficulty] = useState(1);
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
@@ -324,7 +322,6 @@ export default function ManualCreator() {
         noteB: noteB.trim(),
         theory: intervalName.trim() || derivedInterval,
         placement: intervalPlacement,
-        options: optionsMode === 'manual' && intervalOptions.length > 0 ? intervalOptions : null,
         raw,
       };
       sliceContent = content;
@@ -337,7 +334,7 @@ export default function ManualCreator() {
     }
 
     addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
-    setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName(''); setIntervalOptions([]);
+    setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName('');
     showSuccess('已添加 1 道题目');
   };
 
@@ -375,7 +372,6 @@ export default function ManualCreator() {
               noteA, noteB,
               theory,
               placement: currentTheoryPlacement,
-              options: null,
               raw,
             } as IntervalContent;
           } else {
@@ -525,13 +521,12 @@ export default function ManualCreator() {
                   intervalName={intervalName} setIntervalName={setIntervalName}
                   onAdd={handleAddSingle}
                 />
-                {/* 双音题目的谱号选择和选项配置 */}
+                {/* 双音题目的谱号选择 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>谱表位置：</span>
                     <div style={{ display: 'flex', gap: '4px', background: 'white', borderRadius: '10px', padding: '3px' }}>
                       {([
-                        { v: 'auto' as StaffPlacement, label: '自动' },
                         { v: 'treble' as StaffPlacement, label: '高音谱号' },
                         { v: 'bass' as StaffPlacement, label: '低音谱号' },
                       ]).map(opt => (
@@ -551,46 +546,6 @@ export default function ManualCreator() {
                       ))}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>选项配置：</span>
-                    <div style={{ display: 'flex', gap: '4px', background: 'white', borderRadius: '10px', padding: '3px' }}>
-                      <button
-                        onClick={() => setOptionsMode('auto')}
-                        style={{
-                          padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                          fontWeight: optionsMode === 'auto' ? '700' : '500', fontSize: '0.85rem',
-                          background: optionsMode === 'auto' ? '#1f2937' : 'transparent',
-                          color: optionsMode === 'auto' ? 'white' : '#6b7280',
-                          transition: 'all 0.15s'
-                        }}
-                      >
-                        自动生成
-                      </button>
-                      <button
-                        onClick={() => setOptionsMode('manual')}
-                        style={{
-                          padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                          fontWeight: optionsMode === 'manual' ? '700' : '500', fontSize: '0.85rem',
-                          background: optionsMode === 'manual' ? '#1f2937' : 'transparent',
-                          color: optionsMode === 'manual' ? 'white' : '#6b7280',
-                          transition: 'all 0.15s'
-                        }}
-                      >
-                        手动输入
-                      </button>
-                    </div>
-                  </div>
-                  {optionsMode === 'manual' && (
-                    <div>
-                      <input
-                        type="text"
-                        value={intervalOptions.join(', ')}
-                        onChange={(e) => setIntervalOptions(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                        placeholder="手动输入选项，用逗号分隔，如 纯五度 (P5),纯四度 (P4),大三度 (M3)"
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  )}
                 </div>
               </>
             ) : (
