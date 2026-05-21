@@ -221,8 +221,12 @@ export default function CustomStageEditor() {
             <div style={{ maxHeight: '260px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '8px' }}>
               {visiblePool.map(slice => {
                 const checked = selectedIds.has(slice.id);
-                const c = slice.content;
-                const label = (typeof c === 'string' ? c : c.raw || c.symbol || c.theory || c.pattern) || slice.id;
+                const c = slice.content as unknown as Record<string, unknown>;
+                const raw = c.raw as string | undefined;
+                const symbol = c.symbol as string | undefined;
+                const theory = c.theory as string | undefined;
+                const pattern = c.pattern as string | undefined;
+                const label = (typeof c === 'string' ? c : raw || symbol || theory || pattern) || slice.id;
                 const isNew = (slice.createdAt || 0) > Date.now() - 10 * 60 * 1000;
                 return (
                   <label
@@ -258,7 +262,7 @@ export default function CustomStageEditor() {
                         fontWeight: 500,
                         flexShrink: 0
                       }}>
-                        {getStaffLabel(slice.content.pitch || slice.content.raw, slice.content.placement)}
+                        {getStaffLabel((slice.content as unknown as Record<string, unknown>).pitch as string || (slice.content as unknown as Record<string, unknown>).raw as string, ((slice.content as unknown as Record<string, unknown>).placement as 'auto' | 'treble' | 'bass') || undefined)}
                       </span>
                     )}
                     {isNew && (

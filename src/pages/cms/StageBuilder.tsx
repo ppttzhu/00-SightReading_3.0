@@ -156,7 +156,7 @@ export default function StageBuilder() {
                   {TYPE_LABELS[slice.module]}
                 </span>
                 <span style={{ color: '#1f2937', fontWeight: '500' }}>
-                  {slice.content.raw || slice.content.symbol || slice.content.theory || slice.content.pattern}
+                  {String((slice.content as unknown as Record<string, unknown>).raw || (slice.content as unknown as Record<string, unknown>).symbol || (slice.content as unknown as Record<string, unknown>).theory || (slice.content as unknown as Record<string, unknown>).pattern || '')}
                 </span>
                 {slice.module === 'notes' && (
                   <span style={{
@@ -168,7 +168,7 @@ export default function StageBuilder() {
                     fontWeight: 500,
                     flexShrink: 0
                   }}>
-                    {getStaffLabel(slice.content.pitch || slice.content.raw, slice.content.placement)}
+                    {getStaffLabel((slice.content as unknown as Record<string, unknown>).pitch as string || (slice.content as unknown as Record<string, unknown>).raw as string, ((slice.content as unknown as Record<string, unknown>).placement as 'auto' | 'treble' | 'bass') || undefined)}
                   </span>
                 )}
                 {isNew && (
