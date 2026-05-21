@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getGrandStaffPlacement } from '../engine/pitchUtils';
 import { supabase } from '../auth/supabaseClient';
+import type { StaffPlacement } from '../engine/pitchUtils';
 import {
   syncUpsertSlices,
   syncUpdateSliceDifficulty,
@@ -14,10 +15,42 @@ import {
   syncUpsertStudentProgress,
 } from '../storage/syncOps';
 
+// ── Content Types ────────────────────────────────────────────
+/** 单音题目 content */
+export interface NoteContent {
+  pitch: string;
+  raw: string;
+  placement: StaffPlacement;
+}
+
+/** 音乐符号题目 content */
+export interface SymbolContent {
+  symbol: string;
+  answer: string;
+}
+
+/** 双音/音程题目 content */
+export interface IntervalContent {
+  noteA: string;
+  noteB: string;
+  theory: string;
+  placement: StaffPlacement;
+  raw: string;
+}
+
+/** 音型题目 content */
+export interface PatternContent {
+  pattern: string;
+  raw: string;
+  notes?: string[];
+}
+
+export type SliceContent = NoteContent | SymbolContent | IntervalContent | PatternContent;
+
 export interface Slice {
   id: string;
   module: 'notes' | 'symbols' | 'theory' | 'patterns';
-  content: any;
+  content: SliceContent;
   difficulty: number;
   createdAt?: number;
 }
@@ -25,13 +58,24 @@ export interface Slice {
 
 /** True when two slices represent the same question (after placement resolution). */
 export function areSlicesDuplicate(a: Slice, b: Slice): boolean {
-  const keyA = a.content.raw || a.content.symbol || a.content.theory || a.content.pattern;
-  const keyB = b.content.raw || b.content.symbol || b.content.theory || b.content.pattern;
+  const aContent = a.content as unknown as Record<string, unknown>;
+  const bContent = b.content as unknown as Record<string, unknown>;
+  const keyA = aContent.raw || aContent.symbol || aContent.theory || aContent.pattern;
+  const keyB = bContent.raw || bContent.symbol || bContent.theory || bContent.pattern;
   if (a.module !== b.module || keyA !== keyB) return false;
   if (a.module === 'notes') {
-    const pa = a.content.placement || getGrandStaffPlacement(a.content.pitch || a.content.raw);
-    const pb = b.content.placement || getGrandStaffPlacement(b.content.pitch || b.content.raw);
+    const pa = aContent.placement || getGrandStaffPlacement((aContent.pitch as string) || (aContent.raw as string));
+    const pb = bContent.placement || getGrandStaffPlacement((bContent.pitch as string) || (bContent.raw as string));
     return pa === pb;
+  }
+  if (a.module === 'theory') {
+    const aNotes = aContent.notes as string[] | undefined;
+    const bNotes = bContent.notes as string[] | undefined;
+    const aNoteA = aContent.noteA as string || aNotes?.[0];
+    const aNoteB = aContent.noteB as string || aNotes?.[1];
+    const bNoteA = bContent.noteA as string || bNotes?.[0];
+    const bNoteB = bContent.noteB as string || bNotes?.[1];
+    return aNoteA === bNoteA && aNoteB === bNoteB;
   }
   return true;
 }

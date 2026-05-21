@@ -56,7 +56,7 @@ function sliceToRow(slice: Slice): SliceRow {
   return {
     id: slice.id,
     module: slice.module,
-    content: slice.content ?? {},
+    content: slice.content as unknown as Record<string, unknown> ?? {},
     difficulty: slice.difficulty,
     del_status: false,
   };
@@ -66,7 +66,7 @@ function rowToSlice(row: SliceRow): Slice {
   return {
     id: row.id,
     module: row.module,
-    content: row.content ?? {},
+    content: row.content as unknown as import('../../core/store/useAppStore').SliceContent ?? {},
     difficulty: row.difficulty,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
   };

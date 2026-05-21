@@ -3,6 +3,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnecto
 import { useAppStore } from '../../core/store/useAppStore';
 import { resolvePlacement } from '../../core/engine/pitchUtils';
 import type { StaffPlacement } from '../../core/engine/pitchUtils';
+import type { IntervalContent } from '../../core/store/useAppStore';
 
 // ── 字典数据 ──────────────────────────────────────────────────
 const SYMBOL_MAP: Record<string, string> = {
@@ -32,29 +33,6 @@ const ALL_INTERVALS = [
 ];
 
 const ALL_PATTERNS = ['上行音阶跑动', '下行音阶跑动', '分解和弦', '琶音上行', '琶音下行', 'Alberti Bass', '重复音型', '八度跳进'];
-
-// 音程名 → 半音数
-const INTERVAL_SEMITONES: Record<string, number> = {
-  '纯一度 (P1)': 0, '小二度 (m2)': 1, '大二度 (M2)': 2, '小三度 (m3)': 3, '大三度 (M3)': 4,
-  '纯四度 (P4)': 5, '增四度 (A4)': 6, '三全音 (TT)': 6, '减五度 (d5)': 6, '纯五度 (P5)': 7,
-  '小六度 (m6)': 8, '大六度 (M6)': 9, '小七度 (m7)': 10, '大七度 (M7)': 11, '纯八度 (P8)': 12,
-};
-
-const STEP_TO_SEMI: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const SEMI_TO_NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-function calcSecondNote(pitch: string, intervalName: string): string | null {
-  const m = pitch.match(/^([A-G])(#|b)?(\d)$/);
-  if (!m) return null;
-  const semitones = INTERVAL_SEMITONES[intervalName];
-  if (semitones == null) return null;
-  const alter = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
-  const midi = STEP_TO_SEMI[m[1]] + alter + (parseInt(m[3]) + 1) * 12;
-  const target = midi + semitones;
-  const oct = Math.floor(target / 12) - 1;
-  const note = SEMI_TO_NOTE[target % 12];
-  return `${note}${oct}`;
-}
 
 // ── 自动补全输入框 ────────────────────────────────────────────
 function AutocompleteInput({
@@ -141,28 +119,52 @@ function AutocompleteInput({
   );
 }
 
-function IntervalRow({ noteA, setNoteA, intervalName, setIntervalName, onAdd }: {
+// 计算两个音之间的音程名称
+function calcIntervalName(noteA: string, noteB: string): string | null {
+  const STEP_TO_SEMI: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const INTERVAL_MAP: Record<number, string> = {
+    0: '纯一度 (P1)', 1: '小二度 (m2)', 2: '大二度 (M2)', 3: '小三度 (m3)', 4: '大三度 (M3)',
+    5: '纯四度 (P4)', 6: '增四度/减五度 (A4/d5)', 7: '纯五度 (P5)',
+    8: '小六度 (m6)', 9: '大六度 (M6)', 10: '小七度 (m7)', 11: '大七度 (M7)', 12: '纯八度 (P8)',
+  };
+
+  const parsePitch = (p: string) => {
+    const m = p.match(/^([A-G])(#|b)?(\d)$/);
+    if (!m) return null;
+    const alter = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
+    return STEP_TO_SEMI[m[1]] + alter + (parseInt(m[3]) + 1) * 12;
+  };
+
+  const midiA = parsePitch(noteA);
+  const midiB = parsePitch(noteB);
+  if (midiA == null || midiB == null) return null;
+
+  const semitones = Math.abs(midiB - midiA) % 12;
+  return INTERVAL_MAP[semitones] || null;
+}
+
+function IntervalRow({ noteA, setNoteA, noteB, setNoteB, intervalName, setIntervalName, onAdd }: {
   noteA: string; setNoteA: (v: string) => void;
+  noteB: string; setNoteB: (v: string) => void;
   intervalName: string; setIntervalName: (v: string) => void;
   onAdd: () => void;
 }) {
-  const derived = calcSecondNote(noteA.trim(), intervalName.trim());
-  const ready = !!noteA.trim() && !!intervalName.trim() && !!derived;
+  const derived = calcIntervalName(noteA.trim(), noteB.trim());
+  const ready = !!noteA.trim() && !!noteB.trim() && !!derived;
   return (
-    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-      <AutocompleteInput value={noteA} onChange={setNoteA} candidates={ALL_PITCHES} placeholder="起始音，如 C4" />
+    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <AutocompleteInput value={noteA} onChange={setNoteA} candidates={ALL_PITCHES} placeholder="音A，如 C4" />
       <span style={{ color: '#9ca3af', whiteSpace: 'nowrap' }}>+</span>
+      <AutocompleteInput value={noteB} onChange={setNoteB} candidates={ALL_PITCHES} placeholder="音B，如 G4" />
+      <span style={{ color: '#9ca3af', whiteSpace: 'nowrap' }}>=</span>
       <AutocompleteInput
         value={intervalName} onChange={setIntervalName} candidates={ALL_INTERVALS}
-        placeholder="音程，如 纯五度 (P5)"
+        placeholder={derived ?? '音程名称'}
         onKeyDown={(e) => e.key === 'Enter' && onAdd()}
       />
-      <span style={{ color: '#9ca3af', whiteSpace: 'nowrap' }}>=</span>
-      <div style={{
-        flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
-        background: '#f9fafb', fontSize: '1rem', minWidth: '80px',
-        color: derived ? '#059669' : '#9ca3af', fontWeight: derived ? 'bold' : 'normal',
-      }}>{derived ?? '—'}</div>
+      <span style={{ color: derived ? '#059669' : '#9ca3af', fontWeight: derived ? 'bold' : 'normal', fontSize: '0.9rem' }}>
+        {derived ? `(自动: ${derived})` : '—'}
+      </span>
       <button onClick={onAdd} disabled={!ready} style={{
         padding: '12px 24px', borderRadius: '8px', border: 'none', whiteSpace: 'nowrap',
         background: ready ? '#3b82f6' : '#94a3b8', color: 'white', fontWeight: 'bold',
@@ -187,13 +189,16 @@ export default function ManualCreator() {
   const [symbolAnswer, setSymbolAnswer] = useState('');
   // C 类分步字段
   const [noteA, setNoteA] = useState('');
+  const [noteB, setNoteB] = useState('');
   const [intervalName, setIntervalName] = useState('');
+  const [intervalPlacement, setIntervalPlacement] = useState<StaffPlacement>('treble');
   const [difficulty, setDifficulty] = useState(1);
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [placement, setPlacement] = useState<StaffPlacement>('auto');
   const previewRef = useRef<HTMLDivElement>(null);
+  const intervalPreviewRef = useRef<HTMLDivElement>(null);
 
   // ── 单音大谱表预览 ──
   const isValidPitch = (s: string) => /^[A-Ga-g][#b]?\d$/.test(s);
@@ -245,6 +250,62 @@ export default function ManualCreator() {
     }
   }, [type, content, placement]);
 
+  // ── 双音大谱表预览 ──
+  useEffect(() => {
+    if (!intervalPreviewRef.current || type !== 'theory') return;
+    intervalPreviewRef.current.innerHTML = '';
+
+    const noteAVal = noteA.trim();
+    const noteBVal = noteB.trim();
+    if (!isValidPitch(noteAVal) || !isValidPitch(noteBVal)) return;
+
+    const renderer = new Renderer(intervalPreviewRef.current, Renderer.Backends.SVG);
+    const width = Math.min(400, intervalPreviewRef.current.clientWidth - 20);
+    renderer.resize(width, 260);
+    const context = renderer.getContext();
+    const staveW = width - 40;
+
+    const staveTop = new Stave(10, 30, staveW);
+    staveTop.addClef('treble');
+    staveTop.setContext(context).draw();
+
+    const staveBottom = new Stave(10, 130, staveW);
+    staveBottom.addClef('bass');
+    staveBottom.setContext(context).draw();
+
+    const connector = new StaveConnector(staveTop, staveBottom);
+    connector.setType(StaveConnector.type.BRACE);
+    connector.setContext(context).draw();
+
+    const actualPlacement = resolvePlacement(noteAVal, intervalPlacement);
+    const activeStave = actualPlacement === 'treble' ? staveTop : staveBottom;
+
+    try {
+      const parsePitch = (p: string) => {
+        const m = p.match(/^([A-Ga-g])(#|b)?(\d)$/);
+        return m ? { key: `${m[1].toLowerCase()}/${m[3]}`, accidental: m[2] || null } : null;
+      };
+      const parsedA = parsePitch(noteAVal);
+      const parsedB = parsePitch(noteBVal);
+
+      if (parsedA && parsedB) {
+        const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement });
+        if (parsedA.accidental) note1.addModifier(new Accidental(parsedA.accidental));
+
+        const note2 = new StaveNote({ keys: [parsedB.key], duration: 'h', clef: actualPlacement });
+        if (parsedB.accidental) note2.addModifier(new Accidental(parsedB.accidental));
+
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables([note1, note2]);
+        new Formatter().joinVoices([voice]).format([voice], 280);
+        voice.draw(context, activeStave);
+      }
+    } catch (e) {
+      console.error('Interval Preview error:', e);
+    }
+  }, [type, noteA, noteB, intervalPlacement]);
+
   const currentTypeOption = TYPE_OPTIONS.find(t => t.value === type)!;
 
   const handleAddSingle = () => {
@@ -252,10 +313,18 @@ export default function ManualCreator() {
     let idKey: string;
 
     if (type === 'theory') {
-      const noteB = calcSecondNote(noteA.trim(), intervalName.trim());
-      if (!noteA.trim() || !intervalName.trim() || !noteB) return;
-      const raw = `${noteA},${noteB}|${intervalName}`;
-      sliceContent = { theory: intervalName.trim(), notes: [noteA.trim(), noteB], raw };
+      if (!noteA.trim() || !noteB.trim()) return;
+      const derivedInterval = calcIntervalName(noteA.trim(), noteB.trim()) || intervalName.trim();
+      if (!derivedInterval) return;
+      const raw = `${noteA.trim()},${noteB.trim()}|${derivedInterval}`;
+      const content: IntervalContent = {
+        noteA: noteA.trim(),
+        noteB: noteB.trim(),
+        theory: intervalName.trim() || derivedInterval,
+        placement: intervalPlacement,
+        raw,
+      };
+      sliceContent = content;
       idKey = raw;
     } else {
       if (!content.trim()) return;
@@ -264,8 +333,8 @@ export default function ManualCreator() {
       idKey = content.trim();
     }
 
-    addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent, difficulty }]);
-    setContent(''); setSymbolAnswer(''); setNoteA(''); setIntervalName('');
+    addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
+    setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName('');
     showSuccess('已添加 1 道题目');
   };
 
@@ -274,29 +343,40 @@ export default function ManualCreator() {
 
     const lines = batchText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     let currentPlacement = placement;
+    let currentTheoryPlacement = intervalPlacement;
     const slices = [];
 
     for (let idx = 0; idx < lines.length; idx++) {
       const line = lines[idx];
 
-      // Section markers for staff placement (Type A only)
-      if (line === '[高音]') { currentPlacement = 'treble'; continue; }
-      if (line === '[低音]') { currentPlacement = 'bass'; continue; }
-      if (line === '[自动]') { currentPlacement = 'auto'; continue; }
+      // Section markers for staff placement
+      if (line === '[高音]') { currentPlacement = 'treble'; currentTheoryPlacement = 'treble'; continue; }
+      if (line === '[低音]') { currentPlacement = 'bass'; currentTheoryPlacement = 'bass'; continue; }
+      if (line === '[自动]') { currentPlacement = 'auto'; currentTheoryPlacement = 'auto'; continue; }
 
       let contentObj;
       if (type === 'symbols' && line.includes('|')) {
         const [symbol, answer] = line.split('|').map(s => s.trim());
         contentObj = { symbol, answer };
-      } else if (type === 'theory' && !line.includes('|') && line.includes(',')) {
-        const [startNote, interval] = line.split(',').map(s => s.trim());
-        const secondNote = calcSecondNote(startNote, interval);
-        if (startNote && interval && secondNote) {
-          contentObj = {
-            theory: interval,
-            notes: [startNote, secondNote],
-            raw: `${startNote},${secondNote}|${interval}`,
-          };
+      } else if (type === 'theory') {
+        // 新格式: noteA,noteB|理论名称
+        // 旧格式: noteA,interval → 自动计算 noteB
+        if (line.includes('|')) {
+          const [notesPart, theory] = line.split('|').map(s => s.trim());
+          const parts = notesPart.split(',').map(s => s.trim()).filter(Boolean);
+          if (parts.length >= 2) {
+            const noteA = parts[0];
+            const noteB = parts[1];
+            const raw = `${noteA},${noteB}|${theory}`;
+            contentObj = {
+              noteA, noteB,
+              theory,
+              placement: currentTheoryPlacement,
+              raw,
+            } as IntervalContent;
+          } else {
+            contentObj = buildContent(type, line);
+          }
         } else {
           contentObj = buildContent(type, line);
         }
@@ -317,7 +397,7 @@ export default function ManualCreator() {
       });
     }
 
-    addSlices(slices);
+    addSlices(slices as any);
     setBatchText('');
     showSuccess(`已批量添加 ${slices.length} 道题目`);
   };
@@ -330,12 +410,13 @@ export default function ManualCreator() {
         if (value.includes('|')) {
           const [notesPart, theory] = value.split('|').map(s => s.trim());
           const notes = notesPart.split(',').map(s => s.trim()).filter(Boolean);
-          return { theory, notes, raw: value };
+          return { theory, notes, raw: value, pattern: '' } as unknown as { theory: string; notes: string[]; raw: string; pattern: string };
         }
-        return { theory: value, raw: value };
+        // 旧格式：理论值作为 raw 字符串存储
+        return { theory: value, notes: [], raw: value, pattern: '' } as unknown as { theory: string; notes: string[]; raw: string; pattern: string };
       }
-      case 'patterns': return { pattern: value, raw: value };
-      default: return { raw: value };
+      case 'patterns': return { pattern: value, raw: value } as { pattern: string; raw: string };
+      default: return { raw: value } as unknown as { raw: string; pitch?: string; placement?: string; symbol?: string; answer?: string; theory?: string; notes?: string[]; pattern?: string };
     }
   };
 
@@ -433,11 +514,40 @@ export default function ManualCreator() {
         <div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
             {type === 'theory' ? (
-              <IntervalRow
-                noteA={noteA} setNoteA={setNoteA}
-                intervalName={intervalName} setIntervalName={setIntervalName}
-                onAdd={handleAddSingle}
-              />
+              <>
+                <IntervalRow
+                  noteA={noteA} setNoteA={setNoteA}
+                  noteB={noteB} setNoteB={setNoteB}
+                  intervalName={intervalName} setIntervalName={setIntervalName}
+                  onAdd={handleAddSingle}
+                />
+                {/* 双音题目的谱号选择 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>谱表位置：</span>
+                    <div style={{ display: 'flex', gap: '4px', background: 'white', borderRadius: '10px', padding: '3px' }}>
+                      {([
+                        { v: 'treble' as StaffPlacement, label: '高音谱号' },
+                        { v: 'bass' as StaffPlacement, label: '低音谱号' },
+                      ]).map(opt => (
+                        <button
+                          key={opt.v}
+                          onClick={() => setIntervalPlacement(opt.v)}
+                          style={{
+                            padding: '6px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                            fontWeight: intervalPlacement === opt.v ? '700' : '500', fontSize: '0.85rem',
+                            background: intervalPlacement === opt.v ? '#1f2937' : 'transparent',
+                            color: intervalPlacement === opt.v ? 'white' : '#6b7280',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
             ) : (
               // A / B / D 类型
               <>
@@ -514,8 +624,20 @@ export default function ManualCreator() {
               <div ref={previewRef}></div>
             </div>
           )}
+          {/* 双音大谱表预览 */}
+          {type === 'theory' && isValidPitch(noteA.trim()) && isValidPitch(noteB.trim()) && (
+            <div style={{
+              background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px',
+              padding: '16px', marginBottom: '15px', textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '8px' }}>
+                大谱表预览 — 双音显示在{resolvePlacement(noteA.trim(), intervalPlacement) === 'treble' ? '高音谱号' : '低音谱号'}中
+              </div>
+              <div ref={intervalPreviewRef}></div>
+            </div>
+          )}
           <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-            {type === 'symbols' ? '第一行输入符号（题面），第二行输入答案含义' : type === 'theory' ? '输入起始音和音程，第二个音自动推算' : '按回车可快速提交'}
+            {type === 'symbols' ? '第一行输入符号（题面），第二行输入答案含义' : type === 'theory' ? '选择音A和音B，系统自动计算并显示音程名称（可编辑）' : '按回车可快速提交'}
           </p>
         </div>
       ) : (
@@ -527,7 +649,7 @@ export default function ManualCreator() {
               type === 'symbols'
                 ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
                 : type === 'theory'
-                ? `每行格式: 起始音,音程名  或  音1,音2|音程名\n例如：\nC4,纯五度 (P5)\nD4,大三度 (M3)\nE4,G4|大三度 (M3)`
+                ? `每行格式: 音A,音B|音程名  或  音A,音程名（自动计算音B）\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4,G4|纯五度 (P5)\nD4,E4|大三度 (M3)\n[低音]\nA2,B2|大二 度 (M2)`
                 : type === 'notes'
                 ? `每行输入一个音高，可用 [高音] [低音] [自动] 标记谱表区域，例如：\n[高音]\nC4\nD4\n[低音]\nA2\nB2\n[自动]\nE3`
                 : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`

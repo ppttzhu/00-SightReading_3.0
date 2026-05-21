@@ -72,50 +72,47 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
 };
 
 function generateOptions(slice: Slice): string[] {
+  const content = slice.content as unknown as Record<string, unknown>;
   let correct = '';
   let pool: string[] = [];
 
   switch (slice.module) {
     case 'notes':
-      return interactiveAOptions(extractNoteAnswer(slice.content.pitch || ''));
+      return interactiveAOptions(extractNoteAnswer((content.pitch as string) || ''));
     case 'symbols': {
-      // Use the answer field directly; fall back to SYMBOL_MAP for legacy data
-      const answer = slice.content.answer;
+      const answer = content.answer as string | undefined;
       if (answer) {
         correct = answer;
-        // Build pool from all B-type slices' answers in the current stage context
         pool = ALL_SYMBOLS;
         break;
       }
-      const rawSymbol = slice.content.raw || slice.content.symbol || '';
+      const rawSymbol = (content.raw as string) || (content.symbol as string) || '';
       correct = SYMBOL_MAP[rawSymbol] || rawSymbol;
       pool = ALL_SYMBOLS;
       break;
     }
-    case 'theory':
-      correct = slice.content.theory || slice.content.raw || '';
-      // 如果是音程，用音程池；如果是和弦或调号，用自身作为正确答案
+    case 'theory': {
+      correct = (content.theory as string) || (content.raw as string) || '';
       pool = correct.includes('度') || correct.includes('P') || correct.includes('m')
         ? ALL_INTERVALS
         : ['C大调', 'G大调', 'D大调', 'F大调', 'Bb大调', 'A大调', 'Eb大调', 'E大调',
            'C Major Chord', 'G Major Chord', 'D Minor Chord', 'F Major Chord',
            'Am Chord', 'Em Chord', 'Dm Chord'];
       break;
+    }
     case 'patterns':
-      correct = slice.content.raw || slice.content.pattern || '';
+      correct = (content.raw as string) || (content.pattern as string) || '';
       pool = ALL_PATTERNS;
       break;
   }
 
   if (!correct) return ['—', '—', '—', '—'];
 
-  // 从池中选 3 个不等于正确答案的干扰项
   const distractors = pool
     .filter(p => p !== correct)
     .sort(() => Math.random() - 0.5)
     .slice(0, 3);
 
-  // 混合并打乱
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
@@ -233,8 +230,8 @@ export default function InteractiveQuiz() {
       connector.setType(StaveConnector.type.BRACE);
       connector.setContext(context).draw();
 
-      const pitch = currentSlice.content.pitch || '';
-      const placement = resolvePlacement(pitch, currentSlice.content.placement || 'auto');
+      const pitch = (currentSlice.content as unknown as Record<string, unknown>).pitch as string || '';
+      const placement = resolvePlacement(pitch, ((currentSlice.content as unknown as Record<string, unknown>).placement as 'auto' | 'treble' | 'bass') || 'auto');
       const activeStave = placement === 'treble' ? staveTop : staveBottom;
 
       try {
@@ -257,11 +254,15 @@ export default function InteractiveQuiz() {
     renderer.resize(width, 200);
     const context = renderer.getContext();
 
+    // 新格式: noteA, noteB；旧格式: notes[0], notes[1]
+    const content = currentSlice.content as any;
+    const noteA = content.noteA || content.notes?.[0] || '';
+    const noteB = content.noteB || content.notes?.[1] || '';
+
     let clef = 'treble';
     if (currentSlice.module === 'theory') {
-      const notes: string[] = currentSlice.content.notes || [];
-      if (notes.length >= 2) {
-        clef = getClefForPitches(notes);
+      if (noteA && noteB) {
+        clef = getClefForPitches([noteA, noteB]);
       }
     }
 
@@ -272,9 +273,8 @@ export default function InteractiveQuiz() {
     try {
       if (currentSlice.module === 'theory') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
-        const noteNames: string[] = currentSlice.content.notes || [];
-        if (noteNames.length >= 2) {
-          const vfNotes = noteNames.map(n => {
+        if (noteA && noteB) {
+          const vfNotes = [noteA, noteB].map(n => {
             const { key, accidental } = parsePitchForVexflow(n);
             const note = new StaveNote({ keys: [key], duration: 'h', clef });
             if (accidental) note.addModifier(new Accidental(accidental));
@@ -291,14 +291,15 @@ export default function InteractiveQuiz() {
 
       } else if (currentSlice.module === 'patterns') {
         // ---- D: 音型 → 画四分音符序列 ----
-        const rawStr: string = currentSlice.content.raw || currentSlice.content.pattern || '';
+        const content = currentSlice.content as unknown as Record<string, unknown>;
+        const rawStr: string = (content.raw as string) || (content.pattern as string) || '';
         console.log('[Pattern] raw:', rawStr, 'content:', JSON.stringify(currentSlice.content));
 
         let noteNames: string[] = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
         console.log('[Pattern] step1 fromRaw:', noteNames);
 
-        if (noteNames.length < 2 && Array.isArray(currentSlice.content.notes) && currentSlice.content.notes.length >= 2) {
-          noteNames = currentSlice.content.notes;
+        if (noteNames.length < 2 && Array.isArray(content.notes) && content.notes.length >= 2) {
+          noteNames = content.notes as string[];
           console.log('[Pattern] step2 fromNotes:', noteNames);
         }
 
@@ -343,7 +344,7 @@ export default function InteractiveQuiz() {
   // the hook above the early return below, satisfying Rules of Hooks.
   const handleAnswerRef = useRef<(answer: string) => void>(() => {});
   const sliceModule = currentSlice?.module;
-  const referencePitch = currentSlice?.module === 'notes' ? (currentSlice.content.pitch || 'C4') : '';
+  const referencePitch = currentSlice?.module === 'notes' ? ((currentSlice.content as unknown as Record<string, unknown>).pitch as string) || 'C4' : '';
   useEffect(() => {
     if (sliceModule !== 'notes' || usePiano) return;
     // 300ms buffer so sequences like "C" + "#" resolve to a single "C#" answer.
@@ -393,19 +394,22 @@ export default function InteractiveQuiz() {
 
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
+    const content = currentSlice.content as unknown as Record<string, unknown>;
     switch (currentSlice.module) {
       case 'notes': {
-        const pitch = currentSlice.content.pitch || '';
+        const pitch = (content.pitch as string) || '';
         if (usePiano) return pitch;
         return extractNoteAnswer(pitch);
       }
       case 'symbols': {
-        if (currentSlice.content.answer) return currentSlice.content.answer;
-        const rawSymbol = currentSlice.content.raw || currentSlice.content.symbol || '';
+        if (content.answer) return content.answer as string;
+        const rawSymbol = (content.raw as string) || (content.symbol as string) || '';
         return SYMBOL_MAP[rawSymbol] || rawSymbol;
       }
-      case 'theory': return currentSlice.content.theory || currentSlice.content.raw || '';
-      case 'patterns': return currentSlice.content.raw || currentSlice.content.pattern || '';
+      case 'theory':
+        // 新格式优先使用 theory 字段
+        return (content.theory as string) || (content.raw as string) || '';
+      case 'patterns': return (content.raw as string) || (content.pattern as string) || '';
       default: return '';
     }
   };
@@ -532,7 +536,7 @@ export default function InteractiveQuiz() {
             // B 类：显示符号简称（读单词），不显示括号里的详细解释
             <div style={{ textAlign: 'center', opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
               <div style={{ fontSize: '4rem', fontWeight: '800', color: '#1f2937', marginBottom: '10px', fontStyle: 'italic', fontFamily: 'serif' }}>
-                {currentSlice?.content.symbol || currentSlice?.content.raw || '?'}
+                {String((currentSlice?.content as unknown as Record<string, unknown>).symbol || (currentSlice?.content as unknown as Record<string, unknown>).raw || '?')}
               </div>
               <div style={{ fontSize: '1rem', color: '#9ca3af' }}>这是什么音乐记号？</div>
             </div>

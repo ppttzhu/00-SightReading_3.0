@@ -40,7 +40,7 @@ function sliceToRow(slice: Slice): SliceRow {
   return {
     id: slice.id,
     module: slice.module,
-    content: slice.content ?? {},
+    content: slice.content as unknown as Record<string, unknown> ?? {},
     difficulty: slice.difficulty,
     del_status: false,
   };
