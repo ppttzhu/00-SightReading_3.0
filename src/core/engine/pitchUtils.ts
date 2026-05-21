@@ -28,13 +28,36 @@ function pitchToMidi(pitch: string): number {
 export type ClefType = 'treble' | 'bass' | 'grand';
 export type StaffPlacement = 'auto' | 'treble' | 'bass';
 
-export function getAutomaticClefForPitch(pitch: string): 'treble' | 'bass' {
-  const num = pitchToMidi(pitch);
-  const a4Num = pitchToMidi('A4');
-  const e3Num = pitchToMidi('E3');
+type ClefChoiceOptions = {
+  allowGrand?: boolean;
+};
 
-  if (num > a4Num) return 'treble';
-  if (num < e3Num) return 'bass';
+/** Choose a clef for one pitch or a pitch group, constrained by range. */
+export function getClefForPitches(pitchInput: string | string[], options: ClefChoiceOptions = {}): ClefType {
+  const pitches = Array.isArray(pitchInput) ? pitchInput : [pitchInput];
+  const nums = (pitches.length ? pitches : ['C4']).map(pitchToMidi);
+  const lowThreshold = pitchToMidi('G3');
+  const highThreshold = pitchToMidi('F4');
+
+  const hasLowPitch = nums.some(num => num < lowThreshold);
+  const hasHighPitch = nums.some(num => num > highThreshold);
+
+  if (options.allowGrand) {
+    if (hasLowPitch && hasHighPitch) return 'grand';
+    if (hasHighPitch) {
+      return Math.random() > 0.5 ? 'treble' : 'grand';
+    }
+    if (hasLowPitch) {
+      return Math.random() > 0.5 ? 'bass' : 'grand';
+    }
+    const r = Math.random();
+    if (r < 0.33) return 'treble';
+    if (r < 0.67) return 'bass';
+    return 'grand';
+  }
+
+  if (hasHighPitch) return 'treble';
+  if (hasLowPitch) return 'bass';
   return Math.random() > 0.5 ? 'treble' : 'bass';
 }
 
@@ -55,27 +78,6 @@ export function resolvePlacement(pitch: string, pref: StaffPlacement): 'treble' 
 export function getStaffLabel(pitch: string, placement?: StaffPlacement): string {
   const actual = resolvePlacement(pitch, placement || 'auto');
   return actual === 'treble' ? '高音' : '低音';
-}
-
-/** For practice mode: randomly choose clef type, constrained by pitch range. */
-export function getClefForPractice(pitch: string): ClefType {
-  const num = pitchToMidi(pitch);
-  const c5Num = pitchToMidi('C5');
-  const f2Num = pitchToMidi('F2');
-
-  // Notes too high for bass clef alone (too many ledger lines)
-  if (num > c5Num) {
-    return Math.random() > 0.5 ? 'treble' : 'grand';
-  }
-  // Notes too low for treble clef alone
-  if (num < f2Num) {
-    return Math.random() > 0.5 ? 'bass' : 'grand';
-  }
-  // Middle range: any of the three
-  const r = Math.random();
-  if (r < 0.33) return 'treble';
-  if (r < 0.67) return 'bass';
-  return 'grand';
 }
 
 /** 在题目参考八度上播放某个音名字母（选项/键盘作答用）

@@ -67,6 +67,8 @@ const C7_MIDI = 96;
 const WHITE_KEY_MIDI_MOD = new Set([0, 2, 4, 5, 7, 9, 11]);
 const E4_MIDI = 64;
 const A3_MIDI = 57;
+const G3_MIDI = 55;
+const F4_MIDI = 65;
 
 function isWhiteKeyMidi(midi: number): boolean {
   return WHITE_KEY_MIDI_MOD.has(((midi % 12) + 12) % 12);
@@ -95,6 +97,12 @@ function getClef(lowMidi: number, highMidi: number, clefPref: string): string {
   if (mid >= E4_MIDI) return 'treble';
   if (mid <= A3_MIDI) return 'bass';
   return Math.random() > 0.5 ? 'treble' : 'bass';
+}
+
+function isInSelectedClefRange(lowMidi: number, highMidi: number, clefPref: string): boolean {
+  if (clefPref === '高音谱号') return lowMidi >= G3_MIDI;
+  if (clefPref === '低音谱号') return highMidi <= F4_MIDI;
+  return true;
 }
 
 // ============================================================
@@ -145,16 +153,21 @@ function generateInterval(
   const minStart = dir === 1 ? C2_MIDI : C2_MIDI + semitones;
   const maxStart = dir === 1 ? C7_MIDI - semitones : C7_MIDI;
 
-  // 5. Pick random white-key starting MIDI
-  let startMidi = 60; // fallback C4
-  let attempts = 0;
-  while (attempts < 100) {
-    const candidate = minStart + Math.floor(Math.random() * (maxStart - minStart + 1));
-    if (isWhiteKeyMidi(candidate)) {
-      startMidi = candidate;
-      break;
+  // 5. Pick random white-key starting MIDI that fits the selected clef range
+  const candidates: number[] = [];
+  for (let candidate = minStart; candidate <= maxStart; candidate++) {
+    if (!isWhiteKeyMidi(candidate)) continue;
+    const target = candidate + dir * semitones;
+    const low = Math.min(candidate, target);
+    const high = Math.max(candidate, target);
+    if (isInSelectedClefRange(low, high, clefPref)) {
+      candidates.push(candidate);
     }
-    attempts++;
+  }
+
+  let startMidi = 60; // fallback C4
+  if (candidates.length > 0) {
+    startMidi = candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   // 6. Compute target

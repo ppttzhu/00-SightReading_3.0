@@ -4,7 +4,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnecto
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { getClefForPractice, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
+import { getClefForPitches, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 import type { ClefType } from '../../core/engine/pitchUtils';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import { extractNoteAnswer } from './noteAnswer';
@@ -60,11 +60,6 @@ function randomPitch(
   return pitch;
 }
 
-// Get clef for practice mode (random: treble / bass / grand)
-function pickClef(pitch: string): ClefType {
-  return getClefForPractice(pitch);
-}
-
 export default function PracticeQuiz() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -92,7 +87,7 @@ export default function PracticeQuiz() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
 
-  const clef = useMemo<ClefType>(() => pickClef(currentPitch), [currentPitch]);
+  const clef = useMemo<ClefType>(() => getClefForPitches(currentPitch, { allowGrand: true }), [currentPitch]);
 
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
