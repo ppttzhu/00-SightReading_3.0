@@ -191,7 +191,7 @@ export default function ManualCreator() {
   const [noteA, setNoteA] = useState('');
   const [noteB, setNoteB] = useState('');
   const [intervalName, setIntervalName] = useState('');
-  const [intervalPlacement, setIntervalPlacement] = useState<StaffPlacement>('treble');
+  const [intervalPlacement, setIntervalPlacement] = useState<StaffPlacement>('auto');
   const [difficulty, setDifficulty] = useState(1);
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
@@ -317,11 +317,15 @@ export default function ManualCreator() {
       const derivedInterval = calcIntervalName(noteA.trim(), noteB.trim()) || intervalName.trim();
       if (!derivedInterval) return;
       const raw = `${noteA.trim()},${noteB.trim()}|${derivedInterval}`;
+      // auto 在存储时根据音高自动计算最终 placement
+      const finalPlacement = intervalPlacement === 'auto'
+        ? resolvePlacement(noteA.trim(), intervalPlacement)
+        : intervalPlacement;
       const content: IntervalContent = {
         noteA: noteA.trim(),
         noteB: noteB.trim(),
         theory: intervalName.trim() || derivedInterval,
-        placement: intervalPlacement,
+        placement: finalPlacement,
         raw,
       };
       sliceContent = content;
@@ -368,10 +372,14 @@ export default function ManualCreator() {
             const noteA = parts[0];
             const noteB = parts[1];
             const raw = `${noteA},${noteB}|${theory}`;
+            // auto 在存储时根据音高自动计算最终 placement
+            const finalPlacement = currentTheoryPlacement === 'auto'
+              ? resolvePlacement(noteA, 'auto')
+              : currentTheoryPlacement;
             contentObj = {
               noteA, noteB,
               theory,
-              placement: currentTheoryPlacement,
+              placement: finalPlacement,
               raw,
             } as IntervalContent;
           } else {
@@ -527,6 +535,7 @@ export default function ManualCreator() {
                     <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '600' }}>谱表位置：</span>
                     <div style={{ display: 'flex', gap: '4px', background: 'white', borderRadius: '10px', padding: '3px' }}>
                       {([
+                        { v: 'auto' as StaffPlacement, label: '自动' },
                         { v: 'treble' as StaffPlacement, label: '高音谱号' },
                         { v: 'bass' as StaffPlacement, label: '低音谱号' },
                       ]).map(opt => (
