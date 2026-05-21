@@ -265,6 +265,19 @@ export default function CustomStageEditor() {
                         {getStaffLabel((slice.content as unknown as Record<string, unknown>).pitch as string || (slice.content as unknown as Record<string, unknown>).raw as string, ((slice.content as unknown as Record<string, unknown>).placement as 'auto' | 'treble' | 'bass') || undefined)}
                       </span>
                     )}
+                    {slice.module === 'theory' && ((slice.content as unknown as Record<string, unknown>).placement as string) && (
+                      <span style={{
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        border: '1px solid #e5e7eb',
+                        color: '#6b7280',
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        flexShrink: 0
+                      }}>
+                        {((slice.content as unknown as Record<string, unknown>).placement as string) === 'treble' ? '高音' : ((slice.content as unknown as Record<string, unknown>).placement as string) === 'bass' ? '低音' : '自动'}
+                      </span>
+                    )}
                     {isNew && (
                       <span style={{
                         padding: '1px 6px',
