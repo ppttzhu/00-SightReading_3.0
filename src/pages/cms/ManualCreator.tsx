@@ -358,9 +358,9 @@ export default function ManualCreator() {
       idKey = content.trim();
     }
 
-    addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
+    const added = addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
     setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName(''); setDistractors('');
-    showSuccess('已添加 1 道题目');
+    showSuccess(added === 0 ? '题目已存在，未重复添加' : '已添加 1 道题目');
   };
 
   const handleAddBatch = () => {
@@ -443,9 +443,9 @@ export default function ManualCreator() {
       });
     }
 
-    addSlices(slices as any);
+    const added = addSlices(slices as any);
     setBatchText('');
-    showSuccess(`已批量添加 ${slices.length} 道题目`);
+    showSuccess(added === 0 ? '题目已存在，未重复添加' : `已批量添加 ${added} 道题目（共解析 ${slices.length} 行）`);
   };
 
   const buildContent = (type: string, value: string) => {

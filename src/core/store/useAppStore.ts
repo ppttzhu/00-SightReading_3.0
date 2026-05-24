@@ -138,7 +138,7 @@ interface AppState {
 
   getAllStages: (moduleId: string) => AutoStage[];
 
-  addSlices: (slices: Slice[]) => void;
+  addSlices: (slices: Slice[]) => number;
   updateSlice: (id: string, patch: Partial<Slice>) => void;
   updateSliceDifficulty: (id: string, diffDelta: number) => void;
   removeSlice: (id: string) => void;
@@ -249,6 +249,7 @@ export const useAppStore = create<AppState>()(
           return { slicesPool: newPool };
         });
         if (accepted.length > 0) void syncUpsertSlices(accepted);
+        return accepted.length;
       },
 
       updateSlice: (id, patch) => {
