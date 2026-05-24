@@ -21,12 +21,14 @@ export interface NoteContent {
   pitch: string;
   raw: string;
   placement: StaffPlacement;
+  options?: string[];
 }
 
 /** 音乐符号题目 content */
 export interface SymbolContent {
   symbol: string;
   answer: string;
+  options?: string[];
 }
 
 /** 双音/音程题目 content */
@@ -36,6 +38,7 @@ export interface IntervalContent {
   theory: string;
   placement: StaffPlacement;
   raw: string;
+  options?: string[];
 }
 
 /** 音型题目 content */
@@ -43,6 +46,7 @@ export interface PatternContent {
   pattern: string;
   raw: string;
   notes?: string[];
+  options?: string[];
 }
 
 export type SliceContent = NoteContent | SymbolContent | IntervalContent | PatternContent;
@@ -135,6 +139,7 @@ interface AppState {
   getAllStages: (moduleId: string) => AutoStage[];
 
   addSlices: (slices: Slice[]) => void;
+  updateSlice: (id: string, patch: Partial<Slice>) => void;
   updateSliceDifficulty: (id: string, diffDelta: number) => void;
   removeSlice: (id: string) => void;
   clearPool: () => void;
@@ -244,6 +249,18 @@ export const useAppStore = create<AppState>()(
           return { slicesPool: newPool };
         });
         if (accepted.length > 0) void syncUpsertSlices(accepted);
+      },
+
+      updateSlice: (id, patch) => {
+        let updated: Slice | null = null;
+        set((state) => ({
+          slicesPool: state.slicesPool.map(s => {
+            if (s.id !== id) return s;
+            updated = { ...s, ...patch };
+            return updated;
+          }),
+        }));
+        if (updated) void syncUpsertSlices([updated]);
       },
 
       updateSliceDifficulty: (id, diffDelta) => {
