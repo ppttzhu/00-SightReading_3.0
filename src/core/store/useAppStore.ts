@@ -138,7 +138,7 @@ interface AppState {
 
   getAllStages: (moduleId: string) => AutoStage[];
 
-  addSlices: (slices: Slice[]) => number;
+  addSlices: (slices: Slice[]) => { added: Slice[]; skipped: Slice[] };
   updateSlice: (id: string, patch: Partial<Slice>) => void;
   updateSliceDifficulty: (id: string, diffDelta: number) => void;
   removeSlice: (id: string) => void;
@@ -237,6 +237,7 @@ export const useAppStore = create<AppState>()(
       addSlices: (slices) => {
         const now = Date.now();
         const accepted: Slice[] = [];
+        const skipped: Slice[] = [];
         set((state) => {
           const newPool = [...state.slicesPool];
           slices.forEach(slice => {
@@ -244,12 +245,14 @@ export const useAppStore = create<AppState>()(
               const stamped = { ...slice, createdAt: slice.createdAt || now };
               newPool.push(stamped);
               accepted.push(stamped);
+            } else {
+              skipped.push(slice);
             }
           });
           return { slicesPool: newPool };
         });
         if (accepted.length > 0) void syncUpsertSlices(accepted);
-        return accepted.length;
+        return { added: accepted, skipped };
       },
 
       updateSlice: (id, patch) => {

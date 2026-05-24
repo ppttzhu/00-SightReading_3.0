@@ -196,7 +196,8 @@ export default function ManualCreator() {
   const [distractors, setDistractors] = useState('');
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [result, setResult] = useState<{ msg: string; added: string[]; skipped: string[] } | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const [placement, setPlacement] = useState<StaffPlacement>('auto');
   const previewRef = useRef<HTMLDivElement>(null);
   const intervalPreviewRef = useRef<HTMLDivElement>(null);
@@ -358,9 +359,9 @@ export default function ManualCreator() {
       idKey = content.trim();
     }
 
-    const added = addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
+    const { added, skipped } = addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
     setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName(''); setDistractors('');
-    showSuccess(added === 0 ? '题目已存在，未重复添加' : '已添加 1 道题目');
+    showResult(added, skipped);
   };
 
   const handleAddBatch = () => {
@@ -443,9 +444,9 @@ export default function ManualCreator() {
       });
     }
 
-    const added = addSlices(slices as any);
+    const { added, skipped } = addSlices(slices as any);
     setBatchText('');
-    showSuccess(added === 0 ? '题目已存在，未重复添加' : `已批量添加 ${added} 道题目（共解析 ${slices.length} 行）`);
+    showResult(added, skipped);
   };
 
   const buildContent = (type: string, value: string) => {
@@ -466,9 +467,19 @@ export default function ManualCreator() {
     }
   };
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 2000);
+  const sliceLabel = (s: { content: unknown }) => {
+    const c = s.content as Record<string, unknown>;
+    return String(c.raw || c.symbol || c.theory || c.pattern || '');
+  };
+
+  const showResult = (added: import('../../core/store/useAppStore').Slice[], skipped: import('../../core/store/useAppStore').Slice[]) => {
+    const msg = added.length === 0
+      ? `全部 ${skipped.length} 道题目已存在，未重复添加`
+      : skipped.length === 0
+        ? `已添加 ${added.length} 道题目`
+        : `已添加 ${added.length} 道，${skipped.length} 道重复跳过`;
+    setResult({ msg, added: added.map(sliceLabel), skipped: skipped.map(sliceLabel) });
+    setShowDetail(false);
   };
 
   return (
@@ -478,10 +489,39 @@ export default function ManualCreator() {
         对于引擎无法自动识别的音型或乐理概念，教师可以在此手动创建题目并推送至素材池。
       </p>
 
-      {/* 成功提示 */}
-      {successMsg && (
-        <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', padding: '12px 20px', borderRadius: '8px', color: '#065f46', fontWeight: 'bold', marginBottom: '20px' }}>
-          ✓ {successMsg}
+      {/* 结果提示 */}
+      {result && (
+        <div style={{ background: result.skipped.length > 0 && result.added.length === 0 ? '#fef3c7' : '#ecfdf5', border: `1px solid ${result.skipped.length > 0 && result.added.length === 0 ? '#fcd34d' : '#6ee7b7'}`, borderRadius: '8px', marginBottom: '20px', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px' }}>
+            <span style={{ fontWeight: 'bold', color: result.skipped.length > 0 && result.added.length === 0 ? '#92400e' : '#065f46' }}>
+              ✓ {result.msg}
+            </span>
+            {(result.added.length > 0 || result.skipped.length > 0) && (
+              <button onClick={() => setShowDetail(v => !v)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#6b7280', textDecoration: 'underline' }}>
+                {showDetail ? '收起' : '查看详情'}
+              </button>
+            )}
+          </div>
+          {showDetail && (
+            <div style={{ borderTop: '1px solid #e5e7eb', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {result.added.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#065f46', marginBottom: '4px' }}>插入成功 ({result.added.length})</div>
+                  {result.added.map((label, i) => (
+                    <div key={i} style={{ fontSize: '0.85rem', color: '#1f2937', padding: '2px 0' }}>✓ {label}</div>
+                  ))}
+                </div>
+              )}
+              {result.skipped.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#92400e', marginBottom: '4px' }}>重复跳过 ({result.skipped.length})</div>
+                  {result.skipped.map((label, i) => (
+                    <div key={i} style={{ fontSize: '0.85rem', color: '#6b7280', padding: '2px 0' }}>— {label}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
