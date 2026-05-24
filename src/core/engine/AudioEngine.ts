@@ -2,6 +2,21 @@ import * as Tone from 'tone';
 
 /** 采样尾音上限，用于在播完后允许再次触发同一音 */
 const NOTE_PLAY_MS = 5000;
+/** 预览模式：按键反馈后自动释放的时长 */
+const PREVIEW_HOLD_MS = 1200;
+const RELEASE_MS = 400;
+
+export type NoteLifecycleEvent =
+  | { type: 'start'; note: string }
+  | { type: 'fade'; note: string }
+  | { type: 'end'; note: string };
+
+export type PlayNoteOptions = {
+  /** 预览模式：自动释放并触发 start/fade/end 生命周期事件 */
+  preview?: boolean;
+};
+
+type NoteListener = (event: NoteLifecycleEvent) => void;
 
 type NavigatorWithAudioSession = Navigator & {
   audioSession?: {
@@ -14,6 +29,8 @@ class AudioEngine {
   private sampler: Tone.Sampler | null = null;
   private activeNote: string | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
+  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private listeners = new Set<NoteListener>();
   private silentUnlockAudio: HTMLAudioElement | null = null;
   private silentUnlockUrl: string | null = null;
   private silentUnlockStarted = false;
@@ -60,10 +77,26 @@ class AudioEngine {
     return AudioEngine.instance;
   }
 
+  public subscribe(listener: NoteListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(event: NoteLifecycleEvent) {
+    this.listeners.forEach((listener) => listener(event));
+  }
+
   private clearEndTimer() {
     if (this.endTimer) {
       clearTimeout(this.endTimer);
       this.endTimer = null;
+    }
+  }
+
+  private clearFadeTimer() {
+    if (this.fadeTimer) {
+      clearTimeout(this.fadeTimer);
+      this.fadeTimer = null;
     }
   }
 
@@ -75,6 +108,29 @@ class AudioEngine {
       }
       this.endTimer = null;
     }, NOTE_PLAY_MS);
+  }
+
+  private schedulePreviewRelease(note: string) {
+    this.clearEndTimer();
+    this.endTimer = setTimeout(() => {
+      this.beginPreviewRelease(note);
+    }, PREVIEW_HOLD_MS);
+  }
+
+  private beginPreviewRelease(note: string) {
+    this.clearEndTimer();
+    this.clearFadeTimer();
+    this.emit({ type: 'fade', note });
+    if (this.enabled && this.sampler && this.activeNote === note) {
+      this.sampler.triggerRelease(note, Tone.now());
+    }
+    if (this.activeNote === note) {
+      this.activeNote = null;
+    }
+    this.fadeTimer = setTimeout(() => {
+      this.emit({ type: 'end', note });
+      this.fadeTimer = null;
+    }, RELEASE_MS);
   }
 
   private isIOSWebAudioMuteCandidate() {
@@ -149,12 +205,23 @@ class AudioEngine {
     });
   }
 
-  public stop() {
-    if (this.activeNote && this.sampler) {
-      this.sampler.triggerRelease(this.activeNote, Tone.now());
-      this.activeNote = null;
+  public stop(opts?: { lifecycle?: boolean }) {
+    const note = this.activeNote;
+    if (!note) {
+      this.clearEndTimer();
+      this.clearFadeTimer();
+      return;
     }
+    if (opts?.lifecycle) {
+      this.beginPreviewRelease(note);
+      return;
+    }
+    if (this.sampler) {
+      this.sampler.triggerRelease(note, Tone.now());
+    }
+    this.activeNote = null;
     this.clearEndTimer();
+    this.clearFadeTimer();
   }
 
   public async prime() {
@@ -163,15 +230,33 @@ class AudioEngine {
     await Promise.allSettled([unlockPromise, toneStartPromise]);
   }
 
-  public async playNote(note: string) {
-    if (!this.enabled) return;
+  public async playNote(note: string, opts?: PlayNoteOptions) {
+    const preview = opts?.preview ?? false;
     await this.prime();
     if (Tone.context.state !== 'running') {
       await Tone.start();
     }
-    if (!this.isReady || !this.sampler) return;
 
     const now = Tone.now();
+
+    if (preview) {
+      if (this.activeNote && this.activeNote !== note) {
+        this.beginPreviewRelease(this.activeNote);
+      }
+      if (this.activeNote === note) {
+        return;
+      }
+      this.emit({ type: 'start', note });
+      this.activeNote = note;
+      if (this.enabled && this.isReady && this.sampler) {
+        this.sampler.triggerAttack(note, now);
+      }
+      this.schedulePreviewRelease(note);
+      return;
+    }
+
+    if (!this.enabled) return;
+    if (!this.isReady || !this.sampler) return;
 
     // 同一键连击：不打断当前发声
     if (this.activeNote === note) {
