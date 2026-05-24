@@ -73,6 +73,13 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
 
 function generateOptions(slice: Slice): string[] {
   const content = slice.content as unknown as Record<string, unknown>;
+
+  // 教师指定选项时直接使用（打乱顺序保证随机性）
+  const fixedOptions = content.options as string[] | undefined;
+  if (fixedOptions && fixedOptions.length >= 2) {
+    return [...fixedOptions].sort(() => Math.random() - 0.5);
+  }
+
   let correct = '';
   let pool: string[] = [];
 
@@ -143,11 +150,12 @@ export default function InteractiveQuiz() {
     const found = idx >= 0 ? stages[idx] : null;
     if (found) {
       const targetCount = found.questionCount || found.slices.length;
+      const shuffle = (arr: typeof found.slices) => [...arr].sort(() => Math.random() - 0.5);
       const questions: typeof found.slices = [];
-      for (let i = 0; i < targetCount; i++) {
-        questions.push(found.slices[Math.floor(Math.random() * found.slices.length)]);
+      while (questions.length < targetCount) {
+        questions.push(...shuffle(found.slices));
       }
-      return { stage: { ...found, slices: questions }, stageIndex: idx + 1 };
+      return { stage: { ...found, slices: questions.slice(0, targetCount) }, stageIndex: idx + 1 };
     }
     return { stage: null, stageIndex: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,19 +282,30 @@ export default function InteractiveQuiz() {
       if (currentSlice.module === 'theory') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
         if (noteA && noteB) {
-          const vfNotes = [noteA, noteB].map(n => {
-            const { key, accidental } = parsePitchForVexflow(n);
-            const note = new StaveNote({ keys: [key], duration: 'h', clef });
+          // 同音：渲染单个全音符
+          if (noteA === noteB) {
+            const { key, accidental } = parsePitchForVexflow(noteA);
+            const note = new StaveNote({ keys: [key], duration: 'w', clef });
             if (accidental) note.addModifier(new Accidental(accidental));
-            return note;
-          });
-
-          const beats = vfNotes.length * 2;
-          const voice = new Voice({ numBeats: beats, beatValue: 4 });
-          voice.setMode(2);
-          voice.addTickables(vfNotes);
-          new Formatter().joinVoices([voice]).format([voice], 160);
-          voice.draw(context, stave);
+            const voice = new Voice({ numBeats: 4, beatValue: 4 });
+            voice.setMode(2);
+            voice.addTickables([note]);
+            new Formatter().joinVoices([voice]).format([voice], 160);
+            voice.draw(context, stave);
+          } else {
+            const vfNotes = [noteA, noteB].map(n => {
+              const { key, accidental } = parsePitchForVexflow(n);
+              const note = new StaveNote({ keys: [key], duration: 'h', clef });
+              if (accidental) note.addModifier(new Accidental(accidental));
+              return note;
+            });
+            const beats = vfNotes.length * 2;
+            const voice = new Voice({ numBeats: beats, beatValue: 4 });
+            voice.setMode(2);
+            voice.addTickables(vfNotes);
+            new Formatter().joinVoices([voice]).format([voice], 160);
+            voice.draw(context, stave);
+          }
         }
 
       } else if (currentSlice.module === 'patterns') {
