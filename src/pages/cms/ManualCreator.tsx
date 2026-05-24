@@ -193,9 +193,11 @@ export default function ManualCreator() {
   const [intervalName, setIntervalName] = useState('');
   const [intervalPlacement, setIntervalPlacement] = useState<StaffPlacement>('auto');
   const [difficulty, setDifficulty] = useState(1);
+  const [distractors, setDistractors] = useState('');
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [result, setResult] = useState<{ msg: string; added: string[]; skipped: string[] } | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const [placement, setPlacement] = useState<StaffPlacement>('auto');
   const previewRef = useRef<HTMLDivElement>(null);
   const intervalPreviewRef = useRef<HTMLDivElement>(null);
@@ -289,17 +291,27 @@ export default function ManualCreator() {
       const parsedB = parsePitch(noteBVal);
 
       if (parsedA && parsedB) {
-        const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement });
-        if (parsedA.accidental) note1.addModifier(new Accidental(parsedA.accidental));
+        if (noteAVal === noteBVal) {
+          const note = new StaveNote({ keys: [parsedA.key], duration: 'w', clef: actualPlacement });
+          if (parsedA.accidental) note.addModifier(new Accidental(parsedA.accidental));
+          const voice = new Voice({ numBeats: 4, beatValue: 4 });
+          voice.setMode(2);
+          voice.addTickables([note]);
+          new Formatter().joinVoices([voice]).format([voice], 280);
+          voice.draw(context, activeStave);
+        } else {
+          const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement });
+          if (parsedA.accidental) note1.addModifier(new Accidental(parsedA.accidental));
 
-        const note2 = new StaveNote({ keys: [parsedB.key], duration: 'h', clef: actualPlacement });
-        if (parsedB.accidental) note2.addModifier(new Accidental(parsedB.accidental));
+          const note2 = new StaveNote({ keys: [parsedB.key], duration: 'h', clef: actualPlacement });
+          if (parsedB.accidental) note2.addModifier(new Accidental(parsedB.accidental));
 
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
-        voice.setMode(2);
-        voice.addTickables([note1, note2]);
-        new Formatter().joinVoices([voice]).format([voice], 280);
-        voice.draw(context, activeStave);
+          const voice = new Voice({ numBeats: 4, beatValue: 4 });
+          voice.setMode(2);
+          voice.addTickables([note1, note2]);
+          new Formatter().joinVoices([voice]).format([voice], 280);
+          voice.draw(context, activeStave);
+        }
       }
     } catch (e) {
       console.error('Interval Preview error:', e);
@@ -308,38 +320,48 @@ export default function ManualCreator() {
 
   const currentTypeOption = TYPE_OPTIONS.find(t => t.value === type)!;
 
+  const parseDistractors = (raw: string): string[] | undefined => {
+    const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
+    return parts.length > 0 ? parts : undefined;
+  };
+
   const handleAddSingle = () => {
     let sliceContent: object;
     let idKey: string;
+    const opts = parseDistractors(distractors);
 
     if (type === 'theory') {
       if (!noteA.trim() || !noteB.trim()) return;
       const derivedInterval = calcIntervalName(noteA.trim(), noteB.trim()) || intervalName.trim();
       if (!derivedInterval) return;
       const raw = `${noteA.trim()},${noteB.trim()}|${derivedInterval}`;
-      // auto 在存储时根据音高自动计算最终 placement
       const finalPlacement = intervalPlacement === 'auto'
         ? resolvePlacement(noteA.trim(), intervalPlacement)
         : intervalPlacement;
-      const content: IntervalContent = {
+      const intervalContent: IntervalContent = {
         noteA: noteA.trim(),
         noteB: noteB.trim(),
         theory: intervalName.trim() || derivedInterval,
         placement: finalPlacement,
         raw,
+        ...(opts && { options: [intervalName.trim() || derivedInterval, ...opts] }),
       };
-      sliceContent = content;
+      sliceContent = intervalContent;
       idKey = raw;
     } else {
       if (!content.trim()) return;
       if (type === 'symbols' && !symbolAnswer.trim()) return;
-      sliceContent = buildContent(type, content.trim());
+      const base = buildContent(type, content.trim());
+      const correct = type === 'symbols' ? symbolAnswer.trim()
+        : type === 'notes' ? content.trim()
+        : content.trim();
+      sliceContent = opts ? { ...base, options: [correct, ...opts] } : base;
       idKey = content.trim();
     }
 
-    addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
-    setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName('');
-    showSuccess('已添加 1 道题目');
+    const { added, skipped } = addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
+    setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName(''); setDistractors('');
+    showResult(added, skipped);
   };
 
   const handleAddBatch = () => {
@@ -360,27 +382,26 @@ export default function ManualCreator() {
 
       let contentObj;
       if (type === 'symbols' && line.includes('|')) {
-        const [symbol, answer] = line.split('|').map(s => s.trim());
-        contentObj = { symbol, answer };
+        const parts = line.split('|').map(s => s.trim());
+        const [symbol, answer, ...dists] = parts;
+        contentObj = { symbol, answer, ...(dists.length > 0 && { options: [answer, ...dists] }) };
       } else if (type === 'theory') {
-        // 新格式: noteA,noteB|理论名称
-        // 旧格式: noteA,interval → 自动计算 noteB
         if (line.includes('|')) {
-          const [notesPart, theory] = line.split('|').map(s => s.trim());
-          const parts = notesPart.split(',').map(s => s.trim()).filter(Boolean);
-          if (parts.length >= 2) {
-            const noteA = parts[0];
-            const noteB = parts[1];
+          const parts = line.split('|').map(s => s.trim());
+          const notesPart = parts[0];
+          const theory = parts[1] || '';
+          const dists = parts.slice(2);
+          const noteParts = notesPart.split(',').map(s => s.trim()).filter(Boolean);
+          if (noteParts.length >= 2) {
+            const noteA = noteParts[0];
+            const noteB = noteParts[1];
             const raw = `${noteA},${noteB}|${theory}`;
-            // auto 在存储时根据音高自动计算最终 placement
             const finalPlacement = currentTheoryPlacement === 'auto'
               ? resolvePlacement(noteA, 'auto')
               : currentTheoryPlacement;
             contentObj = {
-              noteA, noteB,
-              theory,
-              placement: finalPlacement,
-              raw,
+              noteA, noteB, theory, placement: finalPlacement, raw,
+              ...(dists.length > 0 && { options: [theory, ...dists] }),
             } as IntervalContent;
           } else {
             contentObj = buildContent(type, line);
@@ -388,6 +409,24 @@ export default function ManualCreator() {
         } else {
           contentObj = buildContent(type, line);
         }
+      } else if (line.includes('|')) {
+        // notes / patterns: pitch|answer|distractor1|distractor2...
+        const parts = line.split('|').map(s => s.trim());
+        const value = parts[0];
+        const dists = parts.slice(1);
+        const base = buildContent(type, value);
+        contentObj = dists.length > 0 ? { ...base, options: [parts[1], ...parts.slice(2)] } : base;
+        // override line for placement resolution below
+        if (type === 'notes') {
+          contentObj = { ...contentObj, placement: resolvePlacement(value, currentPlacement) };
+        }
+        slices.push({
+          id: `manual_${type}_${Date.now()}_${idx}_${value}`,
+          module: type,
+          content: contentObj,
+          difficulty
+        });
+        continue;
       } else {
         contentObj = buildContent(type, line);
       }
@@ -405,9 +444,9 @@ export default function ManualCreator() {
       });
     }
 
-    addSlices(slices as any);
+    const { added, skipped } = addSlices(slices as any);
     setBatchText('');
-    showSuccess(`已批量添加 ${slices.length} 道题目`);
+    showResult(added, skipped);
   };
 
   const buildContent = (type: string, value: string) => {
@@ -428,9 +467,19 @@ export default function ManualCreator() {
     }
   };
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 2000);
+  const sliceLabel = (s: { content: unknown }) => {
+    const c = s.content as Record<string, unknown>;
+    return String(c.raw || c.symbol || c.theory || c.pattern || '');
+  };
+
+  const showResult = (added: import('../../core/store/useAppStore').Slice[], skipped: import('../../core/store/useAppStore').Slice[]) => {
+    const msg = added.length === 0
+      ? `全部 ${skipped.length} 道题目已存在，未重复添加`
+      : skipped.length === 0
+        ? `已添加 ${added.length} 道题目`
+        : `已添加 ${added.length} 道，${skipped.length} 道重复跳过`;
+    setResult({ msg, added: added.map(sliceLabel), skipped: skipped.map(sliceLabel) });
+    setShowDetail(false);
   };
 
   return (
@@ -440,10 +489,39 @@ export default function ManualCreator() {
         对于引擎无法自动识别的音型或乐理概念，教师可以在此手动创建题目并推送至素材池。
       </p>
 
-      {/* 成功提示 */}
-      {successMsg && (
-        <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', padding: '12px 20px', borderRadius: '8px', color: '#065f46', fontWeight: 'bold', marginBottom: '20px' }}>
-          ✓ {successMsg}
+      {/* 结果提示 */}
+      {result && (
+        <div style={{ background: result.skipped.length > 0 && result.added.length === 0 ? '#fef3c7' : '#ecfdf5', border: `1px solid ${result.skipped.length > 0 && result.added.length === 0 ? '#fcd34d' : '#6ee7b7'}`, borderRadius: '8px', marginBottom: '20px', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px' }}>
+            <span style={{ fontWeight: 'bold', color: result.skipped.length > 0 && result.added.length === 0 ? '#92400e' : '#065f46' }}>
+              ✓ {result.msg}
+            </span>
+            {(result.added.length > 0 || result.skipped.length > 0) && (
+              <button onClick={() => setShowDetail(v => !v)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#6b7280', textDecoration: 'underline' }}>
+                {showDetail ? '收起' : '查看详情'}
+              </button>
+            )}
+          </div>
+          {showDetail && (
+            <div style={{ borderTop: '1px solid #e5e7eb', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {result.added.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#065f46', marginBottom: '4px' }}>插入成功 ({result.added.length})</div>
+                  {result.added.map((label, i) => (
+                    <div key={i} style={{ fontSize: '0.85rem', color: '#1f2937', padding: '2px 0' }}>✓ {label}</div>
+                  ))}
+                </div>
+              )}
+              {result.skipped.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#92400e', marginBottom: '4px' }}>重复跳过 ({result.skipped.length})</div>
+                  {result.skipped.map((label, i) => (
+                    <div key={i} style={{ fontSize: '0.85rem', color: '#6b7280', padding: '2px 0' }}>— {label}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -556,6 +634,13 @@ export default function ManualCreator() {
                     </div>
                   </div>
                 </div>
+                {/* 干扰项（可选） */}
+                <input
+                  value={distractors}
+                  onChange={e => setDistractors(e.target.value)}
+                  placeholder="干扰项（可选），用 | 分隔，如 大三度 (M3)|小三度 (m3)|纯四度 (P4)"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                />
               </>
             ) : (
               // A / B / D 类型
@@ -591,6 +676,13 @@ export default function ManualCreator() {
                     }}>+ 添加到素材池</button>
                   </div>
                 )}
+                {/* 干扰项（可选） */}
+                <input
+                  value={distractors}
+                  onChange={e => setDistractors(e.target.value)}
+                  placeholder="干扰项（可选），用 | 分隔，如 弱 (piano)|中强 (mezzo-forte)|强 (forte)"
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                />
                 {/* 单音：谱号位置选择 */}
                 {type === 'notes' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -656,12 +748,12 @@ export default function ManualCreator() {
             onChange={(e) => setBatchText(e.target.value)}
             placeholder={
               type === 'symbols'
-                ? `每行格式: 符号|答案，例如：\npp|极弱 (pianissimo)\nff|极强 (fortissimo)\nstaccato|断音\nfermata|延音记号`
+                ? `每行格式: 符号|答案|干扰1|干扰2|干扰3（干扰项可选）\n例如：\npp|极弱 (pianissimo)|弱 (piano)|中弱 (mezzo-piano)|中强 (mezzo-forte)\nff|极强 (fortissimo)\nstaccato|断音 (staccato)`
                 : type === 'theory'
-                ? `每行格式: 音A,音B|音程名  或  音A,音程名（自动计算音B）\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4,G4|纯五度 (P5)\nD4,E4|大三度 (M3)\n[低音]\nA2,B2|大二 度 (M2)`
+                ? `每行格式: 音A,音B|答案|干扰1|干扰2|干扰3（干扰项可选）\n答案可以是任意维度：音程名、方向、级进/跳进等\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4,G4|纯五度 (P5)|大五度|小五度|增五度\nC4,D4|上行|下行\nC4,D4|级进|跳进\nD4,E4|大三度 (M3)\n[低音]\nA2,B2|大二度 (M2)`
                 : type === 'notes'
-                ? `每行输入一个音高，可用 [高音] [低音] [自动] 标记谱表区域，例如：\n[高音]\nC4\nD4\n[低音]\nA2\nB2\n[自动]\nE3`
-                : `每行输入一道题目，例如：\nC4\nD4\nE4\nF#5\nG3`
+                ? `每行格式: 音高|答案|干扰1|干扰2|干扰3（干扰项可选）\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4|C|D|E|F\nD4\n[低音]\nA2|A|G|B|C`
+                : `每行格式: 音型|答案|干扰1|干扰2|干扰3（干扰项可选）\n例如：\n上行音阶跑动|上行音阶跑动|下行音阶跑动|分解和弦|琶音上行\n分解和弦`
             }
             style={{
               width: '100%', height: '200px', padding: '16px', borderRadius: '8px',

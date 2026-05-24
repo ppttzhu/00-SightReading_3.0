@@ -63,6 +63,7 @@ export default function CustomStageEditor() {
     setSelectedIds(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
+      setQuestionCount(qc => Math.max(qc, next.size));
       return next;
     });
   };
@@ -252,6 +253,17 @@ export default function CustomStageEditor() {
                       {TYPE_LABELS[slice.module]}
                     </span>
                     <span style={{ color: '#374151', fontSize: '0.95rem' }}>{label}</span>
+                    {(((slice.content as unknown as Record<string, unknown>).options as string[] | undefined) ?? []).length > 0 && (
+                      <span style={{
+                        padding: '1px 6px', borderRadius: '4px', border: '1px solid #d1d5db',
+                        color: '#9ca3af', fontSize: '0.72rem', flexShrink: 0, maxWidth: '220px',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                      }}
+                        title={((slice.content as unknown as Record<string, unknown>).options as string[]).join(' / ')}
+                      >
+                        选项: {((slice.content as unknown as Record<string, unknown>).options as string[]).join(' / ')}
+                      </span>
+                    )}
                     {slice.module === 'notes' && (
                       <span style={{
                         padding: '1px 6px',
