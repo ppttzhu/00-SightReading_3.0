@@ -1,8 +1,31 @@
 import { useState, useRef, useEffect } from 'react';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector, Stem } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
 import { resolvePlacement } from '../../core/engine/pitchUtils';
 import type { StaffPlacement } from '../../core/engine/pitchUtils';
+
+const NOTE_STEP: Record<string, number> = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
+
+function getDiatonicStep(key: string): number {
+  const [, note, octave] = key.match(/^([a-g])\/(\d)$/) || [];
+  if (!note || !octave) return 0;
+  return NOTE_STEP[note] + parseInt(octave) * 7;
+}
+
+function resolveStemDirection(keyA: string, keyB: string, clef: string): number {
+  const middleNote = clef === 'bass' ? 'd' : 'b';
+  const middleOctave = clef === 'bass' ? 3 : 4;
+  const middleStep = NOTE_STEP[middleNote] + middleOctave * 7;
+
+  const stepA = getDiatonicStep(keyA);
+  const stepB = getDiatonicStep(keyB);
+
+  if (stepA > middleStep) return Stem.DOWN;
+  if (stepA < middleStep) return Stem.UP;
+  if (stepB > middleStep) return Stem.DOWN;
+  if (stepB < middleStep) return Stem.UP;
+  return Stem.DOWN;
+}
 import type { IntervalContent } from '../../core/store/useAppStore';
 
 // ── 字典数据 ──────────────────────────────────────────────────
@@ -291,19 +314,23 @@ export default function ManualCreator() {
       const parsedB = parsePitch(noteBVal);
 
       if (parsedA && parsedB) {
+        const stemDir = resolveStemDirection(parsedA.key, parsedB.key, actualPlacement);
         if (noteAVal === noteBVal) {
-          const note = new StaveNote({ keys: [parsedA.key], duration: 'w', clef: actualPlacement });
-          if (parsedA.accidental) note.addModifier(new Accidental(parsedA.accidental));
-          const voice = new Voice({ numBeats: 4, beatValue: 4 });
+          const vfNotes = [0, 1].map(() => {
+            const note = new StaveNote({ keys: [parsedA.key], duration: 'w', clef: actualPlacement, stemDirection: stemDir });
+            if (parsedA.accidental) note.addModifier(new Accidental(parsedA.accidental));
+            return note;
+          });
+          const voice = new Voice({ numBeats: 8, beatValue: 4 });
           voice.setMode(2);
-          voice.addTickables([note]);
-          new Formatter().joinVoices([voice]).format([voice], 280);
+          voice.addTickables(vfNotes);
+          new Formatter().joinVoices([voice]).format([voice], 50);
           voice.draw(context, activeStave);
         } else {
-          const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement });
+          const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement, stemDirection: stemDir });
           if (parsedA.accidental) note1.addModifier(new Accidental(parsedA.accidental));
 
-          const note2 = new StaveNote({ keys: [parsedB.key], duration: 'h', clef: actualPlacement });
+          const note2 = new StaveNote({ keys: [parsedB.key], duration: 'h', clef: actualPlacement, stemDirection: stemDir });
           if (parsedB.accidental) note2.addModifier(new Accidental(parsedB.accidental));
 
           const voice = new Voice({ numBeats: 4, beatValue: 4 });
