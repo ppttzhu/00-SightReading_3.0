@@ -26,6 +26,7 @@ type StageRow = {
   is_preset: boolean;
   sort_index: number;
   question_count: number;
+  guidance: string | null;
   del_status: boolean;
 };
 
@@ -139,6 +140,7 @@ function stageToRow(stage: CustomStage, sortIndex: number): StageRow {
     is_preset: Boolean(stage.isPreset),
     sort_index: sortIndex,
     question_count: stage.questionCount || stage.sliceIds.length || 5,
+    guidance: stage.guidance ?? null,
     del_status: false,
   };
 }

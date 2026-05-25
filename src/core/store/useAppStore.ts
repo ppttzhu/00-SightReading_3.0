@@ -104,6 +104,7 @@ export interface CustomStage {
   sliceIds: string[]; // 引用 slicesPool 中的 id
   isPreset?: boolean;
   questionCount?: number;
+  guidance?: string;  // 老师为该关卡撰写的「学习指导」Markdown 文本
 }
 
 export interface PracticeRecord {
@@ -145,7 +146,7 @@ interface AppState {
   clearPool: () => void;
 
   addCustomStage: (stage: CustomStage) => void;
-  updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds' | 'questionCount'>>) => void;
+  updateCustomStage: (id: string, patch: Partial<CustomStage>) => void;
   removeCustomStage: (id: string) => void;
 
   setStageOrder: (moduleId: string, orderedIds: string[]) => void;

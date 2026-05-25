@@ -5,6 +5,7 @@ import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 import { extractNoteAnswer } from './noteAnswer';
@@ -151,6 +152,26 @@ function generateOptions(slice: Slice): string[] {
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
+const GUIDANCE_SUPPRESS_KEY = 'stage_guidance_suppressed';
+
+function readSuppressedMap(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(GUIDANCE_SUPPRESS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+function writeSuppressed(stageId: string, guidanceSnapshot: string): void {
+  try {
+    const map = readSuppressedMap();
+    map[stageId] = guidanceSnapshot;
+    localStorage.setItem(GUIDANCE_SUPPRESS_KEY, JSON.stringify(map));
+  } catch {
+    /* localStorage 写入失败时静默（Safari Private / quota）；下次进关会照常弹蒙层 */
+  }
+}
+
 // ============================================================
 // 组件
 // ============================================================
@@ -188,6 +209,17 @@ export default function InteractiveQuiz() {
     return { stage: null, stageIndex: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageId, slicesPool, sessionKey]);
+
+  // ============================================================
+  // 学习指导蒙层：进入有 guidance 的关卡时先展示，点「开始答题」后才进 quiz
+  // ============================================================
+  const customStages = useAppStore(state => state.customStages);
+  const stageRecord = customStages.find(cs => cs.id === stageId);
+  const guidance = stageRecord?.guidance?.trim() ?? '';
+  const [introDismissed, setIntroDismissed] = useState(() => {
+    if (!stageId || !guidance) return true;
+    return readSuppressedMap()[stageId] === guidance;
+  });
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
@@ -232,7 +264,8 @@ export default function InteractiveQuiz() {
     };
     cycle();
     return () => clearTimeout(timeout);
-  }, [currentSliceIndex]);
+    // re-fire after modal dismiss so VexFlow/blink reset
+  }, [currentSliceIndex, introDismissed]);
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -390,7 +423,8 @@ export default function InteractiveQuiz() {
     } catch (e) {
       console.error("VexFlow Draw Error:", e);
     }
-  }, [currentSlice]);
+    // re-fire after modal dismiss so VexFlow/blink reset
+  }, [currentSlice, introDismissed]);
 
   // Physical keyboard input for Notes (A-type) options mode.
   // Ref lets us reference the latest handleAnswer (defined further down) while keeping
@@ -511,6 +545,19 @@ export default function InteractiveQuiz() {
 
   // B 类的题目用纯文字大卡片展示（不用 VexFlow）
   const isSymbolType = currentSlice?.module === 'symbols';
+
+  if (!introDismissed && guidance && stageRecord) {
+    return (
+      <GuidanceModal
+        title={stageRecord.title}
+        guidance={guidance}
+        onStart={(dontShowAgain) => {
+          if (dontShowAgain && stageId) writeSuppressed(stageId, guidance);
+          setIntroDismissed(true);
+        }}
+      />
+    );
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease',
