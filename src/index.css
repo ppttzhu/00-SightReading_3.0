@@ -354,11 +354,6 @@ button {
   align-items: center;
 }
 
-.client-sync-status {
-  font-size: 0.85rem;
-  color: #6b7280;
-}
-
 .client-main {
   flex: 1;
   padding: 40px;
@@ -645,6 +640,7 @@ button {
 /* Practice Records Table */
 .records-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 14px;
   align-items: center;
@@ -670,6 +666,13 @@ button {
   position: relative;
   flex: 1;
   max-width: 240px;
+}
+
+@media (max-width: 600px) {
+  .records-search-wrapper {
+    flex-basis: 100%;
+    max-width: none;
+  }
 }
 
 .records-search-icon {

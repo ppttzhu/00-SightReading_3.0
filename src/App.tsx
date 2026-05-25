@@ -34,7 +34,9 @@ function App() {
           <Route path="quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="practice/intervals" element={<IntervalPractice />} />
           <Route path="practice/:moduleId" element={<PracticeQuiz />} />
-          <Route path="profile" element={<ProfilePage />} />
+          <Route path="profile" element={<Navigate to="/client/profile/ranking" replace />} />
+          <Route path="profile/ranking" element={<ProfilePage />} />
+          <Route path="profile/record" element={<ProfilePage />} />
         </Route>
 
         {/* 教师端 (CMS) 路由 */}

@@ -9,6 +9,7 @@ import type { ClefType } from '../../core/engine/pitchUtils';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import { extractNoteAnswer } from './noteAnswer';
 import { practiceOptions } from './noteOptions';
+import { useAppStore } from '../../core/store/useAppStore';
 
 // Skip the rare enharmonic spellings (E#/B#/Cb/Fb) when generating accidentals.
 const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
@@ -71,6 +72,8 @@ export default function PracticeQuiz() {
   const includeFlats = searchParams.get('flat') === '1';
 
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  const { recordPractice } = useAppStore();
+  const questionStartedRef = useRef(Date.now());
 
   const [currentPitch, setCurrentPitch] = useState(() => randomPitch(low, high, undefined, includeSharps, includeFlats));
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
@@ -92,6 +95,7 @@ export default function PracticeQuiz() {
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
     setNoteVisible(true);
+    questionStartedRef.current = Date.now();
   }, [low, high, currentPitch, includeSharps, includeFlats]);
 
   // Blink effect: show 3s, hide 6s
@@ -187,6 +191,15 @@ export default function PracticeQuiz() {
     const isCorrect = usePiano
       ? pitchEqual(answer, currentPitch)
       : answer === extractNoteAnswer(currentPitch);
+
+    const timeSpentMs = Date.now() - questionStartedRef.current;
+    recordPractice({
+      quizId: `prac_notes_${currentPitch}`,
+      module: 'notes',
+      isCorrect,
+      answeredWrong: isCorrect ? undefined : answer,
+      timeSpentMs,
+    });
 
     setTotal(t => t + 1);
     if (isCorrect) {

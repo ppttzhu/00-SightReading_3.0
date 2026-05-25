@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
+import { useAppStore } from '../../core/store/useAppStore';
 
 // ============================================================
 // 音程数据
@@ -275,6 +276,8 @@ export default function IntervalPractice() {
   const clefPref = searchParams.get('clef') || '自动';
   const modePref = searchParams.get('mode') || '随机';
   const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  const { recordPractice } = useAppStore();
+  const questionStartedRef = useRef(Date.now());
 
   const [currentQuestion, setCurrentQuestion] = useState(() =>
     generateInterval(type, direction, clefPref, modePref)
@@ -287,6 +290,7 @@ export default function IntervalPractice() {
   const nextQuestion = useCallback(() => {
     setCurrentQuestion(generateInterval(type, direction, clefPref, modePref));
     setNoteVisible(true);
+    questionStartedRef.current = Date.now();
   }, [type, direction, clefPref, modePref]);
 
   // Blink effect: show 3s, hide 6s
@@ -392,6 +396,15 @@ export default function IntervalPractice() {
     if (feedback !== 'none') return;
     const correct = currentQuestion.intervalName;
     const isCorrect = answer === correct;
+
+    const timeSpentMs = Date.now() - questionStartedRef.current;
+    recordPractice({
+      quizId: `prac_theory_${correct}`,
+      module: 'theory',
+      isCorrect,
+      answeredWrong: isCorrect ? undefined : answer,
+      timeSpentMs,
+    });
 
     setTotal(t => t + 1);
     if (isCorrect) {
