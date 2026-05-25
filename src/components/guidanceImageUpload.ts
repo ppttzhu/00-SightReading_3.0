@@ -1,7 +1,7 @@
 import { supabase } from '../core/auth/supabaseClient';
 
 const BUCKET = 'stage-guidance-images';
-const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export class GuidanceImageUploadError extends Error {}
 
@@ -24,7 +24,7 @@ function randomId(): string {
 /**
  * Upload an image file to Supabase Storage and return its public URL.
  *
- * Validates type (must be image/*) and size (<= 2 MB). Stores under
+ * Validates type (must be image/*) and size (<= 5 MB). Stores under
  * a random path so multiple stages can share the bucket without collisions.
  * Image objects are NOT cleaned up when guidance text is deleted — leaving
  * orphan cleanup as a follow-up admin tool.
@@ -37,7 +37,7 @@ export async function uploadGuidanceImage(file: File): Promise<string> {
     throw new GuidanceImageUploadError(`不支持的文件类型：${file.type || '未知'}`);
   }
   if (file.size > MAX_BYTES) {
-    throw new GuidanceImageUploadError(`图片过大（${(file.size / 1024 / 1024).toFixed(1)} MB），最大 2 MB`);
+    throw new GuidanceImageUploadError(`图片过大（${(file.size / 1024 / 1024).toFixed(1)} MB），最大 5 MB`);
   }
 
   const path = `${randomId()}.${pickExtension(file)}`;
