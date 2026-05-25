@@ -13,6 +13,7 @@ import StageSelector from './pages/client/StageSelector';
 import InteractiveQuiz from './pages/client/InteractiveQuiz';
 import PracticeQuiz from './pages/client/PracticeQuiz';
 import IntervalPractice from './pages/client/IntervalPractice';
+import ProfilePage from './pages/client/ProfilePage';
 import CMSAuthGate from './components/auth/CMSAuthGate';
 import AuthPage from './pages/auth/AuthPage';
 
@@ -33,6 +34,7 @@ function App() {
           <Route path="quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="practice/intervals" element={<IntervalPractice />} />
           <Route path="practice/:moduleId" element={<PracticeQuiz />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
 
         {/* 教师端 (CMS) 路由 */}

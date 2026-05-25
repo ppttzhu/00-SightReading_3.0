@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useFetchRemote } from '../../core/storage/useRemoteSync';
 import FeedbackDrawer from '../../components/FeedbackDrawer';
 import AccountMenu from '../../components/auth/AccountMenu';
@@ -7,6 +7,8 @@ import AccountMenu from '../../components/auth/AccountMenu';
 export default function ClientLayout() {
   const { fetchRemote, status } = useFetchRemote();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+  const isProfilePage = location.pathname === '/client/profile';
 
   useEffect(() => {
     fetchRemote();
@@ -29,11 +31,13 @@ export default function ClientLayout() {
         <Outlet />
       </main>
 
-      <div className="client-feedback-wrapper">
-        <button className="client-feedback-btn" onClick={() => setDrawerOpen(true)}>
-          意见反馈
-        </button>
-      </div>
+      {!isProfilePage && (
+        <div className="client-feedback-wrapper">
+          <button className="client-feedback-btn" onClick={() => setDrawerOpen(true)}>
+            意见反馈
+          </button>
+        </div>
+      )}
 
       <FeedbackDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
