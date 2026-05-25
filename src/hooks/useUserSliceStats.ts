@@ -90,25 +90,48 @@ export function useUserSliceStats(page?: number, pageSize?: number): UseUserSlic
         return;
       }
 
-      // Fetch quiz details for all quiz_ids
+      // Fetch quiz details for non-practice quiz_ids only
       const quizIds = statsData.map((r) => r.quiz_id);
-      const { data: quizData, error: quizError } = await supabase
-        .from('quizzes')
-        .select('id, module, content')
-        .in('id', quizIds);
+      const regularIds = quizIds.filter((id) => !id.startsWith('prac_'));
 
-      if (quizError) throw new Error(quizError.message);
-
-      // Build a lookup map: quiz_id → { module, content }
       const quizMap = new Map<string, { module: QuizModule; content: Record<string, unknown> }>();
-      for (const q of quizData || []) {
-        quizMap.set(q.id, { module: q.module as QuizModule, content: q.content as Record<string, unknown> });
+
+      if (regularIds.length > 0) {
+        const { data: quizData, error: quizError } = await supabase
+          .from('quizzes')
+          .select('id, module, content')
+          .in('id', regularIds);
+
+        if (quizError) throw new Error(quizError.message);
+
+        for (const q of quizData || []) {
+          quizMap.set(q.id, { module: q.module as QuizModule, content: q.content as Record<string, unknown> });
+        }
       }
 
       const records: UserSliceStatsRecord[] = statsData.map((row) => {
         const totalCount = row.total_count ?? 0;
         const wrongCount = row.wrong_count ?? 0;
         const errorRate = totalCount > 0 ? wrongCount / totalCount : 0;
+
+        // Handle practice-mode quiz IDs: prac_<module>_<content>
+        if (row.quiz_id.startsWith('prac_')) {
+          const parts = row.quiz_id.split('_');
+          // parts[0] = 'prac', parts[1] = module, parts[2..] = content key
+          const module = (parts[1] || 'notes') as QuizModule;
+          const contentKey = parts.slice(2).join('_');
+          return {
+            quizId: row.quiz_id,
+            module,
+            displayLabel: `[${MODULE_LABELS[module]}·练习] ${contentKey}`,
+            totalCount,
+            correctCount: row.correct_count ?? 0,
+            wrongCount,
+            errorRate,
+            lastPracticedAt: row.last_practiced_at,
+          };
+        }
+
         const quiz = quizMap.get(row.quiz_id);
         const module: QuizModule = quiz?.module ?? 'notes';
         const displayLabel = quiz

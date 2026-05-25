@@ -1,22 +1,27 @@
 import { useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useMatch } from 'react-router-dom';
 import { UserCircle, BookOpen, Trophy, Loader2, LogOut, MessageSquare, MoreHorizontal, X } from 'lucide-react';
 import { useAuth } from '../../core/auth/AuthProvider';
 import FeedbackDrawer from '../../components/FeedbackDrawer';
 import PracticeRecordsTab from './profile/PracticeRecordsTab';
 import EffortLeaderboardTab from './profile/EffortLeaderboardTab';
 
-type TabKey = 'records' | 'leaderboard';
+type TabKey = 'record' | 'ranking';
 
-const NAV_ITEMS: { key: TabKey; label: string; icon: typeof BookOpen }[] = [
-  { key: 'records', label: '做题记录', icon: BookOpen },
-  { key: 'leaderboard', label: '努力榜', icon: Trophy },
+const NAV_ITEMS: { key: TabKey; label: string; icon: typeof BookOpen; path: string }[] = [
+  { key: 'ranking', label: '排行榜', icon: Trophy, path: '/client/profile/ranking' },
+  { key: 'record', label: '做题记录', icon: BookOpen, path: '/client/profile/record' },
 ];
 
 export default function ProfilePage() {
   const { profile, loading, profileLoading, signOut } = useAuth();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<TabKey>('records');
+  const navigate = useNavigate();
+
+  // Derive active tab from URL path
+  const matchRecord = useMatch('/client/profile/record');
+  const activeTab: TabKey = matchRecord ? 'record' : 'ranking';
+
   const [signOutError, setSignOutError] = useState('');
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -76,7 +81,7 @@ export default function ProfilePage() {
                 key={item.key}
                 className={`profile-nav-link${active ? ' active' : ''}`}
                 onClick={() => {
-                  setActiveTab(item.key);
+                  navigate(item.path);
                   setMobileMenuOpen(false);
                 }}
               >
@@ -111,7 +116,7 @@ export default function ProfilePage() {
         </div>
       </aside>
       <main className="profile-main">
-        {activeTab === 'records' ? <PracticeRecordsTab /> : <EffortLeaderboardTab />}
+        {activeTab === 'ranking' ? <EffortLeaderboardTab /> : <PracticeRecordsTab />}
       </main>
       <FeedbackDrawer open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>

@@ -41,6 +41,7 @@ export default function EffortLeaderboardTab() {
       <div className="leaderboard-header">
         <Trophy size={24} color="#f59e0b" />
         <div>
+          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#92400e' }}>努力榜</h2>
           <p className="leaderboard-subtitle">按近7天做题总数排名，多练多上榜！</p>
         </div>
       </div>

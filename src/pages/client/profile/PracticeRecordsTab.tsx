@@ -3,8 +3,16 @@ import { ChevronUp, ChevronDown, Loader2, Search } from 'lucide-react';
 import { useUserSliceStats, type UserSliceStatsRecord, type QuizModule } from '../../../hooks/useUserSliceStats';
 import Pagination from '../../../components/Pagination';
 
-type SortKey = 'module' | 'displayLabel' | 'totalCount' | 'wrongCount' | 'errorRate';
+type SortKey = 'module' | 'mode' | 'displayLabel' | 'totalCount' | 'wrongCount' | 'errorRate';
 type SortDir = 'asc' | 'desc';
+
+type ModeFilter = '' | 'practice' | 'challenge';
+
+const MODE_OPTIONS: { value: ModeFilter; label: string }[] = [
+  { value: '', label: '全部模式' },
+  { value: 'practice', label: '练习' },
+  { value: 'challenge', label: '闯关' },
+];
 
 const MODULE_ORDER: Record<string, number> = { notes: 0, symbols: 1, theory: 2, patterns: 3 };
 const MODULE_OPTIONS: { value: '' | QuizModule; label: string }[] = [
@@ -25,6 +33,12 @@ function compareRecords(a: UserSliceStatsRecord, b: UserSliceStatsRecord, key: S
     case 'module':
       cmp = (MODULE_ORDER[a.module] ?? 9) - (MODULE_ORDER[b.module] ?? 9);
       break;
+    case 'mode': {
+      const aMode = a.quizId.startsWith('prac_') ? 0 : 1;
+      const bMode = b.quizId.startsWith('prac_') ? 0 : 1;
+      cmp = aMode - bMode;
+      break;
+    }
     case 'displayLabel':
       cmp = a.displayLabel.localeCompare(b.displayLabel);
       break;
@@ -46,6 +60,7 @@ export default function PracticeRecordsTab() {
   const [sortKey, setSortKey] = useState<SortKey>('errorRate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterModule, setFilterModule] = useState<'' | QuizModule>('');
+  const [filterMode, setFilterMode] = useState<ModeFilter>('');
   const [searchText, setSearchText] = useState('');
   const pageSize = 10;
   const { data: allData, totalCount: rawTotal, loading, error, retry } = useUserSliceStats();
@@ -56,12 +71,17 @@ export default function PracticeRecordsTab() {
     if (filterModule) {
       result = result.filter(r => r.module === filterModule);
     }
+    if (filterMode === 'practice') {
+      result = result.filter(r => r.quizId.startsWith('prac_'));
+    } else if (filterMode === 'challenge') {
+      result = result.filter(r => !r.quizId.startsWith('prac_'));
+    }
     if (searchText.trim()) {
       const q = searchText.trim().toLowerCase();
       result = result.filter(r => r.displayLabel.toLowerCase().includes(q));
     }
     return result;
-  }, [allData, filterModule, searchText]);
+  }, [allData, filterModule, filterMode, searchText]);
 
   // Sort
   const sortedData = useMemo(() => {
@@ -87,6 +107,11 @@ export default function PracticeRecordsTab() {
 
   const handleFilterChange = (value: '' | QuizModule) => {
     setFilterModule(value);
+    setPage(1);
+  };
+
+  const handleModeChange = (value: ModeFilter) => {
+    setFilterMode(value);
     setPage(1);
   };
 
@@ -134,6 +159,15 @@ export default function PracticeRecordsTab() {
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
+        <select
+          className="records-filter-select"
+          value={filterMode}
+          onChange={e => handleModeChange(e.target.value as ModeFilter)}
+        >
+          {MODE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
         <div className="records-search-wrapper">
           <Search size={14} className="records-search-icon" />
           <input
@@ -156,6 +190,9 @@ export default function PracticeRecordsTab() {
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('module')}>
                   模块<SortIcon col="module" />
                 </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('mode')}>
+                  模式<SortIcon col="mode" />
+                </th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('displayLabel')}>
                   题目<SortIcon col="displayLabel" />
                 </th>
@@ -174,6 +211,7 @@ export default function PracticeRecordsTab() {
               {pageData.map((record) => (
                 <tr key={record.quizId}>
                   <td>{getModuleLabel(record.module)}</td>
+                  <td>{record.quizId.startsWith('prac_') ? '练习' : '闯关'}</td>
                   <td>{record.displayLabel.replace(/^\[.*?\]\s*/, '')}</td>
                   <td>{record.totalCount}</td>
                   <td>{record.wrongCount}</td>

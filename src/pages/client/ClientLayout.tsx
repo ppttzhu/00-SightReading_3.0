@@ -5,10 +5,10 @@ import FeedbackDrawer from '../../components/FeedbackDrawer';
 import AccountMenu from '../../components/auth/AccountMenu';
 
 export default function ClientLayout() {
-  const { fetchRemote, status } = useFetchRemote();
+  const { fetchRemote } = useFetchRemote();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
-  const isProfilePage = location.pathname === '/client/profile';
+  const isProfilePage = location.pathname.startsWith('/client/profile');
 
   useEffect(() => {
     fetchRemote();
@@ -21,9 +21,6 @@ export default function ClientLayout() {
           ✨ Sight-Reading Adventure
         </Link>
         <div className="client-header-right">
-          {status === 'loading' && (
-            <span className="client-sync-status">⏳ Syncing...</span>
-          )}
           <AccountMenu />
         </div>
       </header>

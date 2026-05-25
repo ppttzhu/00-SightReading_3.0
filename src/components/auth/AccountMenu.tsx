@@ -23,7 +23,7 @@ export default function AccountMenu() {
     );
   }
 
-  const isProfilePage = location.pathname === '/client/profile';
+  const isProfilePage = location.pathname.startsWith('/client/profile');
 
   return (
     <Link to="/client/profile" className={`account-chip${isProfilePage ? ' hide-on-mobile' : ''}`} style={{ textDecoration: 'none' }}>
