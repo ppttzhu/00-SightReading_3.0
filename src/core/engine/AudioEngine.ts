@@ -51,6 +51,38 @@ class AudioEngine {
         console.log('钢琴音源加载完毕');
       },
     }).toDestination();
+    this.setupVisibilityHandler();
+  }
+
+  // 释放音频会话：页面切到后台时停掉发声并 suspend AudioContext，
+  // 这样系统层就不会把本网站标记为"正在使用音频"，其他 App（如抖音）就能正常播放。
+  private setupVisibilityHandler() {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.releaseAudioSession();
+      }
+    });
+  }
+
+  private releaseAudioSession() {
+    if (this.activeNote && this.sampler) {
+      this.sampler.triggerRelease(this.activeNote, Tone.now());
+      this.activeNote = null;
+    }
+    this.clearEndTimer();
+
+    // Tone.context.rawContext 是底层 Web Audio AudioContext，直接 suspend 可释放音频会话
+    const rawContext = Tone.context.rawContext as AudioContext;
+    if (rawContext.state === 'running') {
+      void rawContext.suspend();
+    }
+
+    if (this.silentUnlockAudio && !this.silentUnlockAudio.paused) {
+      this.silentUnlockAudio.pause();
+    }
+    // 复位 started 标记，让下次用户交互时 primeIOSMediaChannel 重新启动静音循环
+    this.silentUnlockStarted = false;
   }
 
   public static getInstance(): AudioEngine {
