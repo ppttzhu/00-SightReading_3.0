@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 
 // ============================================================
@@ -88,6 +88,27 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
     key: `${match[1].toLowerCase()}/${match[3]}`,
     accidental: match[2] || null
   };
+}
+
+const NOTE_STEP: Record<string, number> = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
+
+function getDiatonicStep(key: string): number {
+  const [, note, octave] = key.match(/^([a-g])\/(\d)$/) || [];
+  if (!note || !octave) return 0;
+  return NOTE_STEP[note] + parseInt(octave) * 7;
+}
+
+function resolveStemDirection(keyA: string, keyB: string, clef: string): number {
+  const middleNote = clef === 'bass' ? 'd' : 'b';
+  const middleOctave = clef === 'bass' ? 3 : 4;
+  const middleStep = NOTE_STEP[middleNote] + middleOctave * 7;
+  const stepA = getDiatonicStep(keyA);
+  const stepB = getDiatonicStep(keyB);
+  if (stepA > middleStep) return Stem.DOWN;
+  if (stepA < middleStep) return Stem.UP;
+  if (stepB > middleStep) return Stem.DOWN;
+  if (stepB < middleStep) return Stem.UP;
+  return Stem.DOWN;
 }
 
 function getClef(lowMidi: number, highMidi: number, clefPref: string): string {
@@ -302,38 +323,60 @@ export default function IntervalPractice() {
 
     try {
       if (q.isHarmonic) {
-        // --- 和声音程：叠置全音符 ---
+        // --- 和声音程 ---
         const lowParsed = parsePitchForVexflow(q.lowPitch);
         const highParsed = parsePitchForVexflow(q.highPitch);
-        const note = new StaveNote({
-          keys: [lowParsed.key, highParsed.key],
-          duration: 'w',
-          clef: q.clef,
-        });
-        if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental), 0);
-        if (highParsed.accidental) note.addModifier(new Accidental(highParsed.accidental), 1);
 
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
-        voice.setMode(2);
-        voice.addTickables([note]);
-        new Formatter().joinVoices([voice]).format([voice], 200);
-        voice.draw(context, stave);
+        if (q.lowPitch === q.highPitch) {
+          // 同音：两个全音符并排
+          const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
+          const vfNotes = [0, 1].map(() => {
+            const n = new StaveNote({ keys: [lowParsed.key], duration: 'w', clef: q.clef, stemDirection: stemDir });
+            if (lowParsed.accidental) n.addModifier(new Accidental(lowParsed.accidental));
+            return n;
+          });
+          const voice = new Voice({ numBeats: 8, beatValue: 4 });
+          voice.setMode(2);
+          voice.addTickables(vfNotes);
+          new Formatter().joinVoices([voice]).format([voice], 40);
+          voice.draw(context, stave);
+        } else {
+          const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
+          const note = new StaveNote({
+            keys: [lowParsed.key, highParsed.key],
+            duration: 'w',
+            clef: q.clef,
+            stemDirection: stemDir,
+          });
+          if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental), 0);
+          if (highParsed.accidental) note.addModifier(new Accidental(highParsed.accidental), 1);
+
+          const voice = new Voice({ numBeats: 4, beatValue: 4 });
+          voice.setMode(2);
+          voice.addTickables([note]);
+          new Formatter().joinVoices([voice]).format([voice], 200);
+          voice.draw(context, stave);
+        }
       } else {
         // --- 旋律音程：两音并排 ---
         const lowParsed = parsePitchForVexflow(q.lowPitch);
         const highParsed = parsePitchForVexflow(q.highPitch);
+        const isUnison = q.lowPitch === q.highPitch;
+        const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
 
-        // Show in ascending pitch order left-to-right for readability
         const vfNotes = [lowParsed, highParsed].map(p => {
-          const n = new StaveNote({ keys: [p.key], duration: 'h', clef: q.clef });
+          const dur = isUnison ? 'w' : 'h';
+          const n = new StaveNote({ keys: [p.key], duration: dur, clef: q.clef, stemDirection: stemDir });
           if (p.accidental) n.addModifier(new Accidental(p.accidental));
           return n;
         });
 
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        const numBeats = isUnison ? 8 : 4;
+        const width = isUnison ? 40 : 160;
+        const voice = new Voice({ numBeats, beatValue: 4 });
         voice.setMode(2);
         voice.addTickables(vfNotes);
-        new Formatter().joinVoices([voice]).format([voice], 160);
+        new Formatter().joinVoices([voice]).format([voice], width);
         voice.draw(context, stave);
       }
     } catch (e) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector, Stem } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
 import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
@@ -20,6 +20,34 @@ function parsePitchForVexflow(pitchStr: string): { key: string; accidental: stri
     key: `${match[1].toLowerCase()}/${match[3]}`,
     accidental: match[2] || null
   };
+}
+
+// 自然音级步数：用于比较音符在五线谱上的高低位置
+const NOTE_STEP: Record<string, number> = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
+
+function getDiatonicStep(key: string): number {
+  const [, note, octave] = key.match(/^([a-g])\/(\d)$/) || [];
+  if (!note || !octave) return 0;
+  return NOTE_STEP[note] + parseInt(octave) * 7;
+}
+
+/** 根据符头与第三线（中线）的位置关系决定符干方向。
+ *  符头在中线以上 → 朝下；在中线以下 → 朝上；
+ *  刚好在中线 → 参考第二个音；第二个音符方向遵从第一个音符。 */
+function resolveStemDirection(keyA: string, keyB: string, clef: string): number {
+  const middleNote = clef === 'bass' ? 'd' : 'b';
+  const middleOctave = clef === 'bass' ? 3 : 4;
+  const middleStep = NOTE_STEP[middleNote] + middleOctave * 7;
+
+  const stepA = getDiatonicStep(keyA);
+  const stepB = getDiatonicStep(keyB);
+
+  if (stepA > middleStep) return Stem.DOWN;
+  if (stepA < middleStep) return Stem.UP;
+  // noteA 刚好在中线，参考 noteB
+  if (stepB > middleStep) return Stem.DOWN;
+  if (stepB < middleStep) return Stem.UP;
+  return Stem.DOWN; // 两个都在中线，默认朝下
 }
 
 // ============================================================
@@ -282,21 +310,27 @@ export default function InteractiveQuiz() {
       if (currentSlice.module === 'theory') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
         if (noteA && noteB) {
-          // 同音：渲染单个全音符
+          // 同音：渲染两个全音符，符干方向一致
           if (noteA === noteB) {
             const { key, accidental } = parsePitchForVexflow(noteA);
-            const note = new StaveNote({ keys: [key], duration: 'w', clef });
-            if (accidental) note.addModifier(new Accidental(accidental));
-            const voice = new Voice({ numBeats: 4, beatValue: 4 });
+            const stemDir = resolveStemDirection(key, key, clef);
+            const vfNotes = [0, 1].map(() => {
+              const note = new StaveNote({ keys: [key], duration: 'w', clef, stemDirection: stemDir });
+              if (accidental) note.addModifier(new Accidental(accidental));
+              return note;
+            });
+            const voice = new Voice({ numBeats: 8, beatValue: 4 });
             voice.setMode(2);
-            voice.addTickables([note]);
-            new Formatter().joinVoices([voice]).format([voice], 160);
+            voice.addTickables(vfNotes);
+            new Formatter().joinVoices([voice]).format([voice], 40);
             voice.draw(context, stave);
           } else {
-            const vfNotes = [noteA, noteB].map(n => {
-              const { key, accidental } = parsePitchForVexflow(n);
-              const note = new StaveNote({ keys: [key], duration: 'h', clef });
-              if (accidental) note.addModifier(new Accidental(accidental));
+            const parsedA = parsePitchForVexflow(noteA);
+            const parsedB = parsePitchForVexflow(noteB);
+            const stemDir = resolveStemDirection(parsedA.key, parsedB.key, clef);
+            const vfNotes = [parsedA, parsedB].map(p => {
+              const note = new StaveNote({ keys: [p.key], duration: 'h', clef, stemDirection: stemDir });
+              if (p.accidental) note.addModifier(new Accidental(p.accidental));
               return note;
             });
             const beats = vfNotes.length * 2;
