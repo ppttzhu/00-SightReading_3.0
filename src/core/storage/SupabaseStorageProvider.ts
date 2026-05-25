@@ -35,6 +35,7 @@ type StageRow = {
   is_preset: boolean;
   sort_index: number;
   question_count: number;
+  guidance: string | null;
   del_status: boolean;
 };
 
@@ -136,6 +137,7 @@ export class SupabaseStorageProvider implements StorageProvider {
         is_preset: Boolean(stage.isPreset),
         sort_index: sortIndex,
         question_count: stage.questionCount || stage.sliceIds.length || 5,
+        guidance: stage.guidance ?? null,
         del_status: false,
       });
 
@@ -231,7 +233,7 @@ export class SupabaseStorageProvider implements StorageProvider {
         .eq('del_status', false),
       client
         .from('stages')
-        .select('id,module,title,is_preset,sort_index,question_count,del_status')
+        .select('id,module,title,is_preset,sort_index,question_count,guidance,del_status')
         .eq('del_status', false)
         .order('module', { ascending: true })
         .order('sort_index', { ascending: true }),
@@ -267,6 +269,7 @@ export class SupabaseStorageProvider implements StorageProvider {
       isPreset: row.is_preset,
       sliceIds: stageIdToSliceIds.get(row.id) ?? [],
       questionCount: row.question_count,
+      guidance: row.guidance ?? undefined,
     }));
 
     return {
