@@ -127,7 +127,7 @@ export default function StageSelector() {
       {/* Notes practice mode UI */}
       {isNotesModule && mode === 'practice' && (
         <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px' }}>
+          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px', margin: '0', padding: '2px 0' }}>
             设置音域范围，系统将在该范围内随机生成单音练习题，无限循环。
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>

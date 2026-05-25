@@ -10,6 +10,7 @@ import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardIn
 import { extractNoteAnswer } from './noteAnswer';
 import { practiceOptions } from './noteOptions';
 import { useAppStore } from '../../core/store/useAppStore';
+import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 
 // Skip the rare enharmonic spellings (E#/B#/Cb/Fb) when generating accidentals.
 const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
@@ -79,7 +80,6 @@ export default function PracticeQuiz() {
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
-  const [noteVisible, setNoteVisible] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
@@ -94,26 +94,10 @@ export default function PracticeQuiz() {
 
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
-    setNoteVisible(true);
     questionStartedRef.current = Date.now();
   }, [low, high, currentPitch, includeSharps, includeFlats]);
 
-  // Blink effect: show 3s, hide 6s
-  useEffect(() => {
-    setNoteVisible(true);
-    let timeout: ReturnType<typeof setTimeout>;
-    const cycle = () => {
-      timeout = setTimeout(() => {
-        setNoteVisible(false);
-        timeout = setTimeout(() => {
-          setNoteVisible(true);
-          cycle();
-        }, 6000);
-      }, 3000);
-    };
-    cycle();
-    return () => clearTimeout(timeout);
-  }, [currentPitch]);
+  const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, currentPitch);
 
   // Render VexFlow
   useEffect(() => {
@@ -185,6 +169,7 @@ export default function PracticeQuiz() {
 
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
+    resetBlink();
     // Piano mode submits the full pitch (e.g. "C#4") — pitchEqual checks
     // letter, accidental, and octave together. Options mode submits the
     // letter+accidental (e.g. "C#") so a C#4 question needs "C#", not bare "C".

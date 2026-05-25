@@ -8,6 +8,7 @@ import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
 
@@ -223,7 +224,6 @@ export default function InteractiveQuiz() {
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
-  const [noteVisible, setNoteVisible] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
@@ -250,22 +250,9 @@ export default function InteractiveQuiz() {
   const currentSlice = stage?.slices[currentSliceIndex];
 
   // Blink effect: show note for 3s, hide for 6s, loop
-  useEffect(() => {
-    setNoteVisible(true);
-    let timeout: ReturnType<typeof setTimeout>;
-    const cycle = () => {
-      timeout = setTimeout(() => {
-        setNoteVisible(false);
-        timeout = setTimeout(() => {
-          setNoteVisible(true);
-          cycle();
-        }, 6000);
-      }, 3000);
-    };
-    cycle();
-    return () => clearTimeout(timeout);
-    // re-fire after modal dismiss so VexFlow/blink reset
-  }, [currentSliceIndex, introDismissed]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const blinkResetKey = `${currentSliceIndex}_${introDismissed}`;
+  const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, blinkResetKey);
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -503,6 +490,7 @@ export default function InteractiveQuiz() {
 
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none' || !currentSlice) return;
+    resetBlink();
     const correct = getCorrectAnswer();
     const isPianoTypeA = usePiano && currentSlice.module === 'notes';
     const isCorrect = isPianoTypeA

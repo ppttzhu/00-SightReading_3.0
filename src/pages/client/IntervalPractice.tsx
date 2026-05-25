@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
-import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { useAppStore } from '../../core/store/useAppStore';
+import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 
 // ============================================================
 // 音程数据
@@ -275,7 +275,6 @@ export default function IntervalPractice() {
   const direction = searchParams.get('direction') || '随机';
   const clefPref = searchParams.get('clef') || '自动';
   const modePref = searchParams.get('mode') || '随机';
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
 
@@ -285,30 +284,13 @@ export default function IntervalPractice() {
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
-  const [noteVisible, setNoteVisible] = useState(true);
 
   const nextQuestion = useCallback(() => {
     setCurrentQuestion(generateInterval(type, direction, clefPref, modePref));
-    setNoteVisible(true);
     questionStartedRef.current = Date.now();
   }, [type, direction, clefPref, modePref]);
 
-  // Blink effect: show 3s, hide 6s
-  useEffect(() => {
-    setNoteVisible(true);
-    let timeout: ReturnType<typeof setTimeout>;
-    const cycle = () => {
-      timeout = setTimeout(() => {
-        setNoteVisible(false);
-        timeout = setTimeout(() => {
-          setNoteVisible(true);
-          cycle();
-        }, 6000);
-      }, 3000);
-    };
-    cycle();
-    return () => clearTimeout(timeout);
-  }, [currentQuestion]);
+  const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, currentQuestion);
 
   // VexFlow rendering
   useEffect(() => {
@@ -394,6 +376,7 @@ export default function IntervalPractice() {
 
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
+    resetBlink();
     const correct = currentQuestion.intervalName;
     const isCorrect = answer === correct;
 
@@ -477,12 +460,7 @@ export default function IntervalPractice() {
         </div>
 
         {/* Options */}
-        {usePiano ? (
-          <div style={{ color: '#9ca3af', fontSize: '0.9rem' }}>
-            音程练习暂不支持钢琴输入，请使用选项模式
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
               {options.map((opt, i) => (
                 <button
@@ -534,7 +512,6 @@ export default function IntervalPractice() {
               ))}
             </div>
           </div>
-        )}
       </div>
     </div>
   );
