@@ -89,7 +89,8 @@ export default function CustomStageEditor() {
     setUploadStatus({ kind: 'uploading', name: file.name });
     try {
       const url = await uploadGuidanceImage(file);
-      const alt = file.name.replace(/\.[^.]+$/, '');
+      // Sanitize alt: strip extension, then escape chars that break ![alt](url) syntax
+      const alt = file.name.replace(/\.[^.]+$/, '').replace(/[[\]\r\n]/g, ' ').trim() || 'image';
       insertAtCursor(`![${alt}](${url})`);
       setUploadStatus({ kind: 'idle' });
     } catch (e) {
