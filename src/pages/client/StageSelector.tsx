@@ -48,6 +48,7 @@ export default function StageSelector() {
 
   // 从 Store 自动生成的关卡列表（包含自动+手动关卡）
   const getAllStages = useAppStore(state => state.getAllStages);
+  const unlockedStage = useAppStore(state => state.studentProgress[moduleId || ''] || 1);
 
   const stages = getAllStages(moduleId || '');
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
@@ -73,7 +74,7 @@ export default function StageSelector() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <button
-        onClick={() => navigate('/client')}
+        onClick={() => navigate('/client/free')}
         style={{ alignSelf: 'flex-start', background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
       >
         ← 返回主菜单
@@ -262,8 +263,7 @@ export default function StageSelector() {
           ) : (
             <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
               {stages.map((stage, index) => {
-                // TODO: revert after testing — restore: const isUnlocked = index < (useAppStore.getState().studentProgress[moduleId || ''] || 1);
-                const isUnlocked = true;
+                const isUnlocked = index < unlockedStage;
                 const stageNumber = index + 1;
 
                 return (

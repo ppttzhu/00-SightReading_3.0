@@ -106,6 +106,41 @@ export interface CustomStage {
   questionCount?: number;
 }
 
+export type QuizModuleId = Slice['module'];
+
+export interface AdventureStage {
+  id: string;
+  title: string;
+  description?: string;
+  levelNum: number;
+  sourceStageId?: string;
+  sourceModule?: QuizModuleId;
+  sliceIds: string[];
+  questionCount: number;
+  unlockRule?: 'previous_clear';
+  source?: 'manual' | 'assistant';
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export type AdventurePresetId = 'notes_intro' | 'mixed_review' | 'symbols_focus' | 'comprehensive';
+
+export interface AdventureDraftOptions {
+  preset: AdventurePresetId;
+  stageCount: number;
+  questionCount: number;
+  minDifficulty: number;
+  maxDifficulty: number;
+  modules: QuizModuleId[];
+  includeReview: boolean;
+}
+
+export interface AdventureDraftResult {
+  stages: AdventureStage[];
+  warnings: string[];
+  summary: string;
+}
+
 export interface PracticeRecord {
   id: number;
   userId: string;
@@ -130,6 +165,8 @@ export interface UserQuizStats {
 interface AppState {
   slicesPool: Slice[];
   customStages: CustomStage[];
+  adventureStages: AdventureStage[];
+  adventureDraft: AdventureDraftResult | null;
   stageOrder: Record<string, string[]>; // moduleId -> ordered stage ids
   studentProgress: Record<string, number>;
 
@@ -137,6 +174,7 @@ interface AppState {
   lastSyncError: string | null;
 
   getAllStages: (moduleId: string) => AutoStage[];
+  getAdventureStages: () => AutoStage[];
 
   addSlices: (slices: Slice[]) => { added: Slice[]; skipped: Slice[] };
   updateSlice: (id: string, patch: Partial<Slice>) => void;
@@ -147,6 +185,15 @@ interface AppState {
   addCustomStage: (stage: CustomStage) => void;
   updateCustomStage: (id: string, patch: Partial<Pick<CustomStage, 'title' | 'sliceIds' | 'questionCount'>>) => void;
   removeCustomStage: (id: string) => void;
+
+  setAdventureStages: (stages: AdventureStage[]) => void;
+  addAdventureStage: (stage: Omit<AdventureStage, 'levelNum'> & { levelNum?: number }) => void;
+  updateAdventureStage: (id: string, patch: Partial<Omit<AdventureStage, 'id'>>) => void;
+  removeAdventureStage: (id: string) => void;
+  moveAdventureStage: (id: string, direction: 'up' | 'down') => void;
+  generateAdventureDraft: (options: AdventureDraftOptions) => AdventureDraftResult;
+  publishAdventureDraft: () => void;
+  clearAdventureDraft: () => void;
 
   setStageOrder: (moduleId: string, orderedIds: string[]) => void;
 
@@ -197,17 +244,133 @@ function moduleSortIndexOf(stages: CustomStage[], stageId: string): number {
   return idx;
 }
 
+function orderAdventureStages(stages: AdventureStage[]): AdventureStage[] {
+  return [...stages]
+    .sort((a, b) => a.levelNum - b.levelNum || (a.createdAt || 0) - (b.createdAt || 0))
+    .map((stage, index) => ({ ...stage, levelNum: index + 1 }));
+}
+
+function normalizeAdventureStages(stages: AdventureStage[]): AdventureStage[] {
+  return stages.map((stage, index) => ({ ...stage, levelNum: index + 1 }));
+}
+
+function fallbackAdventureStages(state: AppState): AutoStage[] {
+  const byModule = (moduleId: Slice['module']) =>
+    state.slicesPool
+      .filter(slice => slice.module === moduleId)
+      .sort((a, b) => a.difficulty - b.difficulty || (a.createdAt || 0) - (b.createdAt || 0));
+  const take = (items: Slice[], count: number, offset = 0) => items.slice(offset, offset + count);
+  const notes = byModule('notes');
+  const theory = byModule('theory');
+  const symbols = byModule('symbols');
+  const patterns = byModule('patterns');
+  const existingNotes = state.getAllStages('notes');
+  const existingTheory = state.getAllStages('theory');
+
+  const stagePlans: Array<{ id: string; title: string; slices: Slice[] }> = [
+    {
+      id: 'adventure_level_1',
+      title: 'Lv.1 坐标单音',
+      slices: existingNotes[0]?.slices.length ? existingNotes[0].slices.slice(0, 5) : take(notes, 5),
+    },
+    {
+      id: 'adventure_level_2',
+      title: 'Lv.2 邻近单音',
+      slices: existingNotes[1]?.slices.length ? existingNotes[1].slices.slice(0, 5) : take(notes, 5, 5),
+    },
+    {
+      id: 'adventure_level_3',
+      title: 'Lv.3 双音入门',
+      slices: existingTheory[0]?.slices.length ? existingTheory[0].slices.slice(0, 5) : take(theory, 5),
+    },
+    {
+      id: 'adventure_level_4',
+      title: 'Lv.4 单音与双音混合',
+      slices: [...take(notes, 3, 10), ...take(theory, 2, 5)],
+    },
+    {
+      id: 'adventure_level_5',
+      title: 'Lv.5 综合复习',
+      slices: [...take(notes, 2, 15), ...take(theory, 2, 10), ...take(symbols, 1), ...take(patterns, 1)].slice(0, 6),
+    },
+  ];
+
+  return stagePlans
+    .filter(plan => plan.slices.length > 0)
+    .map((plan, idx) => ({
+      id: plan.id,
+      module: 'adventure',
+      stageNum: idx + 1,
+      title: plan.title,
+      slices: plan.slices,
+      questionCount: plan.slices.length,
+    }));
+}
+
+function customStageAverageDifficulty(stage: CustomStage, slicesPool: Slice[]): number {
+  const slices = stage.sliceIds
+    .map(sliceId => slicesPool.find(slice => slice.id === sliceId))
+    .filter(Boolean) as Slice[];
+  if (slices.length === 0) return 99;
+  return slices.reduce((sum, slice) => sum + slice.difficulty, 0) / slices.length;
+}
+
+function buildAdventureDraft(customStages: CustomStage[], slicesPool: Slice[], options: AdventureDraftOptions): AdventureDraftResult {
+  const modules = options.modules.length > 0 ? options.modules : (['notes', 'theory'] as QuizModuleId[]);
+  const stageCount = Math.max(3, Math.min(10, Math.round(options.stageCount || 5)));
+  const minDifficulty = Math.max(1, Math.min(10, Math.min(options.minDifficulty, options.maxDifficulty)));
+  const maxDifficulty = Math.max(1, Math.min(10, Math.max(options.minDifficulty, options.maxDifficulty)));
+  const warnings: string[] = [];
+  const candidates = customStages
+    .filter(stage => modules.includes(stage.module))
+    .map(stage => ({ stage, avgDifficulty: customStageAverageDifficulty(stage, slicesPool) }))
+    .filter(item => item.avgDifficulty >= minDifficulty && item.avgDifficulty <= maxDifficulty)
+    .sort((a, b) => a.avgDifficulty - b.avgDifficulty || a.stage.title.localeCompare(b.stage.title));
+
+  if (candidates.length === 0) {
+    warnings.push('当前筛选范围内没有现有关卡可用于主线排序。');
+  }
+  if (candidates.length < stageCount) {
+    warnings.push(`现有关卡数量不足：希望生成 ${stageCount} 关，当前只能找到 ${candidates.length} 关。`);
+  }
+
+  const now = Date.now();
+  const stages = candidates.slice(0, stageCount).map(({ stage }, index) => ({
+    id: `adventure_route_${now}_${index + 1}_${stage.id}`,
+    title: stage.title,
+    description: `引用现有关卡：${stage.title}`,
+    levelNum: index + 1,
+    sourceStageId: stage.id,
+    sourceModule: stage.module,
+    sliceIds: stage.sliceIds,
+    questionCount: stage.questionCount || stage.sliceIds.length || 1,
+    unlockRule: 'previous_clear' as const,
+    source: 'assistant' as const,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  return {
+    stages,
+    warnings,
+    summary: `已按现有关卡的模块与平均难度生成 ${stages.length} 关排序草稿。`,
+  };
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       slicesPool: [],
       customStages: [],
+      adventureStages: [],
+      adventureDraft: null,
       stageOrder: {},
       studentProgress: {
         notes: 1,
         symbols: 1,
         theory: 1,
         patterns: 1,
+        adventure: 1,
       },
       lastSyncError: null,
 
@@ -232,6 +395,32 @@ export const useAppStore = create<AppState>()(
           });
         }
         return stages;
+      },
+
+      getAdventureStages: () => {
+        const state = get();
+        if (state.adventureStages.length > 0) {
+          return orderAdventureStages(state.adventureStages).map((stage, idx) => {
+            const sourceStage = stage.sourceStageId
+              ? state.customStages.find(customStage => customStage.id === stage.sourceStageId)
+              : undefined;
+            const sliceIds = sourceStage?.sliceIds || stage.sliceIds;
+            const title = sourceStage?.title || stage.title;
+            const questionCount = sourceStage?.questionCount || stage.questionCount || sliceIds.length;
+            const slices = sliceIds
+              .map(sliceId => state.slicesPool.find(slice => slice.id === sliceId))
+              .filter(Boolean) as Slice[];
+            return {
+              id: stage.id,
+              module: 'adventure',
+              stageNum: idx + 1,
+              title,
+              slices,
+              questionCount: questionCount || slices.length,
+            };
+          });
+        }
+        return fallbackAdventureStages(state);
       },
 
       addSlices: (slices) => {
@@ -286,6 +475,10 @@ export const useAppStore = create<AppState>()(
             ...cs,
             sliceIds: cs.sliceIds.filter(sid => sid !== id),
           })),
+          adventureStages: state.adventureStages.map(stage => ({
+            ...stage,
+            sliceIds: stage.sliceIds.filter(sid => sid !== id),
+          })),
         }));
         void syncSoftDeleteSlice(id);
       },
@@ -330,6 +523,80 @@ export const useAppStore = create<AppState>()(
         void syncSoftDeleteStage(id);
       },
 
+      setAdventureStages: (stages) => {
+        set({ adventureStages: orderAdventureStages(stages) });
+      },
+
+      addAdventureStage: (stage) => {
+        const now = Date.now();
+        set((state) => ({
+          adventureStages: orderAdventureStages([
+            ...state.adventureStages,
+            {
+              ...stage,
+              levelNum: stage.levelNum ?? state.adventureStages.length + 1,
+              unlockRule: stage.unlockRule || 'previous_clear',
+              source: stage.source || 'manual',
+              createdAt: stage.createdAt || now,
+              updatedAt: now,
+            },
+          ]),
+        }));
+      },
+
+      updateAdventureStage: (id, patch) => {
+        set((state) => ({
+          adventureStages: orderAdventureStages(state.adventureStages.map(stage =>
+            stage.id === id ? { ...stage, ...patch, updatedAt: Date.now() } : stage
+          )),
+        }));
+      },
+
+      removeAdventureStage: (id) => {
+        set((state) => ({
+          adventureStages: orderAdventureStages(state.adventureStages.filter(stage => stage.id !== id)),
+        }));
+      },
+
+      moveAdventureStage: (id, direction) => {
+        set((state) => {
+          const ordered = orderAdventureStages(state.adventureStages);
+          const index = ordered.findIndex(stage => stage.id === id);
+          const targetIndex = direction === 'up' ? index - 1 : index + 1;
+          if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return state;
+          const next = [...ordered];
+          const [moved] = next.splice(index, 1);
+          next.splice(targetIndex, 0, moved);
+          return { adventureStages: normalizeAdventureStages(next) };
+        });
+      },
+
+      generateAdventureDraft: (options) => {
+        const state = get();
+        const draft = buildAdventureDraft(state.customStages, state.slicesPool, options);
+        set({ adventureDraft: draft });
+        return draft;
+      },
+
+      publishAdventureDraft: () => {
+        set((state) => {
+          if (!state.adventureDraft) return state;
+          return {
+            adventureStages: orderAdventureStages(state.adventureDraft.stages.map(stage => ({
+              ...stage,
+              source: 'assistant',
+              updatedAt: Date.now(),
+            }))),
+            adventureDraft: null,
+            studentProgress: { ...state.studentProgress, adventure: 1 },
+          };
+        });
+      },
+
+      clearAdventureDraft: () => {
+        set({ adventureDraft: null });
+      },
+
       setStageOrder: (moduleId, orderedIds) => {
         set((state) => ({
           stageOrder: { ...state.stageOrder, [moduleId]: orderedIds },
@@ -347,7 +614,7 @@ export const useAppStore = create<AppState>()(
             studentProgress: { ...state.studentProgress, [moduleId]: newUnlocked },
           };
         });
-        if (newUnlocked > 0) void syncUpsertStudentProgress(moduleId, newUnlocked);
+        if (newUnlocked > 0 && moduleId !== 'adventure') void syncUpsertStudentProgress(moduleId, newUnlocked);
       },
 
       recordPractice: (params) => {
@@ -515,6 +782,7 @@ export const useAppStore = create<AppState>()(
           set({
             slicesPool: data.slicesPool,
             customStages: data.customStages,
+            adventureStages: data.adventureStages || [],
             lastSyncError: null,
           });
         } catch (e) {

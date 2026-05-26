@@ -132,6 +132,9 @@ export default function InteractiveQuiz() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const slicesPool = useAppStore(state => state.slicesPool);
+  const customStages = useAppStore(state => state.customStages);
+  const adventureStages = useAppStore(state => state.adventureStages);
+  const stageOrder = useAppStore(state => state.stageOrder);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
   const recordPractice = useAppStore(state => state.recordPractice);
 
@@ -139,6 +142,27 @@ export default function InteractiveQuiz() {
   const [sessionKey] = useState(() => Math.random());
 
   const { stage, stageIndex } = useMemo(() => {
+    const repeatQuestions = <T extends { slices: Slice[]; questionCount: number }>(found: T): T => {
+      const targetCount = found.questionCount || found.slices.length;
+      const shuffle = (arr: Slice[]) => [...arr].sort(() => Math.random() - 0.5);
+      const questions: Slice[] = [];
+      while (questions.length < targetCount && found.slices.length > 0) {
+        questions.push(...shuffle(found.slices));
+      }
+      return { ...found, slices: questions.slice(0, targetCount) };
+    };
+
+    const adventureQuizStages = useAppStore.getState().getAdventureStages();
+    const adventureIndex = adventureQuizStages.findIndex(s => s.id === stageId);
+    const adventureStage = adventureIndex >= 0 ? adventureQuizStages[adventureIndex] : null;
+    if (adventureStage) {
+      return { stage: repeatQuestions(adventureStage), stageIndex: adventureIndex + 1 };
+    }
+
+    if (stageId?.startsWith('adventure_')) {
+      return { stage: null, stageIndex: 0 };
+    }
+
     const parts = stageId?.split('_') || [];
     // 自定义关卡 id 格式: custom_xxx；自动关卡: auto_moduleId_stage_n
     const moduleId = parts[0] === 'custom'
@@ -149,17 +173,11 @@ export default function InteractiveQuiz() {
     const idx = stages.findIndex(s => s.id === stageId);
     const found = idx >= 0 ? stages[idx] : null;
     if (found) {
-      const targetCount = found.questionCount || found.slices.length;
-      const shuffle = (arr: typeof found.slices) => [...arr].sort(() => Math.random() - 0.5);
-      const questions: typeof found.slices = [];
-      while (questions.length < targetCount) {
-        questions.push(...shuffle(found.slices));
-      }
-      return { stage: { ...found, slices: questions.slice(0, targetCount) }, stageIndex: idx + 1 };
+      return { stage: repeatQuestions(found), stageIndex: idx + 1 };
     }
     return { stage: null, stageIndex: 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageId, slicesPool, sessionKey]);
+  }, [stageId, slicesPool, customStages, adventureStages, stageOrder, sessionKey]);
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
@@ -399,6 +417,15 @@ export default function InteractiveQuiz() {
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px' }}>
         <p style={{ color: '#6b7280', fontSize: '1.2rem' }}>Stage not found.</p>
         <button onClick={() => navigate(-1)} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Go Back</button>
+      </div>
+    );
+  }
+
+  if (stage.slices.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
+        <p style={{ color: '#6b7280', fontSize: '1.2rem' }}>这关还没有可用题目。</p>
+        <button onClick={() => navigate(-1)} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>返回</button>
       </div>
     );
   }

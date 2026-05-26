@@ -11,10 +11,11 @@ export type { StageData, StorageProvider } from './types';
 
 import { SupabaseStorageProvider } from './SupabaseStorageProvider';
 import { CloudflareStorageProvider } from './CloudflareStorageProvider';
+import { ServerStorageProvider } from './ServerStorageProvider';
 import { isSupabaseConfigured } from '../auth/supabaseClient';
 import type { StorageProvider, StageData } from './types';
 
-export { SupabaseStorageProvider, CloudflareStorageProvider };
+export { SupabaseStorageProvider, CloudflareStorageProvider, ServerStorageProvider };
 
 /**
  * Local file storage provider for dev/testing.
@@ -54,6 +55,7 @@ export function getStorageProvider(): StorageProvider | null {
   const override = (import.meta.env.VITE_STORAGE_PROVIDER || '').toLowerCase();
 
   if (override === 'supabase') return new SupabaseStorageProvider();
+  if (override === 'server') return new ServerStorageProvider();
   if (override === 'local') return new LocalFileStorageProvider();
   if (override === 'cloudflare') {
     return new CloudflareStorageProvider({

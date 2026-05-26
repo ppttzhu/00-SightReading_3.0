@@ -384,6 +384,316 @@ button {
   text-decoration: underline;
 }
 
+.client-soft-button {
+  align-self: flex-start;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.learning-home,
+.free-page,
+.adventure-page {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.learning-home {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 36px;
+}
+
+.learning-home-heading,
+.free-header,
+.adventure-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.learning-home-heading span,
+.free-kicker,
+.adventure-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+.learning-home-heading h1,
+.free-header h1,
+.adventure-title-block h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 2.6rem;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.free-header p,
+.adventure-title-block p {
+  max-width: 620px;
+  margin: 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.learning-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.learning-entry-card,
+.free-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-height: 180px;
+  padding: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 28px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.learning-entry-card:hover,
+.free-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--entry-color, var(--module-color)) 30%, #e5e7eb);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.1);
+}
+
+.learning-entry-icon,
+.free-icon {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: var(--entry-bg, var(--module-bg));
+  color: var(--entry-color, var(--module-color));
+}
+
+.learning-entry-copy,
+.free-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.learning-entry-copy strong,
+.free-card-body strong {
+  color: #111827;
+  font-size: 1.55rem;
+  line-height: 1.15;
+  font-weight: 800;
+}
+
+.learning-entry-copy small,
+.free-card-body small {
+  color: var(--entry-color, var(--module-color));
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.learning-entry-copy em,
+.free-card-body em {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 0.95rem;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.free-page,
+.adventure-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.free-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.free-card {
+  min-height: 170px;
+}
+
+.adventure-header {
+  position: relative;
+}
+
+.adventure-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.adventure-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 360px;
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.adventure-progress > div {
+  flex: 1;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.adventure-progress > div > div {
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 0.25s ease;
+}
+
+.adventure-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.adventure-path {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 0 28px;
+}
+
+.adventure-path::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  border-radius: 999px;
+  background: #dbeafe;
+  transform: translateX(-50%);
+}
+
+.adventure-node-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+}
+
+.adventure-node-row.left {
+  justify-content: flex-start;
+}
+
+.adventure-node-row.right {
+  justify-content: flex-end;
+}
+
+.adventure-node {
+  width: min(100%, 420px);
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  background: #ffffff;
+  color: #9ca3af;
+  text-align: left;
+  cursor: not-allowed;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.adventure-node.ready {
+  color: var(--node-color);
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--node-color) 32%, #e5e7eb);
+}
+
+.adventure-node.ready:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.1);
+}
+
+.adventure-node.complete {
+  background: color-mix(in srgb, var(--node-color) 8%, #ffffff);
+}
+
+.adventure-node-icon {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 12%, #ffffff);
+}
+
+.adventure-node-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adventure-node-text strong {
+  color: #111827;
+  font-size: 1.18rem;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.adventure-node-text small {
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 /* ============================================================
    CMS Layout
    ============================================================ */
@@ -470,6 +780,911 @@ button {
   text-align: center;
 }
 
+.cms-local-dev-banner {
+  padding: 10px 16px;
+  background: #fffbeb;
+  color: #92400e;
+  border-bottom: 1px solid #fde68a;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* ============================================================
+   CMS Adventure Editor
+   ============================================================ */
+.adventure-cms-page {
+  width: min(1180px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.adventure-cms-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.adventure-cms-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #2563eb;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.adventure-cms-header h1 {
+  margin: 8px 0 8px;
+  color: #111827;
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.adventure-cms-header p {
+  max-width: 760px;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.adventure-cms-stats {
+  min-width: 112px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  text-align: center;
+}
+
+.adventure-cms-stats strong {
+  display: block;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.adventure-cms-stats span {
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.adventure-cms-message {
+  padding: 10px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.adventure-cms-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: flex-start;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.adventure-cms-tabs button,
+.text-action,
+.primary-action,
+.question-pool-row,
+.preset-card,
+.stage-actions button,
+.selected-slice-row button {
+  cursor: pointer;
+}
+
+.adventure-cms-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 132px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.adventure-cms-tabs button.active {
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.08);
+}
+
+.adventure-cms-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.adventure-cms-panel {
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.04);
+}
+
+.official-path-panel {
+  grid-column: 1 / -1;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 1.05rem;
+}
+
+.panel-heading span {
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.cms-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.cms-field span {
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.cms-field input,
+.cms-field textarea,
+.cms-field select,
+.cms-search-field input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: #111827;
+  font: inherit;
+  background: #ffffff;
+}
+
+.cms-field textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.cms-field input:focus,
+.cms-field textarea:focus,
+.cms-field select:focus,
+.cms-search-field input:focus {
+  outline: 3px solid #dbeafe;
+  border-color: #2563eb;
+}
+
+.selected-slice-box {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.selected-slice-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 0.88rem;
+}
+
+.selected-slice-list,
+.question-pool-list,
+.official-stage-list,
+.draft-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-slice-list,
+.question-pool-list {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.selected-slice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.86rem;
+}
+
+.selected-slice-row button,
+.stage-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.pool-filter-grid,
+.assistant-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cms-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #64748b;
+}
+
+.question-pool-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  text-align: left;
+}
+
+.question-pool-row.selected {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.module-pill,
+.difficulty-pill,
+.stage-health {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.module-pill {
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--pill-color) 12%, #ffffff);
+  color: var(--pill-color);
+}
+
+.difficulty-pill {
+  padding: 3px 7px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.question-label {
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.official-stage-row,
+.draft-stage-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.draft-stage-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.stage-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 900;
+}
+
+.stage-main {
+  min-width: 0;
+}
+
+.stage-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stage-title-line strong,
+.draft-stage-row strong {
+  color: #111827;
+}
+
+.stage-main p,
+.draft-stage-row p {
+  margin: 4px 0;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.stage-main small,
+.draft-stage-row small {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+.stage-health {
+  padding: 3px 8px;
+}
+
+.stage-health.ok {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.stage-health.warn {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.stage-health.bad {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.stage-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.stage-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.stage-actions button.danger {
+  color: #dc2626;
+}
+
+.empty-state,
+.muted-text {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.adventure-assistant-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.preset-grid {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  text-align: left;
+}
+
+.preset-card.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.preset-card strong {
+  color: #111827;
+}
+
+.preset-card span {
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.module-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.module-checkboxes label,
+.review-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.module-checkboxes label {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pill-color) 9%, #ffffff);
+  color: var(--pill-color);
+}
+
+.review-toggle {
+  margin-bottom: 14px;
+}
+
+.draft-summary {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.draft-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.draft-warnings p {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.adventure-route-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.92fr) minmax(420px, 1.08fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.source-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 620px;
+  overflow: auto;
+}
+
+.source-stage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.source-stage-row.selected {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.stage-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 86px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.stage-add-button:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.cms-search-field.compact {
+  margin-bottom: 0;
+}
+
+/* ============================================================
+   Student Adventure Game Map
+   ============================================================ */
+.adventure-game-page {
+  width: min(100%, 1080px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.adventure-game-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+}
+
+.adventure-game-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.adventure-game-copy h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.adventure-game-copy p {
+  max-width: 620px;
+  margin: 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.adventure-game-progress {
+  min-width: 250px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.1);
+}
+
+.adventure-progress-medal {
+  width: 58px;
+  height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.adventure-game-progress strong {
+  display: block;
+  color: #111827;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.adventure-game-progress span {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.adventure-game-progress-bar {
+  height: 9px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.adventure-game-progress-bar > div {
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.adventure-quest-board {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(248, 250, 252, 0.98)),
+    radial-gradient(circle at 12% 18%, rgba(37, 99, 235, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 72%, rgba(22, 163, 74, 0.11), transparent 28%);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.adventure-quest-board::before {
+  content: '';
+  position: absolute;
+  top: 64px;
+  bottom: 64px;
+  left: 70px;
+  width: 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #93c5fd, #bfdbfe);
+}
+
+.adventure-quest-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-height: 118px;
+  padding: 16px 18px 16px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #111827;
+  text-align: left;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+}
+
+.adventure-quest-card.ready {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--node-color) 36%, #e5e7eb);
+}
+
+.adventure-quest-card.ready:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+}
+
+.adventure-quest-card.locked {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.quest-rail {
+  display: inline-flex;
+  justify-content: center;
+}
+
+.quest-orb {
+  width: 78px;
+  height: 78px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 7px solid #ffffff;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #94a3b8;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+}
+
+.adventure-quest-card.ready .quest-orb {
+  background: var(--node-color);
+  color: #ffffff;
+}
+
+.adventure-quest-card.complete .quest-orb {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.quest-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quest-card-topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quest-status-text {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.adventure-quest-card.ready .quest-status-text {
+  color: var(--node-color);
+}
+
+.adventure-quest-card.complete .quest-status-text {
+  color: #15803d;
+}
+
+.quest-card-body strong {
+  color: #111827;
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+
+.quest-card-body small {
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.quest-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.adventure-quest-card.ready .quest-action {
+  background: color-mix(in srgb, var(--node-color) 12%, #ffffff);
+  color: var(--node-color);
+}
+
+.adventure-quest-card.complete .quest-action {
+  background: #ecfdf5;
+  color: #15803d;
+}
+
+.level-chip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+@media (max-width: 920px) {
+  .adventure-cms-header,
+  .adventure-cms-grid,
+  .adventure-assistant-layout,
+  .adventure-route-grid,
+  .adventure-game-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .adventure-cms-header {
+    display: grid;
+  }
+
+  .pool-filter-grid,
+  .assistant-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .official-stage-row,
+  .draft-stage-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-actions {
+    justify-content: flex-start;
+  }
+
+  .adventure-game-progress {
+    min-width: 0;
+  }
+
+  .adventure-quest-board {
+    padding: 14px;
+  }
+
+  .adventure-quest-board::before {
+    left: 53px;
+  }
+
+  .adventure-quest-card {
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .quest-orb {
+    width: 58px;
+    height: 58px;
+    border-width: 5px;
+  }
+
+  .quest-action {
+    grid-column: 2;
+    justify-self: flex-start;
+  }
+}
+
 .cms-main {
   flex: 1;
   padding: 40px;
@@ -550,5 +1765,62 @@ button {
     width: 65px !important;
     height: 65px !important;
     font-size: 1.4rem !important;
+  }
+  .learning-home {
+    justify-content: flex-start;
+    gap: 24px;
+  }
+  .learning-home-heading h1,
+  .free-header h1,
+  .adventure-title-block h1 {
+    font-size: 1.9rem;
+  }
+  .learning-entry-grid,
+  .free-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .learning-entry-card,
+  .free-card {
+    min-height: 136px;
+    padding: 18px;
+    border-radius: 20px;
+  }
+  .learning-entry-icon,
+  .free-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+  }
+  .learning-entry-copy strong,
+  .free-card-body strong {
+    font-size: 1.2rem;
+  }
+  .learning-entry-copy em,
+  .free-card-body em,
+  .free-header p,
+  .adventure-title-block p {
+    font-size: 0.88rem;
+  }
+  .adventure-path::before {
+    left: 32px;
+  }
+  .adventure-node-row.left,
+  .adventure-node-row.right {
+    justify-content: flex-start;
+  }
+  .adventure-node {
+    width: 100%;
+    min-height: 104px;
+    margin-left: 0;
+    padding: 14px;
+    border-radius: 18px;
+  }
+  .adventure-node-icon {
+    width: 54px;
+    height: 54px;
+  }
+  .adventure-empty {
+    align-items: flex-start;
   }
 }

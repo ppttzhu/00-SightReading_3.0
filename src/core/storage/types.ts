@@ -5,11 +5,12 @@
  * Implement this interface to swap backends (GitHub Gist, Firebase, Supabase, etc.)
  */
 
-import type { Slice, CustomStage } from '../store/useAppStore';
+import type { Slice, CustomStage, AdventureStage } from '../store/useAppStore';
 
 export interface StageData {
   slicesPool: Slice[];
   customStages: CustomStage[];
+  adventureStages?: AdventureStage[];
   updatedAt: string; // ISO timestamp
 }
 

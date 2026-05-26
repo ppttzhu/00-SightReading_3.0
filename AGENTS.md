@@ -16,3 +16,7 @@ Use `@/openspec/AGENTS.md` to learn:
 Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
+
+## Repository Continuity
+
+Read `CODEX_ADMIN.md` for the Codex repository administrator role, local setup notes, and handoff checklist before making project changes.

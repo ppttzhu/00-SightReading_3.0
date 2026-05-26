@@ -6,6 +6,8 @@ interface CMSAuthGateProps {
   children: React.ReactNode;
 }
 
+const localCmsEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_LOCAL_CMS === 'true';
+
 export default function CMSAuthGate({ children }: CMSAuthGateProps) {
   const { user, profile, loading, profileLoading, configured } = useAuth();
 
@@ -20,6 +22,17 @@ export default function CMSAuthGate({ children }: CMSAuthGateProps) {
   }
 
   if (!configured) {
+    if (localCmsEnabled) {
+      return (
+        <>
+          <div className="cms-local-dev-banner">
+            教师端临时预览模式：Supabase 尚未配置，当前访问由服务器密码保护；发布会写入阿里云测试数据文件。
+          </div>
+          {children}
+        </>
+      );
+    }
+
     return (
       <div className="cms-auth-state">
         <div className="cms-auth-panel">

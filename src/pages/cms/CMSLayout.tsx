@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/cms/creator', label: '手动出题器', end: false },
   { to: '/cms/builder', label: '题库管理', end: false },
   { to: '/cms/stages', label: '关卡编排', end: false },
+  { to: '/cms/adventure', label: '主线编排', end: false },
   { to: '/cms/feedback', label: '反馈管理', end: false },
 ] as const;
 
