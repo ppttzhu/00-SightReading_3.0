@@ -82,6 +82,69 @@ function midiToPitch(midi: number): string {
   return `${names[idx]}${octave}`;
 }
 
+// ---- Interval spelling: degree-based enharmonic correction ----
+
+const INTERVAL_DEGREE: Record<string, number> = {
+  '纯一度 (P1)': 0,
+  '小二度 (m2)': 1, '大二度 (M2)': 1,
+  '小三度 (m3)': 2, '大三度 (M3)': 2,
+  '纯四度 (P4)': 3, '增四度 (A4)': 3, '三全音 (TT)': 3,
+  '减五度 (d5)': 4, '纯五度 (P5)': 4,
+  '小六度 (m6)': 5, '大六度 (M6)': 5,
+  '小七度 (m7)': 6, '大七度 (M7)': 6,
+  '纯八度 (P8)': 7,
+};
+
+const LETTER_SEMITONES: Record<string, number> = {
+  'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
+};
+
+const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+const LETTER_INDEX: Record<string, number> = {
+  'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6
+};
+
+const MIDI_TO_LETTER: Record<number, string> = {
+  0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B'
+};
+
+/** Spell the target note of an interval with correct enharmonic naming.
+ *  `knownMidi` is always a white-key MIDI — either the lower note (ascending)
+ *  or the upper note (descending). */
+function spellTargetNote(
+  knownMidi: number,
+  knownIsUpper: boolean,
+  intervalName: string,
+  semitones: number
+): string {
+  const degree = INTERVAL_DEGREE[intervalName];
+  if (degree === undefined) {
+    return midiToPitch(knownIsUpper ? knownMidi - semitones : knownMidi + semitones);
+  }
+
+  const knownPC = ((knownMidi % 12) + 12) % 12;
+  const knownLetter = MIDI_TO_LETTER[knownPC];
+  const knownLetterIdx = LETTER_INDEX[knownLetter];
+  const knownOctave = Math.floor(knownMidi / 12) - 1;
+  const knownDiatonicStep = knownLetterIdx + knownOctave * 7;
+
+  const targetDiatonicStep = knownIsUpper
+    ? knownDiatonicStep - degree
+    : knownDiatonicStep + degree;
+
+  const targetLetterIdx = ((targetDiatonicStep % 7) + 7) % 7;
+  const targetOctave = Math.floor(targetDiatonicStep / 7);
+  const targetLetter = LETTERS[targetLetterIdx];
+  const naturalMidi = LETTER_SEMITONES[targetLetter] + (targetOctave + 1) * 12;
+
+  const actualMidi = knownIsUpper ? knownMidi - semitones : knownMidi + semitones;
+  const diff = actualMidi - naturalMidi;
+  const accidental = diff === 0 ? '' : diff > 0 ? '#'.repeat(diff) : 'b'.repeat(-diff);
+
+  return `${targetLetter}${accidental}${targetOctave}`;
+}
+
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
   if (!match) return { key: 'c/4', accidental: null };
@@ -159,23 +222,32 @@ function generateInterval(
     semitones = options[Math.floor(Math.random() * options.length)];
   }
 
-  // 2. Determine direction
+  // 2. Pick interval name early — needed for correct enharmonic spelling
+  let namePool = SEMITONE_TO_NAMES[semitones] || [`${semitones}半音`];
+  if (type !== '随机') {
+    const typeGroup = INTERVAL_GROUPS[type] || [];
+    const filtered = namePool.filter(n => typeGroup.includes(n));
+    if (filtered.length > 0) namePool = filtered;
+  }
+  const intervalName = namePool[Math.floor(Math.random() * namePool.length)];
+
+  // 3. Determine direction
   let dir: number;
   if (direction === '上行') dir = 1;
   else if (direction === '下行') dir = -1;
   else dir = Math.random() > 0.5 ? 1 : -1;
 
-  // 3. Determine mode
+  // 4. Determine mode
   let isHarmonic: boolean;
   if (modePref === '和声音程') isHarmonic = true;
   else if (modePref === '旋律音程') isHarmonic = false;
   else isHarmonic = Math.random() > 0.5;
 
-  // 4. Compute valid starting range (ensure target stays in C2-C7)
+  // 5. Compute valid starting range (ensure target stays in C2-C7)
   const minStart = dir === 1 ? C2_MIDI : C2_MIDI + semitones;
   const maxStart = dir === 1 ? C7_MIDI - semitones : C7_MIDI;
 
-  // 5. Pick random white-key starting MIDI that fits the selected clef range
+  // 6. Pick random white-key starting MIDI that fits the selected clef range
   const candidates: number[] = [];
   for (let candidate = minStart; candidate <= maxStart; candidate++) {
     if (!isWhiteKeyMidi(candidate)) continue;
@@ -192,12 +264,13 @@ function generateInterval(
     startMidi = candidates[Math.floor(Math.random() * candidates.length)];
   }
 
-  // 6. Compute target
+  // 7. Compute target MIDI
   const targetMidi = startMidi + dir * semitones;
 
-  // 7. Build result
+  // 8. Spell pitches — root is always a white key, target uses degree-based spelling
   const startPitch = midiToPitch(startMidi);
-  const targetPitch = midiToPitch(targetMidi);
+  const targetPitch = spellTargetNote(startMidi, dir === -1, intervalName, semitones);
+
   const lowMidi = Math.min(startMidi, targetMidi);
   const highMidi = Math.max(startMidi, targetMidi);
 
@@ -207,7 +280,7 @@ function generateInterval(
     lowMidi,
     highMidi,
     semitones,
-    intervalName: (SEMITONE_TO_NAMES[semitones] || [`${semitones}半音`])[Math.floor(Math.random() * (SEMITONE_TO_NAMES[semitones]?.length || 1))],
+    intervalName,
     clef: getClef(lowMidi, highMidi, clefPref),
     isHarmonic,
   };
