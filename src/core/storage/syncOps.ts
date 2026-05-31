@@ -325,51 +325,56 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
 // ============================================================
 
 /**
- * 同步冒险进度到 Supabase。
- * 仅已登录学生写入；RLS 限制 auth.uid() = user_id。
+ * 记录一次冒险关卡完成到 Supabase。
+ * 每人每关一条，UPSERT 语义。
  */
-export async function syncUpsertAdventureProgress(
-  completedStageIds: string[],
+export async function syncRecordAdventureCompletion(
+  stageId: string,
+  stats: { correctCount: number; wrongCount: number; timeSpentSec: number },
 ): Promise<void> {
   if (!supabase) return;
   const { data } = await supabase.auth.getSession();
   if (!data.session) return;
 
+  const total = stats.correctCount + stats.wrongCount;
+  const score = total > 0 ? Math.round((stats.correctCount / total) * 100) : 0;
+
   const { error } = await supabase
-    .from('adventure_progress')
+    .from('adventure_stage_completions')
     .upsert(
       {
         user_id: data.session.user.id,
-        completed_stage_ids: completedStageIds,
-        updated_at: new Date().toISOString(),
+        stage_id: stageId,
+        correct_count: stats.correctCount,
+        wrong_count: stats.wrongCount,
+        time_spent_sec: stats.timeSpentSec,
+        score,
       } as never,
-      { onConflict: 'user_id' },
+      { onConflict: 'user_id,stage_id' },
     );
-  if (error) return reportSyncError('upsert adventure progress', error);
+  if (error) return reportSyncError('record adventure completion', error);
   await reportSyncOk();
 }
 
 /**
- * 从 Supabase 加载冒险进度。
- * 无数据时返回空数组。
+ * 从 Supabase 加载已完成的冒险关卡 ID 列表。
  */
-export async function syncLoadAdventureProgress(): Promise<string[]> {
+export async function syncLoadAdventureCompletedStageIds(): Promise<string[]> {
   if (!supabase) return [];
   const { data } = await supabase.auth.getSession();
   if (!data.session) return [];
 
-  const { data: row, error } = await supabase
-    .from('adventure_progress')
-    .select('completed_stage_ids')
+  const { data: rows, error } = await supabase
+    .from('adventure_stage_completions')
+    .select('stage_id')
     .eq('user_id', data.session.user.id)
-    .single();
+    .order('created_at', { ascending: true });
 
   if (error) {
-    if (error.code === 'PGRST116') return []; // 无数据
-    console.warn('[syncLoadAdventureProgress]', error.message);
+    console.warn('[syncLoadAdventureCompletedStageIds]', error.message);
     return [];
   }
-  return (row as any)?.completed_stage_ids || [];
+  return (rows as any[])?.map(r => r.stage_id) || [];
 }
 
 /** 记录闯关成功到 test_success_records（UPSERT，每人每关保留最新）。 */

@@ -13,8 +13,8 @@ import {
   syncRewriteStageOrder,
   syncRecordPractice,
   syncUpsertStudentProgress,
-  syncUpsertAdventureProgress,
-  syncLoadAdventureProgress,
+  syncRecordAdventureCompletion,
+  syncLoadAdventureCompletedStageIds,
 } from '../storage/syncOps';
 
 // ── Content Types ────────────────────────────────────────────
@@ -172,7 +172,7 @@ interface AppState {
   updateAdventureStage: (id: string, patch: Partial<Omit<AdventureStage, 'id'>>) => void;
   removeAdventureStage: (id: string) => void;
   moveAdventureStage: (id: string, direction: 'up' | 'down') => void;
-  completeAdventureStage: (stageId: string) => void;
+  completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number }) => void;
 
   addCustomStage: (stage: CustomStage) => void;
   updateCustomStage: (id: string, patch: Partial<CustomStage>) => void;
@@ -465,14 +465,16 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      completeAdventureStage: (stageId) => {
+      completeAdventureStage: (stageId, stats) => {
         let newIds: string[] = [];
         set((state) => {
           if (state.adventureCompletedStageIds.includes(stageId)) return state;
           newIds = [...state.adventureCompletedStageIds, stageId];
           return { adventureCompletedStageIds: newIds };
         });
-        if (newIds.length > 0) void syncUpsertAdventureProgress(newIds);
+        if (newIds.length > 0) {
+          void syncRecordAdventureCompletion(stageId, stats || { correctCount: 0, wrongCount: 0, timeSpentSec: 0 });
+        }
       },
 
       setStageOrder: (moduleId, orderedIds) => {
@@ -671,7 +673,7 @@ export const useAppStore = create<AppState>()(
 
       loadAdventureProgressFromRemote: async () => {
         try {
-          const remoteIds = await syncLoadAdventureProgress();
+          const remoteIds = await syncLoadAdventureCompletedStageIds();
           if (remoteIds.length === 0) return;
           set((state) => {
             const merged = new Set([...state.adventureCompletedStageIds, ...remoteIds]);
