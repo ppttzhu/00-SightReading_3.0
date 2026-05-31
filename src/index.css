@@ -674,29 +674,38 @@ button {
   align-items: center;
   gap: 18px;
   width: 100%;
-  min-height: 118px;
-  padding: 16px 18px 16px 8px;
+  min-height: 130px;
+  padding: 20px 22px 20px 12px;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
   color: #111827;
   text-align: left;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .adventure-quest-card.ready {
   cursor: pointer;
   border-color: color-mix(in srgb, var(--node-color) 36%, #e5e7eb);
+  background: color-mix(in srgb, var(--node-color) 3%, #ffffff);
 }
 
 .adventure-quest-card.ready:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.12);
+  border-color: var(--node-color);
 }
 
 .adventure-quest-card.locked {
   color: #94a3b8;
   cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.adventure-quest-card.complete {
+  border-color: color-mix(in srgb, #16a34a 30%, #e5e7eb);
+  background: color-mix(in srgb, #16a34a 4%, #ffffff);
 }
 
 .adventure-quest-card.complete .quest-orb {
@@ -710,8 +719,8 @@ button {
 }
 
 .quest-orb {
-  width: 78px;
-  height: 78px;
+  width: 82px;
+  height: 82px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -719,12 +728,19 @@ button {
   border-radius: 50%;
   background: #e5e7eb;
   color: #94a3b8;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .adventure-quest-card.ready .quest-orb {
-  background: var(--node-color);
+  background: linear-gradient(135deg, var(--node-color), color-mix(in srgb, var(--node-color) 70%, #000));
   color: #ffffff;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--node-color) 40%, transparent);
+}
+
+.adventure-quest-card.ready:hover .quest-orb {
+  transform: scale(1.06);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--node-color) 50%, transparent);
 }
 
 .quest-card-body {
@@ -734,60 +750,55 @@ button {
   gap: 6px;
 }
 
-.quest-card-topline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.quest-status-text {
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.adventure-quest-card.ready .quest-status-text {
-  color: var(--node-color);
-}
-
-.adventure-quest-card.complete .quest-status-text {
-  color: #15803d;
-}
-
 .quest-card-body strong {
   color: #111827;
-  font-size: 1.25rem;
-  line-height: 1.15;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.adventure-quest-card.locked .quest-card-body strong {
+  color: #9ca3af;
 }
 
 .quest-card-body small {
   color: #64748b;
-  font-size: 0.9rem;
-  line-height: 1.35;
+  font-size: 0.92rem;
+  line-height: 1.4;
 }
 
 .quest-desc {
   font-style: italic;
   opacity: 0.85;
+  font-size: 0.88rem;
+  color: #6b7280;
+  margin-top: 1px;
 }
 
 .quest-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 76px;
-  padding: 8px 12px;
+  min-width: 82px;
+  padding: 10px 16px;
   border-radius: 999px;
   background: #f1f5f9;
   color: #64748b;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 900;
+  letter-spacing: 0.02em;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .adventure-quest-card.ready .quest-action {
-  background: color-mix(in srgb, var(--node-color) 12%, #ffffff);
+  background: color-mix(in srgb, var(--node-color) 14%, #ffffff);
   color: var(--node-color);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--node-color) 20%, transparent);
+}
+
+.adventure-quest-card.ready:hover .quest-action {
+  transform: scale(1.04);
 }
 
 .adventure-quest-card.complete .quest-action {
@@ -1400,16 +1411,21 @@ button {
   .adventure-quest-card {
     grid-template-columns: 70px minmax(0, 1fr);
     gap: 12px;
-    padding: 14px;
+    padding: 16px;
   }
   .quest-orb {
-    width: 58px;
-    height: 58px;
+    width: 62px;
+    height: 62px;
     border-width: 5px;
+  }
+  .quest-card-body strong {
+    font-size: 1.15rem;
   }
   .quest-action {
     grid-column: 2;
     justify-self: flex-start;
+    min-width: 72px;
+    padding: 8px 14px;
   }
   .learning-home {
     justify-content: flex-start;
