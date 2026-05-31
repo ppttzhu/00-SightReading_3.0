@@ -32,21 +32,30 @@
   - 软引用避免数据冗余：删除 customStage 不影响 adventureStages 数组结构
 - **替代方案**：`CustomStage.module = 'adventure'`——混合路线的关卡本质不再是某个模块的关卡，强行归入会污染 module 语义
 
-### Decision 2: 数据库持久化使用独立表 `adventure_paths`
-- **决策**：新增 `adventure_paths` 表，而非在现有 `stages` 表中加列
+### Decision 2: 数据库持久化使用规范化表 `adventure_routes`
+- **决策**：新增 `adventure_routes` 表，每行代表一个关卡，按 `route_name + stage_order` 排序
 - **理由**：
-  - `stages` 表是 single stage 级别数据，`adventure_paths` 存储的是**路线编排**（一个数组 + 排序），粒度不同
-  - 独立表可以存储完整 JSON（整个路线数组），避免关联查询
+  - AdventureStage 字段固定（title, source_stage_id, question_count 等），用 JSONB 会丢失类型安全和查询能力
+  - 规范化表支持引用完整性检查（删除 customStage 时直接 `SELECT ... WHERE source_stage_id = 'x'`）
+  - 多路线支持天然：`route_name` 字段区分不同路线
 - **模式**：
   ```sql
-  CREATE TABLE IF NOT EXISTS adventure_paths (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    stages JSONB NOT NULL DEFAULT '[]',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  CREATE TABLE IF NOT EXISTS public.adventure_routes (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      route_name TEXT NOT NULL DEFAULT 'main',
+      stage_order INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      source_stage_id TEXT,
+      source_module TEXT,
+      question_count INTEGER NOT NULL DEFAULT 5,
+      unlock_rule TEXT NOT NULL DEFAULT 'previous_clear',
+      source TEXT NOT NULL DEFAULT 'manual',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(route_name, stage_order)
   );
   ```
-  `stages` 列存储完整的 `AdventureStage[]` 数组 JSONB
 
 ### Decision 3: 进度追踪改用 stageId 集合，不同步 Supabase
 - **决策**：冒险进度使用 `adventureCompletedStageIds: string[]` 记录已完成的 stage ID，而非用数字 `studentProgress.adventure`。进度仅存在本地 store（zustand persist 自动处理），不同步 Supabase `student_progress` 表
