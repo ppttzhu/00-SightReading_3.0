@@ -1,67 +1,57 @@
 import { useNavigate } from 'react-router-dom';
-import { Music, Hash, LibraryBig, Activity } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { Compass, Dumbbell } from 'lucide-react';
 
-const modules = [
-  { id: 'notes', label: '单音', title: 'Notes', color: '#3b82f6', bg: '#eff6ff', icon: <Music size={48} color="#3b82f6" strokeWidth={1.5} /> },
-  { id: 'symbols', label: '音乐表情记号', title: 'Symbols', color: '#ec4899', bg: '#fdf2f8', icon: <Hash size={48} color="#ec4899" strokeWidth={1.5} /> },
-  { id: 'theory', label: '双音/音程关系', title: 'Interval', color: '#8b5cf6', bg: '#f5f3ff', icon: <LibraryBig size={48} color="#8b5cf6" strokeWidth={1.5} /> },
-  { id: 'patterns', label: '音型', title: 'Patterns', color: '#10b981', bg: '#ecfdf5', icon: <Activity size={48} color="#10b981" strokeWidth={1.5} /> },
+const entryCards = [
+  {
+    title: '主线闯关',
+    subtitle: 'Adventure',
+    detail: '跟着老师编好的路线，一关一关解锁新内容。',
+    action: '/client/adventure',
+    color: '#2563eb',
+    bg: '#eff6ff',
+    icon: Compass,
+  },
+  {
+    title: '自由练习',
+    subtitle: 'Free Practice',
+    detail: '自己选择单音、双音、符号或音型，随时补练。',
+    action: '/client/free',
+    color: '#059669',
+    bg: '#ecfdf5',
+    icon: Dumbbell,
+  },
 ];
 
 export default function MainMenu() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '20px' }}>
-      <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111827', marginBottom: '60px', letterSpacing: '-1px' }} className="main-menu-title">
-        Select Your Trial
-      </h1>
-      <div className="main-menu-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '40px', maxWidth: '800px', width: '100%' }}>
-        {modules.map(m => (
-          <div
-            key={m.id}
-            className="main-menu-card"
-            onClick={() => navigate(`/client/module/${m.id}`)}
-            style={{
-              background: 'white',
-              borderRadius: '32px',
-              padding: '40px 30px',
-              textAlign: 'center',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              border: '1px solid #f3f4f6',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'translateY(-8px)';
-              e.currentTarget.style.boxShadow = `0 20px 40px ${m.color}15`;
-              e.currentTarget.style.borderColor = `${m.color}30`;
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.03)';
-              e.currentTarget.style.borderColor = '#f3f4f6';
-            }}
-          >
-            <div className="main-menu-icon" style={{
-              width: '100px',
-              height: '100px',
-              borderRadius: '28px',
-              background: m.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '24px'
-            }}>
-              {m.icon}
-            </div>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: '700', color: '#1f2937', margin: 0, letterSpacing: '-0.5px' }}>{m.title}</h2>
-            <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '400', fontFamily: "'Noto Serif SC', 'STSong', 'SimSun', serif", letterSpacing: '2px', marginTop: '6px' }}>{m.label}</span>
-          </div>
-        ))}
+    <div className="learning-home">
+      <div className="learning-home-heading">
+        <span><Compass size={18} /> Sight-Reading Path</span>
+        <h1>今天从哪里开始？</h1>
+      </div>
+
+      <div className="learning-entry-grid">
+        {entryCards.map(card => {
+          const Icon = card.icon;
+          return (
+            <button
+              key={card.action}
+              className="learning-entry-card"
+              onClick={() => navigate(card.action)}
+              style={{ '--entry-color': card.color, '--entry-bg': card.bg } as CSSProperties}
+            >
+              <span className="learning-entry-icon"><Icon size={48} /></span>
+              <span className="learning-entry-copy">
+                <strong>{card.title}</strong>
+                <small>{card.subtitle}</small>
+                <em>{card.detail}</em>
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

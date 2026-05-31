@@ -1,5 +1,5 @@
 import type { StageData, StorageProvider } from './types';
-import type { Slice, CustomStage } from '../store/useAppStore';
+import type { Slice, CustomStage, AdventureStage } from '../store/useAppStore';
 import { supabase } from '../auth/supabaseClient';
 
 /**
@@ -221,6 +221,18 @@ export class SupabaseStorageProvider implements StorageProvider {
         }
       }
     }
+
+    // --- adventure_paths ---
+    {
+      const { error: upsertErr } = await client
+        .from('adventure_paths')
+        .upsert({
+          id: '00000000-0000-0000-0000-000000000001',
+          stages: (data.adventureStages || []) as unknown as Record<string, unknown>[],
+          updated_at: new Date().toISOString(),
+        } as never, { onConflict: 'id' });
+      if (upsertErr) throw new Error(`[Supabase] 写入 adventure_paths 失败：${upsertErr.message}`);
+    }
   }
 
   async load(): Promise<StageData | null> {
@@ -272,9 +284,24 @@ export class SupabaseStorageProvider implements StorageProvider {
       guidance: row.guidance ?? undefined,
     }));
 
+    // --- adventure_paths ---
+    let adventureStages: AdventureStage[] = [];
+    const { data: adventureData, error: adventureErr } = await client
+      .from('adventure_paths')
+      .select('stages')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single();
+    if (adventureErr && adventureErr.code !== 'PGRST116') {
+      console.warn('[Supabase] 加载 adventure_paths 失败：', adventureErr.message);
+    }
+    if (adventureData) {
+      adventureStages = (adventureData.stages as unknown as AdventureStage[]) || [];
+    }
+
     return {
       slicesPool,
       customStages,
+      adventureStages,
       updatedAt: new Date().toISOString(),
     };
   }

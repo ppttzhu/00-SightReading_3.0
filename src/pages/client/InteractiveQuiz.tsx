@@ -183,12 +183,30 @@ export default function InteractiveQuiz() {
 
   const slicesPool = useAppStore(state => state.slicesPool);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
+  const completeAdventureStage = useAppStore(state => state.completeAdventureStage);
   const recordPractice = useAppStore(state => state.recordPractice);
 
   // Track a session key that changes each time the component mounts (new attempt)
   const [sessionKey] = useState(() => Math.random());
 
   const { stage, stageIndex } = useMemo(() => {
+    // 冒险关卡检测（放在 split 逻辑之前）
+    if (stageId?.startsWith('adventure_route_')) {
+      const adventureStages = useAppStore.getState().getAdventureStages();
+      const adventureIndex = adventureStages.findIndex(s => s.id === stageId);
+      const found = adventureIndex >= 0 ? adventureStages[adventureIndex] : null;
+      if (found) {
+        const targetCount = found.questionCount || found.slices.length;
+        const shuffle = (arr: typeof found.slices) => [...arr].sort(() => Math.random() - 0.5);
+        const questions: typeof found.slices = [];
+        while (questions.length < targetCount) {
+          questions.push(...shuffle(found.slices));
+        }
+        return { stage: { ...found, slices: questions.slice(0, targetCount) }, stageIndex: adventureIndex + 1 };
+      }
+      return { stage: null, stageIndex: 0 };
+    }
+
     const parts = stageId?.split('_') || [];
     // 自定义关卡 id 格式: custom_xxx；自动关卡: auto_moduleId_stage_n
     const moduleId = parts[0] === 'custom'
@@ -517,9 +535,14 @@ export default function InteractiveQuiz() {
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
-          unlockNextStage(stage.module, stageIndex);
-          navigate(-1);
-          setTimeout(() => alert('🎉 Stage Cleared!'), 100);
+          if (stage.module === 'adventure') {
+            completeAdventureStage(stage.id);
+            navigate('/client/adventure');
+          } else {
+            unlockNextStage(stage.module, stageIndex);
+            navigate(-1);
+            setTimeout(() => alert('🎉 Stage Cleared!'), 100);
+          }
         }
       }, 800);
     } else {
