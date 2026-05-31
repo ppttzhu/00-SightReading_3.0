@@ -73,10 +73,10 @@ export default function StageSelector() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <button
-        onClick={() => navigate('/client')}
+        onClick={() => { if (window.history.length > 1) { navigate(-1); } else { navigate('/client', { replace: true }); } }}
         style={{ alignSelf: 'flex-start', background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
       >
-        ← 返回主菜单
+        ← 返回
       </button>
       <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
         {moduleLabel} Trials

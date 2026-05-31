@@ -1,5 +1,5 @@
 import type { StageData, StorageProvider } from './types';
-import type { Slice, CustomStage } from '../store/useAppStore';
+import type { Slice, CustomStage, AdventureStage } from '../store/useAppStore';
 import { supabase } from '../auth/supabaseClient';
 
 /**
@@ -221,6 +221,35 @@ export class SupabaseStorageProvider implements StorageProvider {
         }
       }
     }
+
+    // --- adventure_routes (全量替换：删旧写新) ---
+    {
+      const { error: delErr } = await client
+        .from('adventure_routes')
+        .delete()
+        .eq('route_name', 'main');
+      if (delErr) throw new Error(`[Supabase] 清空 adventure_routes 失败：${delErr.message}`);
+
+      const stages = data.adventureStages || [];
+      if (stages.length > 0) {
+        const rows = stages.map((s) => ({
+          route_name: 'main',
+          stage_order: s.levelNum,
+          title: s.title,
+          description: s.description || null,
+          source_stage_id: s.sourceStageId,
+          source_module: s.sourceModule,
+          question_count: s.questionCount,
+          unlock_rule: s.unlockRule,
+          source: s.source || 'manual',
+          updated_at: new Date().toISOString(),
+        }));
+        const { error: insErr } = await client
+          .from('adventure_routes')
+          .insert(rows as never);
+        if (insErr) throw new Error(`[Supabase] 写入 adventure_routes 失败：${insErr.message}`);
+      }
+    }
   }
 
   async load(): Promise<StageData | null> {
@@ -272,9 +301,38 @@ export class SupabaseStorageProvider implements StorageProvider {
       guidance: row.guidance ?? undefined,
     }));
 
+    // --- adventure_routes ---
+    let adventureStages: AdventureStage[] = [];
+    const { data: routeRows, error: routeErr } = await client
+      .from('adventure_routes')
+      .select('*')
+      .eq('route_name', 'main')
+      .order('stage_order', { ascending: true });
+    if (routeErr) {
+      console.warn('[Supabase] 加载 adventure_routes 失败：', routeErr.message);
+    }
+    if (routeRows) {
+      adventureStages = (routeRows as any[]).map((r) => ({
+        id: r.source_stage_id
+          ? `adventure_route_${r.source_stage_id}_${(r.id as string).slice(0, 8)}`
+          : `adventure_route_unknown_${(r.id as string).slice(0, 8)}`,
+        title: r.title,
+        description: r.description || undefined,
+        levelNum: r.stage_order,
+        sourceStageId: r.source_stage_id,
+        sourceModule: r.source_module as AdventureStage['sourceModule'],
+        questionCount: r.question_count,
+        unlockRule: 'previous_clear' as const,
+        source: (r.source || 'manual') as 'manual' | 'assistant',
+        createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined,
+        updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
+      }));
+    }
+
     return {
       slicesPool,
       customStages,
+      adventureStages,
       updatedAt: new Date().toISOString(),
     };
   }
