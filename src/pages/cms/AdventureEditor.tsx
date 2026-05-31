@@ -152,7 +152,7 @@ export default function AdventureEditor() {
     addAdventureStage({
       id: `adventure_route_${source.id}`,
       title: source.title,
-      description: source.guidance || `引用现有关卡：${source.title}`,
+      description: source.guidance || '',
       sourceStageId: source.id,
       sourceModule: source.module,
       questionCount: source.questionCount || source.sliceIds.length || 1,
