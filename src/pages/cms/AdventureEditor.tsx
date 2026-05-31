@@ -305,10 +305,9 @@ export default function AdventureEditor() {
                             <p className="stage-desc">{stage.description}</p>
                           )}
                           <small>
-                            {info.sourceTitle && info.sourceTitle !== info.title
-                              ? `来源：${info.sourceTitle} · `
-                              : '引用现有关卡 · '}
-                            平均 L{routeStageAvgDifficulty(stage, customStages, sliceMap)}
+                            {info.sourceTitle
+                              ? `来源：${info.sourceTitle} · 平均 L${routeStageAvgDifficulty(stage, customStages, sliceMap)}`
+                              : '❌ 原关卡已失效'}
                           </small>
                         </>
                       )}
