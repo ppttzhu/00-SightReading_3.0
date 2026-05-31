@@ -767,6 +767,11 @@ button {
   line-height: 1.35;
 }
 
+.quest-desc {
+  font-style: italic;
+  opacity: 0.85;
+}
+
 .quest-action {
   display: inline-flex;
   align-items: center;
@@ -1244,6 +1249,113 @@ button {
   margin: 0;
   color: #94a3b8;
   font-size: 0.9rem;
+}
+
+/* ── CMS 场景：发布状态栏 ── */
+.adventure-cms-publish-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.adventure-cms-publish-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-dot.synced {
+  background: #16a34a;
+}
+
+.status-dot.changed {
+  background: #f59e0b;
+}
+
+/* ── CMS 场景：关卡编辑表单 ── */
+.stage-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage-edit-input,
+.stage-edit-textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #111827;
+  font: inherit;
+  background: #ffffff;
+}
+
+.stage-edit-input:focus,
+.stage-edit-textarea:focus {
+  outline: 3px solid #dbeafe;
+  border-color: #2563eb;
+}
+
+.stage-edit-textarea {
+  resize: vertical;
+  min-height: 52px;
+}
+
+.stage-edit-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.stage-desc {
+  margin: 4px 0;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-style: italic;
+}
+
+.text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primary-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 920px) {

@@ -130,6 +130,7 @@ export default function AdventureMap() {
                     </span>
                   </span>
                   <strong>{stage.title}</strong>
+                  {stage.description && <small className="quest-desc">{stage.description}</small>}
                   <small>{stage.slices.length} 题</small>
                 </span>
                 <span className="quest-action">

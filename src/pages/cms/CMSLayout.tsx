@@ -19,6 +19,7 @@ export default function CMSLayout() {
   const { publish, status, error } = usePublish();
   const { fetchRemote } = useFetchRemote();
   const poolSize = useAppStore(state => state.slicesPool.length);
+  const adventureCount = useAppStore(state => state.adventureStages.length);
   const location = useLocation();
 
   // persist 中间件异步恢复；hydration 完成前禁止发布，防止空数据误清远端
@@ -36,7 +37,8 @@ export default function CMSLayout() {
     }
   }, [hydrated]);
 
-  const publishDisabled = status === 'saving' || !hydrated || poolSize === 0;
+  const hasData = poolSize > 0 || adventureCount > 0;
+  const publishDisabled = status === 'saving' || !hydrated || !hasData;
 
   const publishBtnClass = useMemo(() => {
     return `cms-publish-btn ${status}`;
@@ -44,14 +46,19 @@ export default function CMSLayout() {
 
   const publishLabel = useMemo(() => {
     if (!hydrated) return '⏳ 数据加载中...';
-    if (poolSize === 0) return '📭 题库为空';
+    if (!hasData) return '📭 数据为空';
     switch (status) {
       case 'saving': return '⏳ 发布中...';
       case 'success': return '✅ 已发布!';
       case 'error': return '❌ 发布失败';
-      default: return `🚀 发布到云端 (${poolSize}题)`;
+      default: {
+        const parts: string[] = [];
+        if (poolSize > 0) parts.push(`${poolSize}题`);
+        if (adventureCount > 0) parts.push(`${adventureCount}关路线`);
+        return `🚀 发布到云端 (${parts.join(' + ')})`;
+      }
     }
-  }, [status, hydrated, poolSize]);
+  }, [status, hydrated, poolSize, adventureCount, hasData]);
 
   return (
     <div className="cms-layout">

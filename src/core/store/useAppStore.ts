@@ -90,6 +90,7 @@ export interface AutoStage {
   module: string;
   stageNum: number;
   title: string;
+  description?: string;
   slices: Slice[];
   questionCount: number;
 }
@@ -280,6 +281,7 @@ export const useAppStore = create<AppState>()(
               module: 'adventure',
               stageNum: idx + 1,
               title: stage.title,
+              description: stage.description,
               slices: [],
               questionCount: 0,
             };
@@ -292,7 +294,8 @@ export const useAppStore = create<AppState>()(
             id: stage.id,
             module: 'adventure',
             stageNum: idx + 1,
-            title: sourceStage.title,
+            title: stage.title || sourceStage.title,
+            description: stage.description || sourceStage.guidance,
             slices,
             questionCount: qc,
           };

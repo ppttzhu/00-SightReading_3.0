@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import { ArrowDown, ArrowUp, Plus, Route, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ExternalLink, Pencil, Plus, Route, Search, Trash2, X } from 'lucide-react';
 import {
   useAppStore,
   type AdventureStage,
   type QuizModuleId,
   type Slice,
 } from '../../core/store/useAppStore';
+import { usePublish } from '../../core/storage/useRemoteSync';
 
 const MODULE_OPTIONS: Array<{ value: QuizModuleId; label: string; color: string }> = [
   { value: 'notes', label: '单音', color: '#2563eb' },
@@ -27,7 +29,6 @@ function sortByLevel(stages: AdventureStage[]): AdventureStage[] {
   return [...stages].sort((a, b) => a.levelNum - b.levelNum || (a.createdAt || 0) - (b.createdAt || 0));
 }
 
-/** 现有关卡（CustomStage）的平均难度，用于左侧关卡库展示 */
 function stageAvgDifficulty(stage: { sliceIds: string[] }, sliceMap: Map<string, Slice>): string {
   const slices = stage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
   if (slices.length === 0) return '-';
@@ -35,7 +36,6 @@ function stageAvgDifficulty(stage: { sliceIds: string[] }, sliceMap: Map<string,
   return avg.toFixed(1);
 }
 
-/** 冒险关卡通过其 sourceStage 计算平均难度，用于右侧路线列表展示 */
 function routeStageAvgDifficulty(
   stage: AdventureStage,
   customStages: { id: string; sliceIds: string[] }[],
@@ -62,21 +62,63 @@ function describeStage(
   return {
     label: `${slices.length}/${qc} 题`,
     tone: 'ok',
-    title: sourceStage.title,
+    title: stage.title || sourceStage.title,
   };
 }
 
+/** 关卡编辑表单：标题 + 描述 */
+function EditableFields({
+  stage,
+  onSave,
+  onCancel,
+}: {
+  stage: AdventureStage;
+  onSave: (title: string, description: string) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(stage.title);
+  const [desc, setDesc] = useState(stage.description || '');
+  return (
+    <div className="stage-edit-form">
+      <input
+        className="stage-edit-input"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="关卡标题"
+        autoFocus
+      />
+      <textarea
+        className="stage-edit-textarea"
+        value={desc}
+        onChange={e => setDesc(e.target.value)}
+        placeholder="关卡说明（显示在学生端关卡卡片上）"
+        rows={2}
+      />
+      <div className="stage-edit-actions">
+        <button className="text-action" onClick={() => onSave(title, desc)}><Check size={14} /> 保存</button>
+        <button className="text-action" onClick={onCancel} style={{ color: '#6b7280' }}><X size={14} /> 取消</button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdventureEditor() {
+  const navigate = useNavigate();
+  const { publish, status: publishStatus, error: publishError } = usePublish();
+
   const slicesPool = useAppStore(s => s.slicesPool);
   const customStages = useAppStore(s => s.customStages);
   const adventureStages = useAppStore(s => s.adventureStages);
   const addAdventureStage = useAppStore(s => s.addAdventureStage);
   const removeAdventureStage = useAppStore(s => s.removeAdventureStage);
   const moveAdventureStage = useAppStore(s => s.moveAdventureStage);
+  const updateAdventureStage = useAppStore(s => s.updateAdventureStage);
 
   const [moduleFilter, setModuleFilter] = useState<'all' | QuizModuleId>('all');
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [publishMsg, setPublishMsg] = useState('');
 
   const orderedRoute = useMemo(() => sortByLevel(adventureStages), [adventureStages]);
   const sliceMap = useMemo(() => new Map(slicesPool.map(s => [s.id, s])), [slicesPool]);
@@ -117,8 +159,26 @@ export default function AdventureEditor() {
       unlockRule: 'previous_clear',
       source: 'manual',
     } as const);
-    showMsg('已加入正式主线。学生端会按右侧顺序显示。');
+    showMsg('已加入正式主线。');
   };
+
+  const handlePublish = async () => {
+    setPublishMsg('');
+    try {
+      await publish();
+      if (publishStatus === 'error') {
+        setPublishMsg(publishError || '发布失败');
+      } else {
+        setPublishMsg('✅ 路线已发布到云端');
+        setTimeout(() => setPublishMsg(''), 3000);
+      }
+    } catch (e: any) {
+      setPublishMsg(e.message || '发布失败');
+    }
+  };
+
+  // 判断本地是否有未发布的变更
+  const hasUnpublishedChanges = orderedRoute.length > 0;
 
   return (
     <div className="adventure-cms-page">
@@ -134,7 +194,25 @@ export default function AdventureEditor() {
         </div>
       </div>
 
-      {message && <div className="adventure-cms-message">{message}</div>}
+      {(message || publishMsg) && (
+        <div className="adventure-cms-message">{message || publishMsg}</div>
+      )}
+
+      {/* ── 发布状态栏 ── */}
+      <div className="adventure-cms-publish-bar">
+        <span className="adventure-cms-publish-status">
+          <span className={`status-dot ${hasUnpublishedChanges ? 'changed' : 'synced'}`} />
+          {hasUnpublishedChanges ? '本地已保存 · 尚未发布到云端' : '路线已发布'}
+        </span>
+        <button
+          className="primary-action"
+          onClick={handlePublish}
+          disabled={publishStatus === 'saving' || !hasUnpublishedChanges}
+          style={{ width: 'auto' }}
+        >
+          {publishStatus === 'saving' ? '⏳ 发布中...' : '🚀 发布路线'}
+        </button>
+      </div>
 
       <div className="adventure-route-grid">
         {/* 左侧：现有关卡库 */}
@@ -197,23 +275,49 @@ export default function AdventureEditor() {
             <div className="official-stage-list">
               {orderedRoute.map((stage, index) => {
                 const info = describeStage(stage, customStages, sliceMap);
-                const sourceModule = customStages.find(cs => cs.id === stage.sourceStageId)?.module || stage.sourceModule || 'notes';
+                const sourceStage = customStages.find(cs => cs.id === stage.sourceStageId);
+                const sourceModule = sourceStage?.module || stage.sourceModule || 'notes';
+                const isEditing = editingId === stage.id;
+
                 return (
                   <article key={stage.id} className="official-stage-row">
                     <div className="stage-order-badge">Lv.{stage.levelNum}</div>
                     <div className="stage-main">
-                      <div className="stage-title-line">
-                        <strong>{info.title}</strong>
-                        <span className={`stage-health ${info.tone}`}>{info.label}</span>
-                        <span className="module-pill" style={{ '--pill-color': moduleColor(sourceModule) } as CSSProperties}>{moduleLabel(sourceModule)}</span>
+                      {isEditing ? (
+                        <EditableFields
+                          stage={stage}
+                          onSave={(newTitle, newDesc) => {
+                            updateAdventureStage(stage.id, { title: newTitle, description: newDesc });
+                            setEditingId(null);
+                            showMsg('已更新关卡信息。');
+                          }}
+                          onCancel={() => setEditingId(null)}
+                        />
+                      ) : (
+                        <>
+                          <div className="stage-title-line">
+                            <strong>{info.title}</strong>
+                            <span className={`stage-health ${info.tone}`}>{info.label}</span>
+                            <span className="module-pill" style={{ '--pill-color': moduleColor(sourceModule) } as CSSProperties}>{moduleLabel(sourceModule)}</span>
+                          </div>
+                          {stage.description && (
+                            <p className="stage-desc">{stage.description}</p>
+                          )}
+                          <small>引用现有关卡 · 平均 L{routeStageAvgDifficulty(stage, customStages, sliceMap)}</small>
+                        </>
+                      )}
+                    </div>
+                    {!isEditing && (
+                      <div className="stage-actions">
+                        <button onClick={() => setEditingId(stage.id)} aria-label="编辑"><Pencil size={15} /></button>
+                        {sourceStage && (
+                          <button onClick={() => navigate(`/cms/stages?edit=${sourceStage.id}`)} aria-label="编辑来源关卡"><ExternalLink size={15} /></button>
+                        )}
+                        <button disabled={index === 0} onClick={() => moveAdventureStage(stage.id, 'up')} aria-label="上移"><ArrowUp size={15} /></button>
+                        <button disabled={index === orderedRoute.length - 1} onClick={() => moveAdventureStage(stage.id, 'down')} aria-label="下移"><ArrowDown size={15} /></button>
+                        <button className="danger" onClick={() => removeAdventureStage(stage.id)} aria-label="移出路线"><Trash2 size={15} /></button>
                       </div>
-                      <small>引用现有关卡 · 平均 L{routeStageAvgDifficulty(stage, customStages, sliceMap)}</small>
-                    </div>
-                    <div className="stage-actions">
-                      <button disabled={index === 0} onClick={() => moveAdventureStage(stage.id, 'up')} aria-label="上移"><ArrowUp size={15} /></button>
-                      <button disabled={index === orderedRoute.length - 1} onClick={() => moveAdventureStage(stage.id, 'down')} aria-label="下移"><ArrowDown size={15} /></button>
-                      <button className="danger" onClick={() => removeAdventureStage(stage.id)} aria-label="移出路线"><Trash2 size={15} /></button>
-                    </div>
+                    )}
                   </article>
                 );
               })}
