@@ -149,8 +149,9 @@ export default function AdventureEditor() {
   };
 
   const addToRoute = (source: typeof customStages[number]) => {
+    const existingCount = orderedRoute.filter(s => s.sourceStageId === source.id).length;
     addAdventureStage({
-      id: `adventure_route_${source.id}`,
+      id: `adventure_route_${source.id}_${existingCount + 1}`,
       title: source.title,
       description: source.guidance || '',
       sourceStageId: source.id,

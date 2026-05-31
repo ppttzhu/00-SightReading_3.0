@@ -313,7 +313,9 @@ export class SupabaseStorageProvider implements StorageProvider {
     }
     if (routeRows) {
       adventureStages = (routeRows as any[]).map((r) => ({
-        id: `adventure_route_${r.source_stage_id || 'unknown'}`,
+        id: r.source_stage_id
+          ? `adventure_route_${r.source_stage_id}_${(r.id as string).slice(0, 8)}`
+          : `adventure_route_unknown_${(r.id as string).slice(0, 8)}`,
         title: r.title,
         description: r.description || undefined,
         levelNum: r.stage_order,
