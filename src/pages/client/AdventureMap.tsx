@@ -105,7 +105,7 @@ export default function AdventureMap() {
             const isCompleted = completedIds.includes(stageId);
             const prevId = index > 0 ? stages[index - 1].id : null;
             const isUnlocked = index === 0 || (prevId ? completedIds.includes(prevId) : false);
-            const canPlay = isUnlocked && !isCompleted && stage.slices.length > 0;
+            const canPlay = isUnlocked && stage.slices.length > 0;
             const status = isCompleted ? 'complete' : canPlay ? 'ready' : 'locked';
             const tone = pathColors[index % pathColors.length];
 
