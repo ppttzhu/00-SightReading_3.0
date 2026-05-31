@@ -312,8 +312,8 @@ export class SupabaseStorageProvider implements StorageProvider {
       console.warn('[Supabase] 加载 adventure_routes 失败：', routeErr.message);
     }
     if (routeRows) {
-      adventureStages = (routeRows as any[]).map((r, idx) => ({
-        id: `adventure_route_load_${r.source_stage_id || idx}`,
+      adventureStages = (routeRows as any[]).map((r) => ({
+        id: `adventure_route_${r.source_stage_id || 'unknown'}`,
         title: r.title,
         description: r.description || undefined,
         levelNum: r.stage_order,

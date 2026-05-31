@@ -6,23 +6,28 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.adventure_stage_completions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL,
-    stage_id TEXT NOT NULL,
-    correct_count INTEGER NOT NULL DEFAULT 0,
-    wrong_count INTEGER NOT NULL DEFAULT 0,
-    time_spent_sec INTEGER NOT NULL DEFAULT 0,
-    score REAL NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(user_id, stage_id)
+    user_id          UUID NOT NULL,
+    stage_id         TEXT NOT NULL,
+    correct_count    INTEGER NOT NULL DEFAULT 0,
+    wrong_count      INTEGER NOT NULL DEFAULT 0,
+    time_spent_sec   INTEGER NOT NULL DEFAULT 0,
+    score            INTEGER NOT NULL DEFAULT 0,
+    attempt_count    INTEGER NOT NULL DEFAULT 1,
+    completed_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, stage_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_adventure_completions_user
-    ON public.adventure_stage_completions(user_id);
+CREATE INDEX IF NOT EXISTS idx_adventure_completions_stage
+    ON public.adventure_stage_completions(stage_id);
 
-COMMENT ON TABLE public.adventure_stage_completions IS '学生冒险闯关记录；每人每关一条，存储完成状态、得分和时间';
-COMMENT ON COLUMN public.adventure_stage_completions.stage_id IS '冒险关卡 ID（adventure_route_xxx）';
-COMMENT ON COLUMN public.adventure_stage_completions.score IS '正确率 0-100';
+COMMENT ON TABLE public.adventure_stage_completions
+    IS '学生冒险闯关记录；自然键 (user_id, stage_id)，retry 时 attempt_count +1，score 和 completed_at 刷新为最新';
+COMMENT ON COLUMN public.adventure_stage_completions.stage_id
+    IS '冒险关卡 ID（格式：adventure_route_{sourceStageId}）';
+COMMENT ON COLUMN public.adventure_stage_completions.score
+    IS '正确率 0-100（INT，与 test_success_records 一致）';
+COMMENT ON COLUMN public.adventure_stage_completions.attempt_count
+    IS '该关卡完成次数（含首次）';
 
 -- RLS：学生只能读写自己的行
 ALTER TABLE public.adventure_stage_completions ENABLE ROW LEVEL SECURITY;

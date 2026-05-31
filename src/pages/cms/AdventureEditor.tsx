@@ -151,7 +151,7 @@ export default function AdventureEditor() {
       return;
     }
     addAdventureStage({
-      id: `adventure_route_${Date.now()}_${source.id}`,
+      id: `adventure_route_${source.id}`,
       title: source.title,
       description: source.guidance || `引用现有关卡：${source.title}`,
       sourceStageId: source.id,

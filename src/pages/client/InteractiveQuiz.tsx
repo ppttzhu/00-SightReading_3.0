@@ -189,6 +189,11 @@ export default function InteractiveQuiz() {
   // Track a session key that changes each time the component mounts (new attempt)
   const [sessionKey] = useState(() => Math.random());
 
+  // 冒险闯关统计：跟踪正确/错误数、总用时
+  const correctCountRef = useRef(0);
+  const wrongCountRef = useRef(0);
+  const questStartRef = useRef(Date.now());
+
   const { stage, stageIndex } = useMemo(() => {
     // 冒险关卡检测（放在 split 逻辑之前）
     if (stageId?.startsWith('adventure_route_')) {
@@ -529,6 +534,7 @@ export default function InteractiveQuiz() {
 
     if (isCorrect) {
       setFeedback('correct');
+      correctCountRef.current += 1;  // 跟踪冒险闯关统计
       setTimeout(() => {
         audioEngine.stop();
         setFeedback('none');
@@ -536,7 +542,12 @@ export default function InteractiveQuiz() {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
           if (stage.module === 'adventure') {
-            completeAdventureStage(stage.id);
+            const timeSec = Math.round((Date.now() - questStartRef.current) / 1000);
+            completeAdventureStage(stage.id, {
+              correctCount: correctCountRef.current,
+              wrongCount: wrongCountRef.current,
+              timeSpentSec: timeSec,
+            });
             navigate('/client/adventure');
           } else {
             unlockNextStage(stage.module, stageIndex);
@@ -547,6 +558,7 @@ export default function InteractiveQuiz() {
       }, 800);
     } else {
       setFeedback('wrong');
+      wrongCountRef.current += 1;  // 跟踪冒险闯关统计
       setTimeout(() => setFeedback('none'), 600);
     }
   };

@@ -326,7 +326,9 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
 
 /**
  * 记录一次冒险关卡完成到 Supabase。
- * 每人每关一条，UPSERT 语义。
+ * PRIMARY KEY (user_id, stage_id) — 首次 insert，后续仅更新 attempt_count +1。
+ * 因 supabase-js upsert 不支持 ON CONFLICT DO UPDATE SET attempt_count = attempt_count + 1，
+ * 采用两步法：先 select 检查是否存在，再 insert / update。
  */
 export async function syncRecordAdventureCompletion(
   stageId: string,
@@ -338,21 +340,48 @@ export async function syncRecordAdventureCompletion(
 
   const total = stats.correctCount + stats.wrongCount;
   const score = total > 0 ? Math.round((stats.correctCount / total) * 100) : 0;
+  const userId = data.session.user.id;
 
-  const { error } = await supabase
+  // 检查是否已有记录
+  const { data: existing } = await supabase
     .from('adventure_stage_completions')
-    .upsert(
-      {
-        user_id: data.session.user.id,
+    .select('attempt_count')
+    .eq('user_id', userId)
+    .eq('stage_id', stageId)
+    .single();
+
+  if (existing) {
+    // 更新：attempt_count +1，刷新分数和时间
+    const { error } = await supabase
+      .from('adventure_stage_completions')
+      .update({
+        correct_count: stats.correctCount,
+        wrong_count: stats.wrongCount,
+        time_spent_sec: stats.timeSpentSec,
+        score,
+        attempt_count: existing.attempt_count + 1,
+        completed_at: new Date().toISOString(),
+      } as never)
+      .eq('user_id', userId)
+      .eq('stage_id', stageId);
+    if (error) return reportSyncError('update adventure completion', error);
+  } else {
+    // 首次插入
+    const { error } = await supabase
+      .from('adventure_stage_completions')
+      .insert({
+        user_id: userId,
         stage_id: stageId,
         correct_count: stats.correctCount,
         wrong_count: stats.wrongCount,
         time_spent_sec: stats.timeSpentSec,
         score,
-      } as never,
-      { onConflict: 'user_id,stage_id' },
-    );
-  if (error) return reportSyncError('record adventure completion', error);
+        attempt_count: 1,
+        completed_at: new Date().toISOString(),
+      } as never);
+    if (error) return reportSyncError('insert adventure completion', error);
+  }
+
   await reportSyncOk();
 }
 
@@ -368,7 +397,7 @@ export async function syncLoadAdventureCompletedStageIds(): Promise<string[]> {
     .from('adventure_stage_completions')
     .select('stage_id')
     .eq('user_id', data.session.user.id)
-    .order('created_at', { ascending: true });
+    .order('completed_at', { ascending: true });
 
   if (error) {
     console.warn('[syncLoadAdventureCompletedStageIds]', error.message);
