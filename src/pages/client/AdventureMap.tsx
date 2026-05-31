@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import { Check, Loader2, Lock, Music2, Play, RefreshCw, Route, Star, Trophy } from 'lucide-react';
+import { Check, Loader2, Lock, Music2, Play, RefreshCw, Route, Trophy } from 'lucide-react';
 import { useAppStore } from '../../core/store/useAppStore';
 
 const pathColors = ['#2563eb', '#0891b2', '#7c3aed', '#16a34a', '#ea580c', '#d946ef', '#f59e0b', '#06b6d4', '#84cc16', '#6366f1'];
@@ -124,7 +124,6 @@ export default function AdventureMap() {
                 </span>
                 <span className="quest-card-body">
                   <span className="quest-card-topline">
-                    <span className="level-chip">{isCompleted ? <Star size={13} /> : `Lv.${stage.stageNum}`}</span>
                     <span className="quest-status-text">
                       {isCompleted ? '已完成' : canPlay ? '当前可闯关' : '等待解锁'}
                     </span>

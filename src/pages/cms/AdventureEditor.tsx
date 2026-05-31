@@ -123,10 +123,13 @@ export default function AdventureEditor() {
 
   const orderedRoute = useMemo(() => sortByLevel(adventureStages), [adventureStages]);
   const sliceMap = useMemo(() => new Map(slicesPool.map(s => [s.id, s])), [slicesPool]);
-  const routeSourceIds = useMemo(
-    () => new Set(orderedRoute.map(s => s.sourceStageId).filter(Boolean) as string[]),
-    [orderedRoute],
-  );
+  const routeSourceCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    orderedRoute.forEach(s => {
+      if (s.sourceStageId) counts.set(s.sourceStageId, (counts.get(s.sourceStageId) || 0) + 1);
+    });
+    return counts;
+  }, [orderedRoute]);
 
   const visibleSourceStages = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -146,10 +149,6 @@ export default function AdventureEditor() {
   };
 
   const addToRoute = (source: typeof customStages[number]) => {
-    if (routeSourceIds.has(source.id)) {
-      showMsg('这关已经在主线里了。');
-      return;
-    }
     addAdventureStage({
       id: `adventure_route_${source.id}`,
       title: source.title,
@@ -245,18 +244,19 @@ export default function AdventureEditor() {
               <p className="empty-state">还没有可排序的现有关卡。请先去"关卡编排"创建普通关卡。</p>
             ) : visibleSourceStages.map(stage => {
               const slices = stage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
-              const selected = routeSourceIds.has(stage.id);
+              const inRouteCount = routeSourceCounts.get(stage.id) || 0;
               return (
-                <article key={stage.id} className={`source-stage-row${selected ? ' selected' : ''}`}>
+                <article key={stage.id} className={`source-stage-row${inRouteCount > 0 ? ' selected' : ''}`}>
                   <div className="stage-main">
                     <div className="stage-title-line">
                       <strong>{stage.title}</strong>
                       <span className="module-pill" style={{ '--pill-color': moduleColor(stage.module) } as CSSProperties}>{moduleLabel(stage.module)}</span>
+                      {inRouteCount > 0 && <span className="in-route-badge">路线中 ×{inRouteCount}</span>}
                     </div>
                     <small>{slices.length} 题 · 平均 L{stageAvgDifficulty(stage, sliceMap)}</small>
                   </div>
-                  <button className="stage-add-button" disabled={selected} onClick={() => addToRoute(stage)}>
-                    <Plus size={15} /> {selected ? '已在主线' : '加入主线'}
+                  <button className="stage-add-button" onClick={() => addToRoute(stage)}>
+                    <Plus size={15} /> 加入主线
                   </button>
                 </article>
               );

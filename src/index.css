@@ -1130,6 +1130,18 @@ button {
   font-size: 0.78rem;
 }
 
+.in-route-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .module-pill {
   display: inline-flex;
   align-items: center;
