@@ -320,6 +320,58 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
   }
 }
 
+// ============================================================
+// Adventure Progress
+// ============================================================
+
+/**
+ * 同步冒险进度到 Supabase。
+ * 仅已登录学生写入；RLS 限制 auth.uid() = user_id。
+ */
+export async function syncUpsertAdventureProgress(
+  completedStageIds: string[],
+): Promise<void> {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+
+  const { error } = await supabase
+    .from('adventure_progress')
+    .upsert(
+      {
+        user_id: data.session.user.id,
+        completed_stage_ids: completedStageIds,
+        updated_at: new Date().toISOString(),
+      } as never,
+      { onConflict: 'user_id' },
+    );
+  if (error) return reportSyncError('upsert adventure progress', error);
+  await reportSyncOk();
+}
+
+/**
+ * 从 Supabase 加载冒险进度。
+ * 无数据时返回空数组。
+ */
+export async function syncLoadAdventureProgress(): Promise<string[]> {
+  if (!supabase) return [];
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return [];
+
+  const { data: row, error } = await supabase
+    .from('adventure_progress')
+    .select('completed_stage_ids')
+    .eq('user_id', data.session.user.id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return []; // 无数据
+    console.warn('[syncLoadAdventureProgress]', error.message);
+    return [];
+  }
+  return (row as any)?.completed_stage_ids || [];
+}
+
 /** 记录闯关成功到 test_success_records（UPSERT，每人每关保留最新）。 */
 export async function syncRecordTestSuccess(params: {
   stageId: string;

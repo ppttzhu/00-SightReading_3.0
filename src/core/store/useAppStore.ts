@@ -13,6 +13,8 @@ import {
   syncRewriteStageOrder,
   syncRecordPractice,
   syncUpsertStudentProgress,
+  syncUpsertAdventureProgress,
+  syncLoadAdventureProgress,
 } from '../storage/syncOps';
 
 // ── Content Types ────────────────────────────────────────────
@@ -211,6 +213,9 @@ interface AppState {
 
   /** 拉取远端全量数据并替换本地 slicesPool / customStages / stageOrder。 */
   loadFromRemote: () => Promise<void>;
+
+  /** 从 Supabase 拉取冒险进度，与本地合并（取并集）。 */
+  loadAdventureProgressFromRemote: () => Promise<void>;
 }
 
 /** 计算指定 stage 在其 module 内的 sort_index（按 customStages 出现顺序）。 */
@@ -461,12 +466,13 @@ export const useAppStore = create<AppState>()(
       },
 
       completeAdventureStage: (stageId) => {
+        let newIds: string[] = [];
         set((state) => {
           if (state.adventureCompletedStageIds.includes(stageId)) return state;
-          return {
-            adventureCompletedStageIds: [...state.adventureCompletedStageIds, stageId],
-          };
+          newIds = [...state.adventureCompletedStageIds, stageId];
+          return { adventureCompletedStageIds: newIds };
         });
+        if (newIds.length > 0) void syncUpsertAdventureProgress(newIds);
       },
 
       setStageOrder: (moduleId, orderedIds) => {
@@ -660,6 +666,20 @@ export const useAppStore = create<AppState>()(
         } catch (e) {
           const message = e instanceof Error ? e.message : String(e);
           set({ lastSyncError: `load: ${message}` });
+        }
+      },
+
+      loadAdventureProgressFromRemote: async () => {
+        try {
+          const remoteIds = await syncLoadAdventureProgress();
+          if (remoteIds.length === 0) return;
+          set((state) => {
+            const merged = new Set([...state.adventureCompletedStageIds, ...remoteIds]);
+            return { adventureCompletedStageIds: [...merged] };
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          console.warn('[loadAdventureProgress]', message);
         }
       },
     }),
