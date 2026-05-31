@@ -53,16 +53,17 @@ function describeStage(
   stage: AdventureStage,
   customStages: { id: string; title: string; sliceIds: string[]; questionCount?: number; module: string }[],
   sliceMap: Map<string, Slice>,
-): { label: string; tone: 'ok' | 'warn' | 'bad'; title: string } {
+): { label: string; tone: 'ok' | 'warn' | 'bad'; title: string; sourceTitle: string | null } {
   const sourceStage = customStages.find(cs => cs.id === stage.sourceStageId);
-  if (!sourceStage) return { label: '原关卡已失效', tone: 'bad', title: stage.title };
+  if (!sourceStage) return { label: '原关卡已失效', tone: 'bad', title: stage.title, sourceTitle: null };
   const slices = sourceStage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
-  if (slices.length === 0) return { label: '空关卡', tone: 'bad', title: sourceStage.title };
+  if (slices.length === 0) return { label: '空关卡', tone: 'bad', title: sourceStage.title, sourceTitle: sourceStage.title };
   const qc = stage.questionCount || sourceStage.questionCount || sourceStage.sliceIds.length;
   return {
     label: `${slices.length}/${qc} 题`,
     tone: 'ok',
     title: stage.title || sourceStage.title,
+    sourceTitle: sourceStage.title,
   };
 }
 
@@ -303,7 +304,12 @@ export default function AdventureEditor() {
                           {stage.description && (
                             <p className="stage-desc">{stage.description}</p>
                           )}
-                          <small>引用现有关卡 · 平均 L{routeStageAvgDifficulty(stage, customStages, sliceMap)}</small>
+                          <small>
+                            {info.sourceTitle && info.sourceTitle !== info.title
+                              ? `来源：${info.sourceTitle} · `
+                              : '引用现有关卡 · '}
+                            平均 L{routeStageAvgDifficulty(stage, customStages, sliceMap)}
+                          </small>
                         </>
                       )}
                     </div>
