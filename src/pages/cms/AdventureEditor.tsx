@@ -27,12 +27,23 @@ function sortByLevel(stages: AdventureStage[]): AdventureStage[] {
   return [...stages].sort((a, b) => a.levelNum - b.levelNum || (a.createdAt || 0) - (b.createdAt || 0));
 }
 
-function stageSlices(stage: { sliceIds: string[] }, sliceMap: Map<string, Slice>): Slice[] {
-  return stage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
+/** 现有关卡（CustomStage）的平均难度，用于左侧关卡库展示 */
+function stageAvgDifficulty(stage: { sliceIds: string[] }, sliceMap: Map<string, Slice>): string {
+  const slices = stage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
+  if (slices.length === 0) return '-';
+  const avg = slices.reduce((sum, s) => sum + s.difficulty, 0) / slices.length;
+  return avg.toFixed(1);
 }
 
-function averageDifficulty(stage: { sliceIds: string[] }, sliceMap: Map<string, Slice>): string {
-  const slices = stageSlices(stage, sliceMap);
+/** 冒险关卡通过其 sourceStage 计算平均难度，用于右侧路线列表展示 */
+function routeStageAvgDifficulty(
+  stage: AdventureStage,
+  customStages: { id: string; sliceIds: string[] }[],
+  sliceMap: Map<string, Slice>,
+): string {
+  const src = customStages.find(cs => cs.id === stage.sourceStageId);
+  if (!src) return '-';
+  const slices = src.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
   if (slices.length === 0) return '-';
   const avg = slices.reduce((sum, s) => sum + s.difficulty, 0) / slices.length;
   return avg.toFixed(1);
@@ -43,17 +54,15 @@ function describeStage(
   customStages: { id: string; title: string; sliceIds: string[]; questionCount?: number; module: string }[],
   sliceMap: Map<string, Slice>,
 ): { label: string; tone: 'ok' | 'warn' | 'bad'; title: string } {
-  const sourceStage = stage.sourceStageId
-    ? customStages.find(cs => cs.id === stage.sourceStageId)
-    : undefined;
-  const effective = sourceStage || stage;
-  const slices = stageSlices(effective, sliceMap);
-  if (!sourceStage && stage.sourceStageId) return { label: '原关卡已失效', tone: 'bad', title: stage.title };
-  if (slices.length === 0) return { label: '空关卡', tone: 'bad', title: sourceStage?.title || stage.title };
+  const sourceStage = customStages.find(cs => cs.id === stage.sourceStageId);
+  if (!sourceStage) return { label: '原关卡已失效', tone: 'bad', title: stage.title };
+  const slices = sourceStage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
+  if (slices.length === 0) return { label: '空关卡', tone: 'bad', title: sourceStage.title };
+  const qc = stage.questionCount || sourceStage.questionCount || sourceStage.sliceIds.length;
   return {
-    label: `${slices.length}/${effective.questionCount || slices.length} 题`,
+    label: `${slices.length}/${qc} 题`,
     tone: 'ok',
-    title: sourceStage?.title || stage.title,
+    title: sourceStage.title,
   };
 }
 
@@ -82,8 +91,8 @@ export default function AdventureEditor() {
       .filter(s => moduleFilter === 'all' || s.module === moduleFilter)
       .filter(s => !q || s.title.toLowerCase().includes(q))
       .sort((a, b) => {
-        const da = Number(averageDifficulty(a, sliceMap));
-        const db = Number(averageDifficulty(b, sliceMap));
+        const da = Number(stageAvgDifficulty(a, sliceMap));
+        const db = Number(stageAvgDifficulty(b, sliceMap));
         return da - db || a.title.localeCompare(b.title);
       });
   }, [customStages, moduleFilter, search, sliceMap]);
@@ -101,14 +110,13 @@ export default function AdventureEditor() {
     addAdventureStage({
       id: `adventure_route_${Date.now()}_${source.id}`,
       title: source.title,
-      description: `引用现有关卡：${source.title}`,
+      description: source.guidance || `引用现有关卡：${source.title}`,
       sourceStageId: source.id,
       sourceModule: source.module,
-      sliceIds: source.sliceIds,
       questionCount: source.questionCount || source.sliceIds.length || 1,
       unlockRule: 'previous_clear',
       source: 'manual',
-    });
+    } as const);
     showMsg('已加入正式主线。学生端会按右侧顺序显示。');
   };
 
@@ -157,7 +165,7 @@ export default function AdventureEditor() {
             {visibleSourceStages.length === 0 ? (
               <p className="empty-state">还没有可排序的现有关卡。请先去"关卡编排"创建普通关卡。</p>
             ) : visibleSourceStages.map(stage => {
-              const slices = stageSlices(stage, sliceMap);
+              const slices = stage.sliceIds.map(sid => sliceMap.get(sid)).filter(Boolean) as Slice[];
               const selected = routeSourceIds.has(stage.id);
               return (
                 <article key={stage.id} className={`source-stage-row${selected ? ' selected' : ''}`}>
@@ -166,7 +174,7 @@ export default function AdventureEditor() {
                       <strong>{stage.title}</strong>
                       <span className="module-pill" style={{ '--pill-color': moduleColor(stage.module) } as CSSProperties}>{moduleLabel(stage.module)}</span>
                     </div>
-                    <small>{slices.length} 题 · 平均 L{averageDifficulty(stage, sliceMap)}</small>
+                    <small>{slices.length} 题 · 平均 L{stageAvgDifficulty(stage, sliceMap)}</small>
                   </div>
                   <button className="stage-add-button" disabled={selected} onClick={() => addToRoute(stage)}>
                     <Plus size={15} /> {selected ? '已在主线' : '加入主线'}
@@ -199,7 +207,7 @@ export default function AdventureEditor() {
                         <span className={`stage-health ${info.tone}`}>{info.label}</span>
                         <span className="module-pill" style={{ '--pill-color': moduleColor(sourceModule) } as CSSProperties}>{moduleLabel(sourceModule)}</span>
                       </div>
-                      <small>引用现有关卡 · 平均 L{averageDifficulty(stage, sliceMap)}</small>
+                      <small>引用现有关卡 · 平均 L{routeStageAvgDifficulty(stage, customStages, sliceMap)}</small>
                     </div>
                     <div className="stage-actions">
                       <button disabled={index === 0} onClick={() => moveAdventureStage(stage.id, 'up')} aria-label="上移"><ArrowUp size={15} /></button>

@@ -222,16 +222,33 @@ export class SupabaseStorageProvider implements StorageProvider {
       }
     }
 
-    // --- adventure_paths ---
+    // --- adventure_routes (全量替换：删旧写新) ---
     {
-      const { error: upsertErr } = await client
-        .from('adventure_paths')
-        .upsert({
-          id: '00000000-0000-0000-0000-000000000001',
-          stages: (data.adventureStages || []) as unknown as Record<string, unknown>[],
+      const { error: delErr } = await client
+        .from('adventure_routes')
+        .delete()
+        .eq('route_name', 'main');
+      if (delErr) throw new Error(`[Supabase] 清空 adventure_routes 失败：${delErr.message}`);
+
+      const stages = data.adventureStages || [];
+      if (stages.length > 0) {
+        const rows = stages.map((s) => ({
+          route_name: 'main',
+          stage_order: s.levelNum,
+          title: s.title,
+          description: s.description || null,
+          source_stage_id: s.sourceStageId,
+          source_module: s.sourceModule,
+          question_count: s.questionCount,
+          unlock_rule: s.unlockRule,
+          source: s.source || 'manual',
           updated_at: new Date().toISOString(),
-        } as never, { onConflict: 'id' });
-      if (upsertErr) throw new Error(`[Supabase] 写入 adventure_paths 失败：${upsertErr.message}`);
+        }));
+        const { error: insErr } = await client
+          .from('adventure_routes')
+          .insert(rows as never);
+        if (insErr) throw new Error(`[Supabase] 写入 adventure_routes 失败：${insErr.message}`);
+      }
     }
   }
 
@@ -284,18 +301,30 @@ export class SupabaseStorageProvider implements StorageProvider {
       guidance: row.guidance ?? undefined,
     }));
 
-    // --- adventure_paths ---
+    // --- adventure_routes ---
     let adventureStages: AdventureStage[] = [];
-    const { data: adventureData, error: adventureErr } = await client
-      .from('adventure_paths')
-      .select('stages')
-      .eq('id', '00000000-0000-0000-0000-000000000001')
-      .single();
-    if (adventureErr && adventureErr.code !== 'PGRST116') {
-      console.warn('[Supabase] 加载 adventure_paths 失败：', adventureErr.message);
+    const { data: routeRows, error: routeErr } = await client
+      .from('adventure_routes')
+      .select('*')
+      .eq('route_name', 'main')
+      .order('stage_order', { ascending: true });
+    if (routeErr) {
+      console.warn('[Supabase] 加载 adventure_routes 失败：', routeErr.message);
     }
-    if (adventureData) {
-      adventureStages = (adventureData.stages as unknown as AdventureStage[]) || [];
+    if (routeRows) {
+      adventureStages = (routeRows as any[]).map((r, idx) => ({
+        id: `adventure_route_load_${r.source_stage_id || idx}`,
+        title: r.title,
+        description: r.description || undefined,
+        levelNum: r.stage_order,
+        sourceStageId: r.source_stage_id,
+        sourceModule: r.source_module as AdventureStage['sourceModule'],
+        questionCount: r.question_count,
+        unlockRule: 'previous_clear' as const,
+        source: (r.source || 'manual') as 'manual' | 'assistant',
+        createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined,
+        updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
+      }));
     }
 
     return {

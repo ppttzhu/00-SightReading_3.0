@@ -104,9 +104,8 @@ export interface AdventureStage {
   title: string;
   description?: string;
   levelNum: number;
-  sourceStageId?: string;
-  sourceModule?: QuizModuleId;
-  sliceIds: string[];
+  sourceStageId: string;         // 引用 customStages.id，不再为可选（删除时已有引用检查）
+  sourceModule: QuizModuleId;    // 来源模块，用于 CMS 标签展示
   questionCount: number;
   unlockRule: 'previous_clear';
   source?: 'manual' | 'assistant';
@@ -274,22 +273,28 @@ export const useAppStore = create<AppState>()(
         const state = get();
         if (state.adventureStages.length === 0) return [];
         return orderAdventureStages(state.adventureStages).map((stage, idx) => {
-          const sourceStage = stage.sourceStageId
-            ? state.customStages.find(cs => cs.id === stage.sourceStageId)
-            : undefined;
-          const sliceIds = sourceStage?.sliceIds || stage.sliceIds;
-          const title = sourceStage?.title || stage.title;
-          const questionCount = sourceStage?.questionCount || stage.questionCount || sliceIds.length;
-          const slices = sliceIds
+          const sourceStage = state.customStages.find(cs => cs.id === stage.sourceStageId);
+          if (!sourceStage) {
+            return {
+              id: stage.id,
+              module: 'adventure',
+              stageNum: idx + 1,
+              title: stage.title,
+              slices: [],
+              questionCount: 0,
+            };
+          }
+          const slices = sourceStage.sliceIds
             .map(sid => state.slicesPool.find(s => s.id === sid))
             .filter(Boolean) as Slice[];
+          const qc = stage.questionCount || sourceStage.questionCount || sourceStage.sliceIds.length || slices.length;
           return {
             id: stage.id,
             module: 'adventure',
             stageNum: idx + 1,
-            title,
+            title: sourceStage.title,
             slices,
-            questionCount: questionCount || slices.length,
+            questionCount: qc,
           };
         });
       },
@@ -345,10 +350,6 @@ export const useAppStore = create<AppState>()(
           customStages: state.customStages.map(cs => ({
             ...cs,
             sliceIds: cs.sliceIds.filter(sid => sid !== id),
-          })),
-          adventureStages: state.adventureStages.map(stage => ({
-            ...stage,
-            sliceIds: stage.sliceIds.filter(sid => sid !== id),
           })),
         }));
         void syncSoftDeleteSlice(id);
@@ -411,9 +412,14 @@ export const useAppStore = create<AppState>()(
           adventureStages: orderAdventureStages([
             ...state.adventureStages,
             {
-              ...stage,
+              id: stage.id,
+              title: stage.title,
+              description: stage.description,
               levelNum: stage.levelNum ?? state.adventureStages.length + 1,
-              unlockRule: stage.unlockRule || 'previous_clear',
+              sourceStageId: stage.sourceStageId,
+              sourceModule: stage.sourceModule,
+              questionCount: stage.questionCount,
+              unlockRule: 'previous_clear',
               source: stage.source || 'manual',
               createdAt: stage.createdAt || now,
               updatedAt: now,
