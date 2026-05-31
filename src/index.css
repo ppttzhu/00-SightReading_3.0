@@ -776,6 +776,13 @@ button {
   margin-top: 1px;
 }
 
+.quest-placeholder {
+  font-size: 0.88rem;
+  color: #cbd5e1;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
 .quest-action {
   display: inline-flex;
   align-items: center;

@@ -124,7 +124,9 @@ export default function AdventureMap() {
                 </span>
                 <span className="quest-card-body">
                   <strong>{stage.title}</strong>
-                  {stage.description && <small className="quest-desc">{stage.description}</small>}
+                  <small className={stage.description ? 'quest-desc' : 'quest-placeholder'}>
+                    {stage.description || '等待解锁'}
+                  </small>
                 </span>
                 <span className="quest-action">
                   {canPlay ? '闯关' : isCompleted ? '复习' : '锁定'}
