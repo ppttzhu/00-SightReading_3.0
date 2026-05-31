@@ -129,7 +129,7 @@ export default function AdventureMap() {
                   </small>
                 </span>
                 <span className="quest-action">
-                  {canPlay ? '闯关' : isCompleted ? '复习' : '锁定'}
+                  {isCompleted ? '复习' : canPlay ? '闯关' : '锁定'}
                 </span>
               </button>
             );
