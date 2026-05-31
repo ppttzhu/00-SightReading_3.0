@@ -123,17 +123,11 @@ export default function AdventureMap() {
                   </span>
                 </span>
                 <span className="quest-card-body">
-                  <span className="quest-card-topline">
-                    <span className="quest-status-text">
-                      {isCompleted ? '已完成' : canPlay ? '当前可闯关' : '等待解锁'}
-                    </span>
-                  </span>
                   <strong>{stage.title}</strong>
                   {stage.description && <small className="quest-desc">{stage.description}</small>}
-                  <small>{stage.slices.length} 题</small>
                 </span>
                 <span className="quest-action">
-                  {canPlay ? '开始' : isCompleted ? '复习' : '锁定'}
+                  {canPlay ? '闯关' : isCompleted ? '复习' : '锁定'}
                 </span>
               </button>
             );
