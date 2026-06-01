@@ -1466,6 +1466,26 @@ button {
   }
 }
 
+.quiz-solfege {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  z-index: 1;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.quiz-solfege--correct {
+  color: #16a34a;
+}
+.quiz-solfege--wrong {
+  color: #ef4444;
+}
+
 /* ============================================================
    Responsive: Mobile adjustments
    ============================================================ */
@@ -1521,6 +1541,18 @@ button {
     padding: 20px !important;
     border-radius: 20px !important;
     margin-bottom: 30px !important;
+  }
+  .quiz-card--grand {
+    padding: 10px 12px !important;
+    margin-bottom: 12px !important;
+    min-height: unset !important;
+  }
+  .quiz-body {
+    justify-content: flex-start !important;
+  }
+  .quiz-solfege {
+    font-size: 2rem !important;
+    margin-bottom: 2px !important;
   }
   .quiz-options {
     gap: 10px !important;

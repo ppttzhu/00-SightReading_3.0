@@ -96,6 +96,62 @@ describe('AudioEngine — release audio session on hidden', () => {
     expect(mocks.rawContext.suspend).not.toHaveBeenCalled();
   });
 
+  it('playNotes triggers all pitches at the same Tone.now()', async () => {
+    const { audioEngine } = await import('./AudioEngine');
+    (audioEngine as unknown as { isReady: boolean }).isReady = true;
+    (audioEngine as unknown as { enabled: boolean }).enabled = true;
+
+    await audioEngine.playNotes(['C4', 'E4']);
+
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledTimes(2);
+    const times = mocks.samplerInstance.triggerAttack.mock.calls.map(
+      (call: unknown[]) => call[1],
+    );
+    expect(times[0]).toBe(times[1]);
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledWith('C4', 0);
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledWith('E4', 0);
+  });
+
+  it('playNotes re-triggers the same pitches after release (rapid option clicks)', async () => {
+    mocks.samplerInstance.triggerAttack.mockClear();
+    mocks.samplerInstance.triggerRelease.mockClear();
+    const { audioEngine } = await import('./AudioEngine');
+    (audioEngine as unknown as { isReady: boolean }).isReady = true;
+    (audioEngine as unknown as { enabled: boolean }).enabled = true;
+
+    await audioEngine.playNotes(['C4', 'E4']);
+    await audioEngine.playNotes(['C4', 'E4']);
+
+    expect(mocks.samplerInstance.triggerRelease).toHaveBeenCalled();
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledTimes(4);
+  });
+
+  it('preview playNote re-attacks the same pitch on rapid clicks', async () => {
+    mocks.samplerInstance.triggerAttack.mockClear();
+    mocks.samplerInstance.triggerRelease.mockClear();
+    const { audioEngine } = await import('./AudioEngine');
+    (audioEngine as unknown as { isReady: boolean }).isReady = true;
+    (audioEngine as unknown as { enabled: boolean }).enabled = true;
+
+    await audioEngine.playNote('C4', { preview: true });
+    await audioEngine.playNote('C4', { preview: true });
+
+    expect(mocks.samplerInstance.triggerRelease).toHaveBeenCalled();
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledTimes(2);
+  });
+
+  it('playNotes deduplicates unison to a single attack', async () => {
+    mocks.samplerInstance.triggerAttack.mockClear();
+    const { audioEngine } = await import('./AudioEngine');
+    (audioEngine as unknown as { isReady: boolean }).isReady = true;
+    (audioEngine as unknown as { enabled: boolean }).enabled = true;
+
+    await audioEngine.playNotes(['G4', 'G4']);
+
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledTimes(1);
+    expect(mocks.samplerInstance.triggerAttack).toHaveBeenCalledWith('G4', 0);
+  });
+
   it('pauses the iOS silent-unlock audio element when hidden', () => {
     const pauseSpy = vi.fn();
     const fakeAudio = { paused: false, pause: pauseSpy } as unknown as HTMLAudioElement;

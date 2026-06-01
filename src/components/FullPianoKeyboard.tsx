@@ -53,9 +53,11 @@ interface Props {
   /** Accepted for API parity with the single-octave PianoKeyboard; the full
    *  keyboard plays the clicked key's actual pitch and does not need this. */
   referencePitch?: string;
+  /** 预览模式：短促发声并触发 start/fade/end 生命周期事件 */
+  previewAudio?: boolean;
 }
 
-export default function FullPianoKeyboard({ onAnswer, feedback }: Props) {
+export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const suppressClickRef = useRef(false);
   // Only meaningful while feedback is non-none; flashFill becomes null on
@@ -82,7 +84,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback }: Props) {
     }
     if (disabled) return;
     setLastClickedId(k.id);
-    void audioEngine.playNote(k.id);
+    void audioEngine.playNote(k.id, previewAudio ? { preview: true } : undefined);
     onAnswer(k.id);
   };
 

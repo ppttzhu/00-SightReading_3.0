@@ -1,3 +1,10 @@
+/** 将 C#4 / Bb5 等音高字符串规范为 Tone.Sampler 可识别的格式 */
+export function pitchToToneNote(pitch: string): string {
+  const m = pitch.match(/^([A-Ga-g])(#|b)?(\d+)$/);
+  if (!m) return 'C4';
+  return `${m[1].toUpperCase()}${m[2] || ''}${m[3]}`;
+}
+
 /** 从音高字符串（如 C3、F#4、Bb5）解析八度 */
 export function getOctaveFromPitch(pitch: string): number {
   const m = pitch.match(/(\d+)$/);

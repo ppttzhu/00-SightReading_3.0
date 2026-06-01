@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector, Stem } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
-import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import NotesInputModeToggle from '../../components/NotesInputModeToggle';
+import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
@@ -256,7 +258,7 @@ export default function InteractiveQuiz() {
     const t2 = setTimeout(() => setShowAudioTip(false), 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  const [usePiano, setUsePiano] = useNotesInputMode();
   // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
   // which excludes phones and most touch-only tablets.
   const [hasFinePointer] = useState(() =>
@@ -559,7 +561,7 @@ export default function InteractiveQuiz() {
     } else {
       setFeedback('wrong');
       wrongCountRef.current += 1;  // 跟踪冒险闯关统计
-      setTimeout(() => setFeedback('none'), 600);
+      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
     }
   };
   handleAnswerRef.current = handleAnswer;
@@ -596,7 +598,10 @@ export default function InteractiveQuiz() {
         <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
           {stage.title} <span style={{ color: '#9ca3af', fontWeight: '500', marginLeft: '10px' }}>{currentSliceIndex + 1} / {stage.slices.length}</span>
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {currentSlice?.module === 'notes' && (
+            <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} />
+          )}
           <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
           </div>
@@ -684,8 +689,15 @@ export default function InteractiveQuiz() {
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
                 onClick={() => {
-                  if (audioEnabled && currentSlice?.module === 'notes') {
-                    void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
+                  if (audioEnabled && currentSlice) {
+                    if (currentSlice.module === 'notes') {
+                      void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
+                    } else if (currentSlice.module === 'theory') {
+                      const content = currentSlice.content as Record<string, unknown>;
+                      const noteA = content.noteA as string | undefined;
+                      const noteB = content.noteB as string | undefined;
+                      if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
+                    }
                   }
                   handleAnswer(opt);
                 }}
