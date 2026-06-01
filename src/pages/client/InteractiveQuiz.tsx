@@ -693,7 +693,7 @@ export default function InteractiveQuiz() {
                     if (currentSlice.module === 'notes') {
                       void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
                     } else if (currentSlice.module === 'theory') {
-                      const content = currentSlice.content as Record<string, unknown>;
+                      const content = currentSlice.content as unknown as Record<string, unknown>;
                       const noteA = content.noteA as string | undefined;
                       const noteB = content.noteB as string | undefined;
                       if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
