@@ -5,7 +5,7 @@ const SOLFEGE: Record<string, string> = {
   F: 'fa',
   G: 'sol',
   A: 'la',
-  B: 'xi',
+  B: 'si',
 };
 
 /** 将音名（如 C、C#、Db）转为固定调唱名，升/降号前缀为「升」「降」。 */
