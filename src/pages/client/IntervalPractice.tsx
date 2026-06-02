@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
+import { audioEngine } from '../../core/engine/AudioEngine';
+import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 
 // ============================================================
 // 音程数据
@@ -357,6 +359,16 @@ export default function IntervalPractice() {
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
+  const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
+  const [showAudioTip, setShowAudioTip] = useState(true);
+  const [tipFading, setTipFading] = useState(false);
+
+  useEffect(() => {
+    setTipFading(false);
+    const t1 = setTimeout(() => setTipFading(true), 3000);
+    const t2 = setTimeout(() => setShowAudioTip(false), 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [showAudioTip]);
 
   const nextQuestion = useCallback(() => {
     setCurrentQuestion(generateInterval(type, direction, clefPref, modePref));
@@ -467,12 +479,13 @@ export default function IntervalPractice() {
       setScore(s => s + 1);
       setFeedback('correct');
       setTimeout(() => {
+        audioEngine.stop();
         setFeedback('none');
         nextQuestion();
       }, 600);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), 1500);
+      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
     }
   };
 
@@ -505,6 +518,37 @@ export default function IntervalPractice() {
           <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 14px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem' }}>
             {score}/{total} ({accuracy}%)
           </span>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { audioEngine.setEnabled(!audioEngine.enabled); if (audioEngine.enabled) void audioEngine.prime(); setAudioEnabled(audioEngine.enabled); setShowAudioTip(true); }}
+              title={audioEnabled ? '关闭音效' : '开启音效'}
+              style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.2s ease', color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+            >
+              {audioEnabled ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <line x1="23" y1="9" x2="17" y2="15"/>
+                  <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+              )}
+            </button>
+            {showAudioTip && (
+              <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+                {audioEnabled ? '音效已开启，选答案时会同时播放两个音' : '音效已关闭'}
+                <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -538,7 +582,10 @@ export default function IntervalPractice() {
               {options.map((opt, i) => (
                 <button
                   key={`${currentQuestion.semitones}_${i}_${opt}`}
-                  onClick={() => handleAnswer(opt)}
+                  onClick={() => {
+                    if (audioEnabled) playIntervalPairAudio(currentQuestion.lowPitch, currentQuestion.highPitch);
+                    handleAnswer(opt);
+                  }}
                   style={{
                     minWidth: '140px',
                     maxWidth: '260px',
@@ -563,6 +610,7 @@ export default function IntervalPractice() {
                     e.currentTarget.style.borderColor = '#e5e7eb';
                   }}
                   onMouseDown={e => {
+                    if (audioEnabled) void audioEngine.prime();
                     e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
                     e.currentTarget.style.background = '#f8fafc';
                     e.currentTarget.style.color = '#8b5cf6';

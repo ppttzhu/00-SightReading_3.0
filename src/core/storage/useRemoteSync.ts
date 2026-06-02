@@ -30,6 +30,7 @@ export function usePublish() {
       const data: StageData = {
         slicesPool: state.slicesPool,
         customStages: state.customStages,
+        adventureStages: state.adventureStages,
         updatedAt: new Date().toISOString(),
       };
 

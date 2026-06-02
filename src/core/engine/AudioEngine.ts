@@ -2,6 +2,26 @@ import * as Tone from 'tone';
 
 /** 采样尾音上限，用于在播完后允许再次触发同一音 */
 const NOTE_PLAY_MS = 5000;
+/** 预览模式：按键反馈后自动释放的时长 */
+const PREVIEW_HOLD_MS = 1200;
+const RELEASE_MS = 400;
+
+export type NoteLifecycleEvent =
+  | { type: 'start'; note: string }
+  | { type: 'fade'; note: string }
+  | { type: 'end'; note: string };
+
+export type PlayNoteOptions = {
+  /** 预览模式：短促发声并触发 start/fade/end 生命周期事件（单音练习唱名反馈） */
+  preview?: boolean;
+};
+
+export type StopOptions = {
+  /** 走预览淡出流程（唱名渐隐），而非立刻切断 */
+  lifecycle?: boolean;
+};
+
+type NoteListener = (event: NoteLifecycleEvent) => void;
 
 type NavigatorWithAudioSession = Navigator & {
   audioSession?: {
@@ -12,8 +32,10 @@ type NavigatorWithAudioSession = Navigator & {
 class AudioEngine {
   private static instance: AudioEngine;
   private sampler: Tone.Sampler | null = null;
-  private activeNote: string | null = null;
+  private activeNotes: string[] = [];
   private endTimer: ReturnType<typeof setTimeout> | null = null;
+  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  private listeners = new Set<NoteListener>();
   private silentUnlockAudio: HTMLAudioElement | null = null;
   private silentUnlockUrl: string | null = null;
   private silentUnlockStarted = false;
@@ -66,13 +88,16 @@ class AudioEngine {
   }
 
   private releaseAudioSession() {
-    if (this.activeNote && this.sampler) {
-      this.sampler.triggerRelease(this.activeNote, Tone.now());
-      this.activeNote = null;
+    if (this.activeNotes.length && this.sampler) {
+      const now = Tone.now();
+      for (const note of this.activeNotes) {
+        this.sampler.triggerRelease(note, now);
+      }
+      this.activeNotes = [];
     }
     this.clearEndTimer();
+    this.clearFadeTimer();
 
-    // Tone.context.rawContext 是底层 Web Audio AudioContext，直接 suspend 可释放音频会话
     const rawContext = Tone.context.rawContext as AudioContext;
     if (rawContext.state === 'running') {
       void rawContext.suspend();
@@ -81,7 +106,6 @@ class AudioEngine {
     if (this.silentUnlockAudio && !this.silentUnlockAudio.paused) {
       this.silentUnlockAudio.pause();
     }
-    // 复位 started 标记，让下次用户交互时 primeIOSMediaChannel 重新启动静音循环
     this.silentUnlockStarted = false;
   }
 
@@ -92,6 +116,15 @@ class AudioEngine {
     return AudioEngine.instance;
   }
 
+  public subscribe(listener: NoteListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(event: NoteLifecycleEvent) {
+    this.listeners.forEach((listener) => listener(event));
+  }
+
   private clearEndTimer() {
     if (this.endTimer) {
       clearTimeout(this.endTimer);
@@ -99,14 +132,48 @@ class AudioEngine {
     }
   }
 
-  private scheduleActiveClear(note: string) {
+  private clearFadeTimer() {
+    if (this.fadeTimer) {
+      clearTimeout(this.fadeTimer);
+      this.fadeTimer = null;
+    }
+  }
+
+  private scheduleActiveClear() {
     this.clearEndTimer();
     this.endTimer = setTimeout(() => {
-      if (this.activeNote === note) {
-        this.activeNote = null;
-      }
+      this.activeNotes = [];
       this.endTimer = null;
     }, NOTE_PLAY_MS);
+  }
+
+  private schedulePreviewRelease(note: string) {
+    this.clearEndTimer();
+    this.endTimer = setTimeout(() => {
+      this.beginPreviewRelease(note);
+    }, PREVIEW_HOLD_MS);
+  }
+
+  private beginPreviewRelease(note: string) {
+    this.clearEndTimer();
+    this.clearFadeTimer();
+    this.emit({ type: 'fade', note });
+    if (this.enabled && this.sampler && this.activeNotes.includes(note)) {
+      this.sampler.triggerRelease(note, Tone.now());
+    }
+    this.activeNotes = this.activeNotes.filter(n => n !== note);
+    this.fadeTimer = setTimeout(() => {
+      this.emit({ type: 'end', note });
+      this.fadeTimer = null;
+    }, RELEASE_MS);
+  }
+
+  private releaseActiveAt(now: number) {
+    if (!this.sampler || this.activeNotes.length === 0) return;
+    for (const note of this.activeNotes) {
+      this.sampler.triggerRelease(note, now);
+    }
+    this.activeNotes = [];
   }
 
   private isIOSWebAudioMuteCandidate() {
@@ -181,12 +248,23 @@ class AudioEngine {
     });
   }
 
-  public stop() {
-    if (this.activeNote && this.sampler) {
-      this.sampler.triggerRelease(this.activeNote, Tone.now());
-      this.activeNote = null;
+  public stop(opts?: StopOptions) {
+    if (this.activeNotes.length === 0) {
+      this.clearEndTimer();
+      this.clearFadeTimer();
+      return;
+    }
+    if (opts?.lifecycle) {
+      for (const note of [...this.activeNotes]) {
+        this.beginPreviewRelease(note);
+      }
+      return;
+    }
+    if (this.sampler) {
+      this.releaseActiveAt(Tone.now());
     }
     this.clearEndTimer();
+    this.clearFadeTimer();
   }
 
   public async prime() {
@@ -195,8 +273,45 @@ class AudioEngine {
     await Promise.allSettled([unlockPromise, toneStartPromise]);
   }
 
-  public async playNote(note: string) {
+  public async playNote(note: string, opts?: PlayNoteOptions) {
+    if (opts?.preview) {
+      await this.prime();
+      if (Tone.context.state !== 'running') {
+        await Tone.start();
+      }
+
+      const now = Tone.now();
+      this.clearFadeTimer();
+
+      for (const prev of [...this.activeNotes]) {
+        if (prev !== note) {
+          this.beginPreviewRelease(prev);
+        }
+      }
+
+      // 同音连点也重新 attack，避免答错后连点无声
+      if (this.activeNotes.includes(note) && this.sampler) {
+        this.sampler.triggerRelease(note, now);
+      }
+
+      this.emit({ type: 'start', note });
+      this.activeNotes = [note];
+      if (this.enabled && this.isReady && this.sampler) {
+        this.sampler.triggerAttack(note, now);
+      }
+      this.schedulePreviewRelease(note);
+      return;
+    }
+
+    await this.playNotes([note]);
+  }
+
+  /** 在同一时刻触发多个音高（用于音程练习等） */
+  public async playNotes(notes: string[]) {
     if (!this.enabled) return;
+    const unique = [...new Set(notes.filter(Boolean))];
+    if (unique.length === 0) return;
+
     await this.prime();
     if (Tone.context.state !== 'running') {
       await Tone.start();
@@ -204,20 +319,16 @@ class AudioEngine {
     if (!this.isReady || !this.sampler) return;
 
     const now = Tone.now();
+    this.clearFadeTimer();
 
-    // 同一键连击：不打断当前发声
-    if (this.activeNote === note) {
-      return;
+    // 每次播放前先释放上一组音，便于连点选项时立刻重播（音程题多选项共用同一对音高）
+    this.releaseActiveAt(now);
+
+    for (const n of unique) {
+      this.sampler.triggerAttack(n, now);
     }
-
-    // 切换到其他键：释放上一音，再触发新音
-    if (this.activeNote) {
-      this.sampler.triggerRelease(this.activeNote, now);
-    }
-
-    this.sampler.triggerAttack(note, now);
-    this.activeNote = note;
-    this.scheduleActiveClear(note);
+    this.activeNotes = unique;
+    this.scheduleActiveClear();
   }
 }
 

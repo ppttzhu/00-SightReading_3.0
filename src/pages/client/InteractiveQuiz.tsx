@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector, Stem } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
-import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import NotesInputModeToggle from '../../components/NotesInputModeToggle';
+import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
+import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
@@ -183,12 +185,35 @@ export default function InteractiveQuiz() {
 
   const slicesPool = useAppStore(state => state.slicesPool);
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
+  const completeAdventureStage = useAppStore(state => state.completeAdventureStage);
   const recordPractice = useAppStore(state => state.recordPractice);
 
   // Track a session key that changes each time the component mounts (new attempt)
   const [sessionKey] = useState(() => Math.random());
 
+  // 冒险闯关统计：跟踪正确/错误数、总用时
+  const correctCountRef = useRef(0);
+  const wrongCountRef = useRef(0);
+  const questStartRef = useRef(Date.now());
+
   const { stage, stageIndex } = useMemo(() => {
+    // 冒险关卡检测（放在 split 逻辑之前）
+    if (stageId?.startsWith('adventure_route_')) {
+      const adventureStages = useAppStore.getState().getAdventureStages();
+      const adventureIndex = adventureStages.findIndex(s => s.id === stageId);
+      const found = adventureIndex >= 0 ? adventureStages[adventureIndex] : null;
+      if (found) {
+        const targetCount = found.questionCount || found.slices.length;
+        const shuffle = (arr: typeof found.slices) => [...arr].sort(() => Math.random() - 0.5);
+        const questions: typeof found.slices = [];
+        while (questions.length < targetCount) {
+          questions.push(...shuffle(found.slices));
+        }
+        return { stage: { ...found, slices: questions.slice(0, targetCount) }, stageIndex: adventureIndex + 1 };
+      }
+      return { stage: null, stageIndex: 0 };
+    }
+
     const parts = stageId?.split('_') || [];
     // 自定义关卡 id 格式: custom_xxx；自动关卡: auto_moduleId_stage_n
     const moduleId = parts[0] === 'custom'
@@ -233,7 +258,7 @@ export default function InteractiveQuiz() {
     const t2 = setTimeout(() => setShowAudioTip(false), 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  const [usePiano, setUsePiano] = useNotesInputMode();
   // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
   // which excludes phones and most touch-only tablets.
   const [hasFinePointer] = useState(() =>
@@ -511,20 +536,32 @@ export default function InteractiveQuiz() {
 
     if (isCorrect) {
       setFeedback('correct');
+      correctCountRef.current += 1;  // 跟踪冒险闯关统计
       setTimeout(() => {
         audioEngine.stop();
         setFeedback('none');
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
-          unlockNextStage(stage.module, stageIndex);
-          navigate(-1);
-          setTimeout(() => alert('🎉 Stage Cleared!'), 100);
+          if (stage.module === 'adventure') {
+            const timeSec = Math.round((Date.now() - questStartRef.current) / 1000);
+            completeAdventureStage(stage.id, {
+              correctCount: correctCountRef.current,
+              wrongCount: wrongCountRef.current,
+              timeSpentSec: timeSec,
+            });
+            navigate('/client/adventure');
+          } else {
+            unlockNextStage(stage.module, stageIndex);
+            navigate(-1);
+            setTimeout(() => alert('🎉 Stage Cleared!'), 100);
+          }
         }
       }, 800);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), 600);
+      wrongCountRef.current += 1;  // 跟踪冒险闯关统计
+      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
     }
   };
   handleAnswerRef.current = handleAnswer;
@@ -561,7 +598,10 @@ export default function InteractiveQuiz() {
         <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
           {stage.title} <span style={{ color: '#9ca3af', fontWeight: '500', marginLeft: '10px' }}>{currentSliceIndex + 1} / {stage.slices.length}</span>
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {currentSlice?.module === 'notes' && (
+            <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} />
+          )}
           <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
           </div>
@@ -649,8 +689,15 @@ export default function InteractiveQuiz() {
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
                 onClick={() => {
-                  if (audioEnabled && currentSlice?.module === 'notes') {
-                    void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
+                  if (audioEnabled && currentSlice) {
+                    if (currentSlice.module === 'notes') {
+                      void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
+                    } else if (currentSlice.module === 'theory') {
+                      const content = currentSlice.content as unknown as Record<string, unknown>;
+                      const noteA = content.noteA as string | undefined;
+                      const noteB = content.noteB as string | undefined;
+                      if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
+                    }
                   }
                   handleAnswer(opt);
                 }}

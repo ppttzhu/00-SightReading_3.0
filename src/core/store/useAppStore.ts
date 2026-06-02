@@ -13,6 +13,8 @@ import {
   syncRewriteStageOrder,
   syncRecordPractice,
   syncUpsertStudentProgress,
+  syncRecordAdventureCompletion,
+  syncLoadAdventureCompletedStageIds,
 } from '../storage/syncOps';
 
 // ── Content Types ────────────────────────────────────────────
@@ -90,6 +92,7 @@ export interface AutoStage {
   module: string;
   stageNum: number;
   title: string;
+  description?: string;
   slices: Slice[];
   questionCount: number;
 }
@@ -97,6 +100,22 @@ export interface AutoStage {
 // ============================================================
 // 手动关卡：教师自定义编排
 // ============================================================
+export type QuizModuleId = Slice['module']; // 'notes' | 'theory' | 'symbols' | 'patterns'
+
+export interface AdventureStage {
+  id: string;
+  title: string;
+  description?: string;
+  levelNum: number;
+  sourceStageId: string;         // 引用 customStages.id，不再为可选（删除时已有引用检查）
+  sourceModule: QuizModuleId;    // 来源模块，用于 CMS 标签展示
+  questionCount: number;
+  unlockRule: 'previous_clear';
+  source?: 'manual' | 'assistant';
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export interface CustomStage {
   id: string;
   module: 'notes' | 'symbols' | 'theory' | 'patterns';
@@ -131,6 +150,8 @@ export interface UserQuizStats {
 interface AppState {
   slicesPool: Slice[];
   customStages: CustomStage[];
+  adventureStages: AdventureStage[];
+  adventureCompletedStageIds: string[];
   stageOrder: Record<string, string[]>; // moduleId -> ordered stage ids
   studentProgress: Record<string, number>;
 
@@ -138,12 +159,20 @@ interface AppState {
   lastSyncError: string | null;
 
   getAllStages: (moduleId: string) => AutoStage[];
+  getAdventureStages: () => AutoStage[];
 
   addSlices: (slices: Slice[]) => { added: Slice[]; skipped: Slice[] };
   updateSlice: (id: string, patch: Partial<Slice>) => void;
   updateSliceDifficulty: (id: string, diffDelta: number) => void;
   removeSlice: (id: string) => void;
   clearPool: () => void;
+
+  setAdventureStages: (stages: AdventureStage[]) => void;
+  addAdventureStage: (stage: Omit<AdventureStage, 'levelNum'> & { levelNum?: number }) => void;
+  updateAdventureStage: (id: string, patch: Partial<Omit<AdventureStage, 'id'>>) => void;
+  removeAdventureStage: (id: string) => void;
+  moveAdventureStage: (id: string, direction: 'up' | 'down') => void;
+  completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number }) => void;
 
   addCustomStage: (stage: CustomStage) => void;
   updateCustomStage: (id: string, patch: Partial<CustomStage>) => void;
@@ -184,6 +213,9 @@ interface AppState {
 
   /** 拉取远端全量数据并替换本地 slicesPool / customStages / stageOrder。 */
   loadFromRemote: () => Promise<void>;
+
+  /** 从 Supabase 拉取冒险进度，与本地合并（取并集）。 */
+  loadAdventureProgressFromRemote: () => Promise<void>;
 }
 
 /** 计算指定 stage 在其 module 内的 sort_index（按 customStages 出现顺序）。 */
@@ -198,11 +230,19 @@ function moduleSortIndexOf(stages: CustomStage[], stageId: string): number {
   return idx;
 }
 
+function orderAdventureStages(stages: AdventureStage[]): AdventureStage[] {
+  return [...stages]
+    .sort((a, b) => a.levelNum - b.levelNum || (a.createdAt || 0) - (b.createdAt || 0))
+    .map((stage, index) => ({ ...stage, levelNum: index + 1 }));
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       slicesPool: [],
       customStages: [],
+      adventureStages: [],
+      adventureCompletedStageIds: [],
       stageOrder: {},
       studentProgress: {
         notes: 1,
@@ -233,6 +273,38 @@ export const useAppStore = create<AppState>()(
           });
         }
         return stages;
+      },
+
+      getAdventureStages: () => {
+        const state = get();
+        if (state.adventureStages.length === 0) return [];
+        return orderAdventureStages(state.adventureStages).map((stage, idx) => {
+          const sourceStage = state.customStages.find(cs => cs.id === stage.sourceStageId);
+          if (!sourceStage) {
+            return {
+              id: stage.id,
+              module: 'adventure',
+              stageNum: idx + 1,
+              title: stage.title,
+              description: stage.description,
+              slices: [],
+              questionCount: 0,
+            };
+          }
+          const slices = sourceStage.sliceIds
+            .map(sid => state.slicesPool.find(s => s.id === sid))
+            .filter(Boolean) as Slice[];
+          const qc = stage.questionCount || sourceStage.questionCount || sourceStage.sliceIds.length || slices.length;
+          return {
+            id: stage.id,
+            module: 'adventure',
+            stageNum: idx + 1,
+            title: stage.title || sourceStage.title,
+            description: stage.description || sourceStage.guidance,
+            slices,
+            questionCount: qc,
+          };
+        });
       },
 
       addSlices: (slices) => {
@@ -322,6 +394,13 @@ export const useAppStore = create<AppState>()(
       },
 
       removeCustomStage: (id) => {
+        const state = get();
+        const referencingAdventure = state.adventureStages.find(stage => stage.sourceStageId === id);
+        if (referencingAdventure) {
+          throw new Error(
+            `无法删除：此关卡正在被冒险路线中的关卡「${referencingAdventure.title}」引用。请先在「主线编排」中移除该冒险关卡。`
+          );
+        }
         set((state) => ({
           customStages: state.customStages.filter(cs => cs.id !== id),
           stageOrder: Object.fromEntries(
@@ -329,6 +408,73 @@ export const useAppStore = create<AppState>()(
           ),
         }));
         void syncSoftDeleteStage(id);
+      },
+
+      setAdventureStages: (stages) => {
+        set({ adventureStages: orderAdventureStages(stages) });
+      },
+
+      addAdventureStage: (stage) => {
+        const now = Date.now();
+        set((state) => ({
+          adventureStages: orderAdventureStages([
+            ...state.adventureStages,
+            {
+              id: stage.id,
+              title: stage.title,
+              description: stage.description,
+              levelNum: stage.levelNum ?? state.adventureStages.length + 1,
+              sourceStageId: stage.sourceStageId,
+              sourceModule: stage.sourceModule,
+              questionCount: stage.questionCount,
+              unlockRule: 'previous_clear',
+              source: stage.source || 'manual',
+              createdAt: stage.createdAt || now,
+              updatedAt: now,
+            },
+          ]),
+        }));
+      },
+
+      updateAdventureStage: (id, patch) => {
+        set((state) => ({
+          adventureStages: orderAdventureStages(state.adventureStages.map(stage =>
+            stage.id === id ? { ...stage, ...patch, updatedAt: Date.now() } : stage
+          )),
+        }));
+      },
+
+      removeAdventureStage: (id) => {
+        set((state) => ({
+          adventureStages: orderAdventureStages(state.adventureStages.filter(stage => stage.id !== id)),
+        }));
+      },
+
+      moveAdventureStage: (id, direction) => {
+        set((state) => {
+          const ordered = orderAdventureStages(state.adventureStages);
+          const index = ordered.findIndex(stage => stage.id === id);
+          const targetIndex = direction === 'up' ? index - 1 : index + 1;
+          if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return state;
+          const next = [...ordered];
+          const [moved] = next.splice(index, 1);
+          next.splice(targetIndex, 0, moved);
+          return {
+            adventureStages: next.map((stage, i) => ({ ...stage, levelNum: i + 1 })),
+          };
+        });
+      },
+
+      completeAdventureStage: (stageId, stats) => {
+        let newIds: string[] = [];
+        set((state) => {
+          if (state.adventureCompletedStageIds.includes(stageId)) return state;
+          newIds = [...state.adventureCompletedStageIds, stageId];
+          return { adventureCompletedStageIds: newIds };
+        });
+        if (newIds.length > 0) {
+          void syncRecordAdventureCompletion(stageId, stats || { correctCount: 0, wrongCount: 0, timeSpentSec: 0 });
+        }
       },
 
       setStageOrder: (moduleId, orderedIds) => {
@@ -516,11 +662,26 @@ export const useAppStore = create<AppState>()(
           set({
             slicesPool: data.slicesPool,
             customStages: data.customStages,
+            adventureStages: data.adventureStages || [],
             lastSyncError: null,
           });
         } catch (e) {
           const message = e instanceof Error ? e.message : String(e);
           set({ lastSyncError: `load: ${message}` });
+        }
+      },
+
+      loadAdventureProgressFromRemote: async () => {
+        try {
+          const remoteIds = await syncLoadAdventureCompletedStageIds();
+          if (remoteIds.length === 0) return;
+          set((state) => {
+            const merged = new Set([...state.adventureCompletedStageIds, ...remoteIds]);
+            return { adventureCompletedStageIds: [...merged] };
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          console.warn('[loadAdventureProgress]', message);
         }
       },
     }),

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
-import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import NotesInputModeToggle from '../../components/NotesInputModeToggle';
+import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 import type { ClefType } from '../../core/engine/pitchUtils';
+import { answerLetterToSolfege } from '../../core/engine/solfegeUtils';
+import { WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import { extractNoteAnswer } from './noteAnswer';
 import { practiceOptions } from './noteOptions';
@@ -15,6 +18,9 @@ import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 // Skip the rare enharmonic spellings (E#/B#/Cb/Fb) when generating accidentals.
 const SHARP_OK = new Set(['C', 'D', 'F', 'G', 'A']);
 const FLAT_OK = new Set(['D', 'E', 'G', 'A', 'B']);
+
+/** 大谱表 / 单谱表共用同一画布高度（须能完整显示高低音两行谱表） */
+const STAFF_CANVAS_HEIGHT = 185;
 
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
@@ -72,7 +78,7 @@ export default function PracticeQuiz() {
   const includeSharps = searchParams.get('sharp') === '1';
   const includeFlats = searchParams.get('flat') === '1';
 
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  const [usePiano, setUsePiano] = useNotesInputMode();
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
 
@@ -83,12 +89,36 @@ export default function PracticeQuiz() {
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
+  const [solfege, setSolfege] = useState<{ label: string; fading: boolean; note: string; tone: 'correct' | 'wrong' } | null>(null);
+  const solfegeToneRef = useRef<'correct' | 'wrong' | null>(null);
+  const previewOpts = { preview: true } as const;
   useEffect(() => {
     setTipFading(false);
     const t1 = setTimeout(() => setTipFading(true), 3000);
     const t2 = setTimeout(() => setShowAudioTip(false), 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
+
+  useEffect(() => {
+    return audioEngine.subscribe((evt) => {
+      if (evt.type === 'start') {
+        const tone = solfegeToneRef.current ?? 'wrong';
+        solfegeToneRef.current = null;
+        setSolfege({
+          label: answerLetterToSolfege(extractNoteAnswer(evt.note)),
+          fading: false,
+          note: evt.note,
+          tone,
+        });
+      }
+      if (evt.type === 'fade') {
+        setSolfege((s) => (s?.note === evt.note ? { ...s, fading: true } : s));
+      }
+      if (evt.type === 'end') {
+        setSolfege((s) => (s?.note === evt.note ? null : s));
+      }
+    });
+  }, []);
 
   const clef = useMemo<ClefType>(() => getClefForPitches(currentPitch, { allowGrand: true }), [currentPitch]);
 
@@ -105,19 +135,17 @@ export default function PracticeQuiz() {
     containerRef.current.innerHTML = '';
 
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
-    const width = Math.min(500, containerRef.current.clientWidth - 20);
+    const width = Math.min(500, Math.max(280, containerRef.current.clientWidth - 8));
+    renderer.resize(width, STAFF_CANVAS_HEIGHT);
+    const context = renderer.getContext();
+    const staveW = width - 40;
 
     if (clef === 'grand') {
-      // ── 大谱表 ──
-      renderer.resize(width, 280);
-      const context = renderer.getContext();
-      const staveW = width - 40;
-
-      const staveTop = new Stave(10, 30, staveW);
+      const staveTop = new Stave(10, 6, staveW);
       staveTop.addClef('treble');
       staveTop.setContext(context).draw();
 
-      const staveBottom = new Stave(10, 130, staveW);
+      const staveBottom = new Stave(10, 78, staveW);
       staveBottom.addClef('bass');
       staveBottom.setContext(context).draw();
 
@@ -144,11 +172,8 @@ export default function PracticeQuiz() {
       return;
     }
 
-    // ── 单五线谱 (treble / bass) ──
-    renderer.resize(width, 200);
-    const context = renderer.getContext();
-
-    const stave = new Stave(10, 40, width - 40);
+    // ── 单五线谱：在同一画布内垂直居中 ──
+    const stave = new Stave(10, 38, staveW);
     stave.addClef(clef);
     stave.setContext(context).draw();
 
@@ -177,6 +202,9 @@ export default function PracticeQuiz() {
       ? pitchEqual(answer, currentPitch)
       : answer === extractNoteAnswer(currentPitch);
 
+    solfegeToneRef.current = isCorrect ? 'correct' : 'wrong';
+    setSolfege((s) => (s ? { ...s, tone: solfegeToneRef.current! } : s));
+
     const timeSpentMs = Date.now() - questionStartedRef.current;
     recordPractice({
       quizId: `prac_notes_${currentPitch}`,
@@ -191,13 +219,13 @@ export default function PracticeQuiz() {
       setScore(s => s + 1);
       setFeedback('correct');
       setTimeout(() => {
-        audioEngine.stop();
+        audioEngine.stop({ lifecycle: true });
         setFeedback('none');
         nextQuestion();
       }, 600);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), 500);
+      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
     }
   };
   const handleAnswerRef = useRef<(a: string) => void>(() => {});
@@ -222,7 +250,7 @@ export default function PracticeQuiz() {
       const ans = parseNoteKeys(buffer);
       buffer = [];
       if (!ans) return;
-      void audioEngine.playNote(pitchForAnswerLetter(ans, currentPitch));
+      void audioEngine.playNote(pitchForAnswerLetter(ans, currentPitch), previewOpts);
       handleAnswerRef.current(ans);
     };
     const onKeydown = (e: KeyboardEvent) => {
@@ -244,30 +272,43 @@ export default function PracticeQuiz() {
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease',
-      background: feedback === 'correct' ? '#ecfdf5' : feedback === 'wrong' ? '#fef2f2' : 'transparent'
-    }}>
-      <header className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+    <div
+      className="practice-notes-quiz"
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        transition: 'background 0.5s ease',
+        background: feedback === 'correct' ? '#ecfdf5' : feedback === 'wrong' ? '#fef2f2' : 'transparent',
+      }}
+    >
+      <header className="quiz-header practice-notes-quiz__header">
         <button
+          type="button"
+          className="practice-notes-quiz__exit"
           onClick={() => navigate(-1)}
-          style={{ background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
         >
           退出练习
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '0.9rem', color: '#6b7280' }}>
-            音域: {low} — {high}
-          </span>
-          <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 14px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem' }}>
-            {score}/{total} ({accuracy}%)
-          </span>
-          <div style={{ position: 'relative' }}>
+        <div className="practice-notes-quiz__toolbar">
+          <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} />
+          <div className="practice-notes-quiz__toolbar-end">
+            <span className="practice-notes-quiz__range">
+              音域: {low} — {high}
+            </span>
+            <span className="practice-notes-quiz__score">
+              {score}/{total} ({accuracy}%)
+            </span>
+            <div className="practice-notes-quiz__audio">
             <button
+              type="button"
+              className="practice-notes-quiz__audio-btn"
               onClick={() => { audioEngine.setEnabled(!audioEngine.enabled); if (audioEngine.enabled) void audioEngine.prime(); setAudioEnabled(audioEngine.enabled); setShowAudioTip(true); }}
               title={audioEnabled ? '关闭音效' : '开启音效'}
-              style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'all 0.2s ease', color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              style={{ background: audioEnabled ? '#eff6ff' : 'white', border: `1px solid ${audioEnabled ? '#bfdbfe' : '#e5e7eb'}`, color: audioEnabled ? '#3b82f6' : '#9ca3af' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
               onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.93)'; }}
               onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
             >
@@ -286,69 +327,68 @@ export default function PracticeQuiz() {
               )}
             </button>
             {showAudioTip && (
-              <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+              <div className="practice-notes-quiz__audio-tip" style={{ opacity: tipFading ? 0 : 1 }}>
                 {audioEnabled ? '音效已开启，答题时会播放音符声音' : '音效已关闭'}
-                <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
               </div>
             )}
+            </div>
           </div>
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="quiz-body practice-notes-quiz__body">
         <div
-          className="quiz-card"
+          className="quiz-card quiz-card--staff-fixed"
           style={{
             background: 'white',
             borderRadius: '32px',
             boxShadow: feedback === 'correct' ? '0 20px 40px rgba(16,185,129,0.15)' : feedback === 'wrong' ? '0 20px 40px rgba(239,68,68,0.15)' : '0 10px 40px rgba(0,0,0,0.04)',
-            padding: '40px',
-            marginBottom: '60px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: '500px',
-            minHeight: '180px',
             transform: feedback === 'wrong' ? 'translateX(10px)' : 'none',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            border: '1px solid #f9fafb'
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease',
+            border: '1px solid #f9fafb',
           }}
         >
-          <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+          {solfege && (
+            <div
+              className={`quiz-solfege quiz-solfege--${solfege.tone}`}
+              style={{ opacity: solfege.fading ? 0 : 1 }}
+            >
+              {solfege.label}
+            </div>
+          )}
+          <div
+            ref={containerRef}
+            className="quiz-staff-slot"
+            style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}
+          />
         </div>
 
         {usePiano ? (
-          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
+          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} previewAudio />
         ) : (
-          <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {options.map(note => (
-              <button
-                key={note}
-                onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
-                onClick={() => {
-                  void audioEngine.playNote(pitchForAnswerLetter(note, currentPitch));
-                  handleAnswer(note);
-                }}
-                style={{
-                  width: '64px', height: '64px', borderRadius: '16px',
-                  border: '1px solid #f3f4f6', background: 'white',
-                  fontSize: '1.6rem', fontWeight: '700', color: '#374151',
-                  cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                }}
+          <div className="practice-notes-quiz__options">
+            {[options.slice(0, 4), options.slice(4)].map((row, rowIdx) => (
+              <div
+                key={rowIdx}
+                className={`practice-notes-quiz__options-row${row.length === 3 ? ' practice-notes-quiz__options-row--three' : ''}`}
               >
-                {note}
-              </button>
+                {row.map(note => (
+                  <button
+                    key={note}
+                    type="button"
+                    className="practice-notes-quiz__option-btn"
+                    onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
+                    onClick={() => {
+                      if (audioEnabled) {
+                        void audioEngine.playNote(pitchForAnswerLetter(note, currentPitch), previewOpts);
+                      }
+                      handleAnswer(note);
+                    }}
+                  >
+                    {note}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
         )}

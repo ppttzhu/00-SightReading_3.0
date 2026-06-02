@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../core/store/useAppStore';
+import NotesInputModeToggle from '../../components/NotesInputModeToggle';
+import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 
 const MODULE_LABELS: Record<string, string> = {
   notes: '单音',
@@ -26,9 +28,7 @@ function isValidPitch(value: string): boolean {
 export default function StageSelector() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
-  const [usePiano, setUsePiano] = useState(
-    () => (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano'
-  );
+  const [usePiano, setUsePiano] = useNotesInputMode();
   const [mode, setMode] = useState<'stages' | 'practice'>('stages');
   const [lowPitch, setLowPitch] = useState('C2');
   const [highPitch, setHighPitch] = useState('C6');
@@ -40,11 +40,6 @@ export default function StageSelector() {
   const [intervalDirection, setIntervalDirection] = useState('随机');
   const [intervalClef, setIntervalClef] = useState('自动');
   const [intervalMode, setIntervalMode] = useState('随机');
-
-  const toggleMode = (val: boolean) => {
-    setUsePiano(val);
-    localStorage.setItem(NOTES_INPUT_MODE_KEY, val ? 'piano' : 'options');
-  };
 
   // 从 Store 自动生成的关卡列表（包含自动+手动关卡）
   const getAllStages = useAppStore(state => state.getAllStages);
@@ -73,10 +68,10 @@ export default function StageSelector() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <button
-        onClick={() => navigate('/client')}
+        onClick={() => { if (window.history.length > 1) { navigate(-1); } else { navigate('/client', { replace: true }); } }}
         style={{ alignSelf: 'flex-start', background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
       >
-        ← 返回主菜单
+        ← 返回
       </button>
       <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
         {moduleLabel} Trials
@@ -104,21 +99,8 @@ export default function StageSelector() {
 
           {/* Input mode toggle (keyboard vs options) — only for Notes */}
           {isNotesModule && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              {(['options', 'piano'] as const).map(inputMode => (
-                <button
-                  key={inputMode}
-                  onClick={() => toggleMode(inputMode === 'piano')}
-                  style={{
-                    padding: '6px 18px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
-                    background: (inputMode === 'piano') === usePiano ? moduleColor : 'transparent',
-                    color: (inputMode === 'piano') === usePiano ? 'white' : '#6b7280',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {inputMode === 'piano' ? '键盘' : '选项'}
-                </button>
-              ))}
+            <div style={{ marginTop: '12px' }}>
+              <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} accentColor={moduleColor} />
             </div>
           )}
         </>

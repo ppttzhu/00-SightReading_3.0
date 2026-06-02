@@ -7,6 +7,7 @@ import StageBuilder from './pages/cms/StageBuilder';
 import ManualCreator from './pages/cms/ManualCreator';
 import CustomStageEditor from './pages/cms/CustomStageEditor';
 import FeedbackManager from './pages/cms/FeedbackManager';
+import AdventureEditor from './pages/cms/AdventureEditor';
 import Stats from './pages/cms/Stats';
 import MainMenu from './pages/client/MainMenu';
 import StageSelector from './pages/client/StageSelector';
@@ -14,6 +15,8 @@ import InteractiveQuiz from './pages/client/InteractiveQuiz';
 import PracticeQuiz from './pages/client/PracticeQuiz';
 import IntervalPractice from './pages/client/IntervalPractice';
 import ProfilePage from './pages/client/ProfilePage';
+import AdventureMap from './pages/client/AdventureMap';
+import FreePracticeHub from './pages/client/FreePracticeHub';
 import CMSAuthGate from './components/auth/CMSAuthGate';
 import AuthPage from './pages/auth/AuthPage';
 
@@ -30,6 +33,10 @@ function App() {
         {/* 学生端 (Client) 路由 */}
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<MainMenu />} />
+          <Route path="adventure" element={<AdventureMap />} />
+          <Route path="adventure/quiz/:stageId" element={<InteractiveQuiz />} />
+          <Route path="free" element={<FreePracticeHub />} />
+          <Route path="free/:moduleId" element={<StageSelector />} />
           <Route path="module/:moduleId" element={<StageSelector />} />
           <Route path="quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="practice/intervals" element={<IntervalPractice />} />
@@ -46,6 +53,7 @@ function App() {
           <Route path="builder" element={<StageBuilder />} />
           <Route path="creator" element={<ManualCreator />} />
           <Route path="stages" element={<CustomStageEditor />} />
+          <Route path="adventure" element={<AdventureEditor />} />
           <Route path="feedback" element={<FeedbackManager />} />
           <Route path="stats" element={<Stats />} />
         </Route>

@@ -320,6 +320,92 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
   }
 }
 
+// ============================================================
+// Adventure Progress
+// ============================================================
+
+/**
+ * 记录一次冒险关卡完成到 Supabase。
+ * PRIMARY KEY (user_id, stage_id) — 首次 insert，后续仅更新 attempt_count +1。
+ * 因 supabase-js upsert 不支持 ON CONFLICT DO UPDATE SET attempt_count = attempt_count + 1，
+ * 采用两步法：先 select 检查是否存在，再 insert / update。
+ */
+export async function syncRecordAdventureCompletion(
+  stageId: string,
+  stats: { correctCount: number; wrongCount: number; timeSpentSec: number },
+): Promise<void> {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+
+  const total = stats.correctCount + stats.wrongCount;
+  const score = total > 0 ? Math.round((stats.correctCount / total) * 100) : 0;
+  const userId = data.session.user.id;
+
+  // 检查是否已有记录
+  const { data: existing } = await supabase
+    .from('adventure_stage_completions')
+    .select('attempt_count')
+    .eq('user_id', userId)
+    .eq('stage_id', stageId)
+    .single();
+
+  if (existing) {
+    // 更新：attempt_count +1，刷新分数和时间
+    const { error } = await supabase
+      .from('adventure_stage_completions')
+      .update({
+        correct_count: stats.correctCount,
+        wrong_count: stats.wrongCount,
+        time_spent_sec: stats.timeSpentSec,
+        score,
+        attempt_count: existing.attempt_count + 1,
+        completed_at: new Date().toISOString(),
+      } as never)
+      .eq('user_id', userId)
+      .eq('stage_id', stageId);
+    if (error) return reportSyncError('update adventure completion', error);
+  } else {
+    // 首次插入
+    const { error } = await supabase
+      .from('adventure_stage_completions')
+      .insert({
+        user_id: userId,
+        stage_id: stageId,
+        correct_count: stats.correctCount,
+        wrong_count: stats.wrongCount,
+        time_spent_sec: stats.timeSpentSec,
+        score,
+        attempt_count: 1,
+        completed_at: new Date().toISOString(),
+      } as never);
+    if (error) return reportSyncError('insert adventure completion', error);
+  }
+
+  await reportSyncOk();
+}
+
+/**
+ * 从 Supabase 加载已完成的冒险关卡 ID 列表。
+ */
+export async function syncLoadAdventureCompletedStageIds(): Promise<string[]> {
+  if (!supabase) return [];
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return [];
+
+  const { data: rows, error } = await supabase
+    .from('adventure_stage_completions')
+    .select('stage_id')
+    .eq('user_id', data.session.user.id)
+    .order('completed_at', { ascending: true });
+
+  if (error) {
+    console.warn('[syncLoadAdventureCompletedStageIds]', error.message);
+    return [];
+  }
+  return (rows as any[])?.map(r => r.stage_id) || [];
+}
+
 /** 记录闯关成功到 test_success_records（UPSERT，每人每关保留最新）。 */
 export async function syncRecordTestSuccess(params: {
   stageId: string;
