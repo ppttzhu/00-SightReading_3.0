@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
-import { NOTES_INPUT_MODE_KEY } from './StageSelector';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import NotesInputModeToggle from '../../components/NotesInputModeToggle';
+import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 import type { ClefType } from '../../core/engine/pitchUtils';
+import { answerLetterToSolfege } from '../../core/engine/solfegeUtils';
+import { WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import { extractNoteAnswer } from './noteAnswer';
 import { practiceOptions } from './noteOptions';
@@ -72,7 +75,7 @@ export default function PracticeQuiz() {
   const includeSharps = searchParams.get('sharp') === '1';
   const includeFlats = searchParams.get('flat') === '1';
 
-  const usePiano = (localStorage.getItem(NOTES_INPUT_MODE_KEY) ?? 'options') === 'piano';
+  const [usePiano, setUsePiano] = useNotesInputMode();
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
 
@@ -83,6 +86,9 @@ export default function PracticeQuiz() {
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
+  const [solfege, setSolfege] = useState<{ label: string; fading: boolean; note: string; tone: 'correct' | 'wrong' } | null>(null);
+  const solfegeToneRef = useRef<'correct' | 'wrong' | null>(null);
+  const previewOpts = { preview: true } as const;
   useEffect(() => {
     setTipFading(false);
     const t1 = setTimeout(() => setTipFading(true), 3000);
@@ -90,7 +96,29 @@ export default function PracticeQuiz() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
 
+  useEffect(() => {
+    return audioEngine.subscribe((evt) => {
+      if (evt.type === 'start') {
+        const tone = solfegeToneRef.current ?? 'wrong';
+        solfegeToneRef.current = null;
+        setSolfege({
+          label: answerLetterToSolfege(extractNoteAnswer(evt.note)),
+          fading: false,
+          note: evt.note,
+          tone,
+        });
+      }
+      if (evt.type === 'fade') {
+        setSolfege((s) => (s?.note === evt.note ? { ...s, fading: true } : s));
+      }
+      if (evt.type === 'end') {
+        setSolfege((s) => (s?.note === evt.note ? null : s));
+      }
+    });
+  }, []);
+
   const clef = useMemo<ClefType>(() => getClefForPitches(currentPitch, { allowGrand: true }), [currentPitch]);
+  const isGrandStaff = clef === 'grand';
 
   const nextQuestion = useCallback(() => {
     setCurrentPitch(randomPitch(low, high, currentPitch, includeSharps, includeFlats));
@@ -108,16 +136,16 @@ export default function PracticeQuiz() {
     const width = Math.min(500, containerRef.current.clientWidth - 20);
 
     if (clef === 'grand') {
-      // ── 大谱表 ──
-      renderer.resize(width, 280);
+      // ── 大谱表（紧凑布局，便于移动端显示选项） ──
+      renderer.resize(width, 210);
       const context = renderer.getContext();
       const staveW = width - 40;
 
-      const staveTop = new Stave(10, 30, staveW);
+      const staveTop = new Stave(10, 12, staveW);
       staveTop.addClef('treble');
       staveTop.setContext(context).draw();
 
-      const staveBottom = new Stave(10, 130, staveW);
+      const staveBottom = new Stave(10, 92, staveW);
       staveBottom.addClef('bass');
       staveBottom.setContext(context).draw();
 
@@ -177,6 +205,9 @@ export default function PracticeQuiz() {
       ? pitchEqual(answer, currentPitch)
       : answer === extractNoteAnswer(currentPitch);
 
+    solfegeToneRef.current = isCorrect ? 'correct' : 'wrong';
+    setSolfege((s) => (s ? { ...s, tone: solfegeToneRef.current! } : s));
+
     const timeSpentMs = Date.now() - questionStartedRef.current;
     recordPractice({
       quizId: `prac_notes_${currentPitch}`,
@@ -191,13 +222,13 @@ export default function PracticeQuiz() {
       setScore(s => s + 1);
       setFeedback('correct');
       setTimeout(() => {
-        audioEngine.stop();
+        audioEngine.stop({ lifecycle: true });
         setFeedback('none');
         nextQuestion();
       }, 600);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), 500);
+      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
     }
   };
   const handleAnswerRef = useRef<(a: string) => void>(() => {});
@@ -222,7 +253,7 @@ export default function PracticeQuiz() {
       const ans = parseNoteKeys(buffer);
       buffer = [];
       if (!ans) return;
-      void audioEngine.playNote(pitchForAnswerLetter(ans, currentPitch));
+      void audioEngine.playNote(pitchForAnswerLetter(ans, currentPitch), previewOpts);
       handleAnswerRef.current(ans);
     };
     const onKeydown = (e: KeyboardEvent) => {
@@ -254,7 +285,8 @@ export default function PracticeQuiz() {
         >
           退出练习
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} />
           <span style={{ fontSize: '0.9rem', color: '#6b7280' }}>
             音域: {low} — {high}
           </span>
@@ -295,31 +327,40 @@ export default function PracticeQuiz() {
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="quiz-body" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: isGrandStaff ? 'flex-start' : 'center' }}>
         <div
-          className="quiz-card"
+          className={`quiz-card${isGrandStaff ? ' quiz-card--grand' : ''}`}
           style={{
             background: 'white',
             borderRadius: '32px',
             boxShadow: feedback === 'correct' ? '0 20px 40px rgba(16,185,129,0.15)' : feedback === 'wrong' ? '0 20px 40px rgba(239,68,68,0.15)' : '0 10px 40px rgba(0,0,0,0.04)',
-            padding: '40px',
-            marginBottom: '60px',
+            padding: isGrandStaff ? '16px 24px' : '40px',
+            marginBottom: isGrandStaff ? '20px' : '60px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             minWidth: '500px',
-            minHeight: '180px',
+            minHeight: isGrandStaff ? '120px' : '180px',
             transform: feedback === 'wrong' ? 'translateX(10px)' : 'none',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            border: '1px solid #f9fafb'
+            border: '1px solid #f9fafb',
+            position: 'relative',
           }}
         >
+          {solfege && (
+            <div
+              className={`quiz-solfege quiz-solfege--${solfege.tone}`}
+              style={{ opacity: solfege.fading ? 0 : 1 }}
+            >
+              {solfege.label}
+            </div>
+          )}
           <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
         </div>
 
         {usePiano ? (
-          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} />
+          <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} previewAudio />
         ) : (
           <div className="quiz-options" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
             {options.map(note => (
@@ -327,7 +368,9 @@ export default function PracticeQuiz() {
                 key={note}
                 onMouseDown={() => { if (audioEnabled) void audioEngine.prime(); }}
                 onClick={() => {
-                  void audioEngine.playNote(pitchForAnswerLetter(note, currentPitch));
+                  if (audioEnabled) {
+                    void audioEngine.playNote(pitchForAnswerLetter(note, currentPitch), previewOpts);
+                  }
                   handleAnswer(note);
                 }}
                 style={{
