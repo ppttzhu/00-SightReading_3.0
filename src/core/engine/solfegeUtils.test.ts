@@ -4,7 +4,7 @@ import { answerLetterToSolfege } from './solfegeUtils';
 describe('answerLetterToSolfege', () => {
   it('maps naturals', () => {
     expect(answerLetterToSolfege('C')).toBe('do');
-    expect(answerLetterToSolfege('B')).toBe('xi');
+    expect(answerLetterToSolfege('B')).toBe('si');
   });
 
   it('maps sharps with 升 prefix', () => {
@@ -14,7 +14,7 @@ describe('answerLetterToSolfege', () => {
 
   it('maps flats with 降 prefix', () => {
     expect(answerLetterToSolfege('Db')).toBe('降 re');
-    expect(answerLetterToSolfege('Bb')).toBe('降 xi');
+    expect(answerLetterToSolfege('Bb')).toBe('降 si');
   });
 
   it('handles pitch strings', () => {
