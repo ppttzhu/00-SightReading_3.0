@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import { ArrowDown, ArrowUp, Check, ExternalLink, Pencil, Plus, Route, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Pencil, Plus, Route, Search, Trash2, X } from 'lucide-react';
 import {
   useAppStore,
   type AdventureStage,
   type QuizModuleId,
   type Slice,
+  type GuidanceImage,
 } from '../../core/store/useAppStore';
 import { usePublish } from '../../core/storage/useRemoteSync';
+import GuidanceEditor from '../../components/GuidanceEditor';
 
 const MODULE_OPTIONS: Array<{ value: QuizModuleId; label: string; color: string }> = [
   { value: 'notes', label: '单音', color: '#2563eb' },
@@ -67,44 +68,106 @@ function describeStage(
   };
 }
 
-/** 关卡编辑表单：标题 + 描述 */
-function EditableFields({
+/** 关卡编辑弹框 */
+function StageEditModal({
   stage,
   onSave,
-  onCancel,
+  onClose,
 }: {
   stage: AdventureStage;
-  onSave: (title: string, description: string) => void;
-  onCancel: () => void;
+  onSave: (title: string, description: string, guidance: string, guidanceImages: GuidanceImage[]) => void;
+  onClose: () => void;
 }) {
   const [title, setTitle] = useState(stage.title);
   const [desc, setDesc] = useState(stage.description || '');
+  const [guidance, setGuidance] = useState(stage.guidance || '');
+  const [images, setImages] = useState<GuidanceImage[]>(stage.guidanceImages || []);
+
+  const handleSave = () => {
+    onSave(title, desc, guidance, images);
+  };
+
   return (
-    <div className="stage-edit-form">
-      <input
-        className="stage-edit-input"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        placeholder="关卡标题"
-        autoFocus
-      />
-      <textarea
-        className="stage-edit-textarea"
-        value={desc}
-        onChange={e => setDesc(e.target.value)}
-        placeholder="关卡说明（显示在学生端关卡卡片上）"
-        rows={2}
-      />
-      <div className="stage-edit-actions">
-        <button className="text-action" onClick={() => onSave(title, desc)}><Check size={14} /> 保存</button>
-        <button className="text-action" onClick={onCancel} style={{ color: '#6b7280' }}><X size={14} /> 取消</button>
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px',
+    }}>
+      <div style={{
+        background: 'white', borderRadius: '16px', width: '100%', maxWidth: '720px',
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+      }}>
+        {/* 弹框标题 */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 0',
+        }}>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', color: '#1f2937', fontWeight: 700 }}>
+            ✏️ 编辑关卡
+          </h2>
+          <button onClick={onClose} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* 弹框内容 */}
+        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+          {/* 标题 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+              关卡标题
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="关卡标题"
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* 关卡说明 */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+              关卡说明 <span style={{ color: '#9ca3af', fontWeight: 400 }}>（显示在闯关地图关卡卡片上）</span>
+            </label>
+            <textarea
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="例如：练习升降号识别"
+              rows={2}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
+            />
+          </div>
+
+          {/* 学习指导 */}
+          <GuidanceEditor
+            value={guidance}
+            onChange={setGuidance}
+            guidanceImages={images}
+            onImagesChange={setImages}
+            stageId={stage.id}
+          />
+        </div>
+
+        {/* 底部按钮 */}
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end', gap: '10px',
+          padding: '16px 24px 20px', borderTop: '1px solid #f3f4f6',
+        }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}>
+            取消
+          </button>
+          <button onClick={handleSave} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}>
+            保存修改
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function AdventureEditor() {
-  const navigate = useNavigate();
   const { publish, status: publishStatus, error: publishError } = usePublish();
 
   const slicesPool = useAppStore(s => s.slicesPool);
@@ -118,7 +181,7 @@ export default function AdventureEditor() {
   const [moduleFilter, setModuleFilter] = useState<'all' | QuizModuleId>('all');
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [modalStage, setModalStage] = useState<AdventureStage | null>(null);
   const [publishMsg, setPublishMsg] = useState('');
 
   const orderedRoute = useMemo(() => sortByLevel(adventureStages), [adventureStages]);
@@ -153,7 +216,8 @@ export default function AdventureEditor() {
     addAdventureStage({
       id: `adventure_route_${source.id}_${existingCount + 1}`,
       title: source.title,
-      description: source.guidance || '',
+      description: '',
+      guidance: '',
       sourceStageId: source.id,
       sourceModule: source.module,
       questionCount: source.questionCount || source.sliceIds.length || 1,
@@ -178,7 +242,6 @@ export default function AdventureEditor() {
     }
   };
 
-  // 判断本地是否有未发布的变更
   const hasUnpublishedChanges = orderedRoute.length > 0;
 
   return (
@@ -279,51 +342,36 @@ export default function AdventureEditor() {
                 const info = describeStage(stage, customStages, sliceMap);
                 const sourceStage = customStages.find(cs => cs.id === stage.sourceStageId);
                 const sourceModule = sourceStage?.module || stage.sourceModule || 'notes';
-                const isEditing = editingId === stage.id;
 
                 return (
                   <article key={stage.id} className="official-stage-row">
                     <div className="stage-order-badge">Lv.{stage.levelNum}</div>
                     <div className="stage-main">
-                      {isEditing ? (
-                        <EditableFields
-                          stage={stage}
-                          onSave={(newTitle, newDesc) => {
-                            updateAdventureStage(stage.id, { title: newTitle, description: newDesc });
-                            setEditingId(null);
-                            showMsg('已更新关卡信息。');
-                          }}
-                          onCancel={() => setEditingId(null)}
-                        />
-                      ) : (
-                        <>
-                          <div className="stage-title-line">
-                            <strong>{info.title}</strong>
-                            <span className={`stage-health ${info.tone}`}>{info.label}</span>
-                            <span className="module-pill" style={{ '--pill-color': moduleColor(sourceModule) } as CSSProperties}>{moduleLabel(sourceModule)}</span>
-                          </div>
-                          {stage.description && (
-                            <p className="stage-desc">{stage.description}</p>
-                          )}
-                          <small>
-                            {info.sourceTitle
-                              ? `来源：${info.sourceTitle} · 平均 L${routeStageAvgDifficulty(stage, customStages, sliceMap)}`
-                              : '❌ 原关卡已失效'}
-                          </small>
-                        </>
-                      )}
-                    </div>
-                    {!isEditing && (
-                      <div className="stage-actions">
-                        <button onClick={() => setEditingId(stage.id)} aria-label="编辑"><Pencil size={15} /></button>
-                        {sourceStage && (
-                          <button onClick={() => navigate(`/cms/stages?edit=${sourceStage.id}`)} aria-label="编辑来源关卡"><ExternalLink size={15} /></button>
+                      <div className="stage-title-line">
+                        <strong>{info.title}</strong>
+                        <span className={`stage-health ${info.tone}`}>{info.label}</span>
+                        <span className="module-pill" style={{ '--pill-color': moduleColor(sourceModule) } as CSSProperties}>{moduleLabel(sourceModule)}</span>
+                        {stage.guidance?.trim() && (
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#eff6ff', color: '#3b82f6', fontWeight: 600, marginLeft: '4px' }}>
+                            📖 含指导
+                          </span>
                         )}
-                        <button disabled={index === 0} onClick={() => moveAdventureStage(stage.id, 'up')} aria-label="上移"><ArrowUp size={15} /></button>
-                        <button disabled={index === orderedRoute.length - 1} onClick={() => moveAdventureStage(stage.id, 'down')} aria-label="下移"><ArrowDown size={15} /></button>
-                        <button className="danger" onClick={() => removeAdventureStage(stage.id)} aria-label="移出路线"><Trash2 size={15} /></button>
                       </div>
-                    )}
+                      {stage.description && (
+                        <p className="stage-desc">{stage.description}</p>
+                      )}
+                      <small>
+                        {info.sourceTitle
+                          ? `来源：${info.sourceTitle} · 平均 L${routeStageAvgDifficulty(stage, customStages, sliceMap)}`
+                          : '❌ 原关卡已失效'}
+                      </small>
+                    </div>
+                    <div className="stage-actions">
+                      <button onClick={() => setModalStage(stage)} aria-label="编辑"><Pencil size={15} /></button>
+                      <button disabled={index === 0} onClick={() => moveAdventureStage(stage.id, 'up')} aria-label="上移"><ArrowUp size={15} /></button>
+                      <button disabled={index === orderedRoute.length - 1} onClick={() => moveAdventureStage(stage.id, 'down')} aria-label="下移"><ArrowDown size={15} /></button>
+                      <button className="danger" onClick={() => removeAdventureStage(stage.id)} aria-label="移出路线"><Trash2 size={15} /></button>
+                    </div>
                   </article>
                 );
               })}
@@ -331,6 +379,19 @@ export default function AdventureEditor() {
           )}
         </section>
       </div>
+
+      {/* 编辑弹框 */}
+      {modalStage && (
+        <StageEditModal
+          stage={modalStage}
+          onSave={(title, desc, guidance, images) => {
+            updateAdventureStage(modalStage.id, { title, description: desc, guidance, guidanceImages: images });
+            setModalStage(null);
+            showMsg('已更新关卡信息。');
+          }}
+          onClose={() => setModalStage(null)}
+        />
+      )}
     </div>
   );
 }

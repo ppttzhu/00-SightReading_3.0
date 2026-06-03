@@ -155,26 +155,6 @@ function generateOptions(slice: Slice): string[] {
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
-const GUIDANCE_SUPPRESS_KEY = 'stage_guidance_suppressed';
-
-function readSuppressedMap(): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(GUIDANCE_SUPPRESS_KEY) ?? '{}');
-  } catch {
-    return {};
-  }
-}
-
-function writeSuppressed(stageId: string, guidanceSnapshot: string): void {
-  try {
-    const map = readSuppressedMap();
-    map[stageId] = guidanceSnapshot;
-    localStorage.setItem(GUIDANCE_SUPPRESS_KEY, JSON.stringify(map));
-  } catch {
-    /* localStorage 写入失败时静默（Safari Private / quota）；下次进关会照常弹蒙层 */
-  }
-}
-
 // ============================================================
 // 组件
 // ============================================================
@@ -237,15 +217,30 @@ export default function InteractiveQuiz() {
   }, [stageId, slicesPool, sessionKey]);
 
   // ============================================================
-  // 学习指导蒙层：进入有 guidance 的关卡时先展示，点「开始答题」后才进 quiz
+  // 学习指导蒙层
   // ============================================================
   const customStages = useAppStore(state => state.customStages);
-  const stageRecord = customStages.find(cs => cs.id === stageId);
-  const guidance = stageRecord?.guidance?.trim() ?? '';
-  const [introDismissed, setIntroDismissed] = useState(() => {
-    if (!stageId || !guidance) return true;
-    return readSuppressedMap()[stageId] === guidance;
-  });
+  const adventureStages = useAppStore(state => state.adventureStages);
+
+  let stageRecord: { title: string; guidance?: string } | undefined;
+  let guidanceImages: import('../../core/store/useAppStore').GuidanceImage[] = [];
+  let guidance = '';
+  if (stageId?.startsWith('adventure_route_')) {
+    const advStage = adventureStages.find(s => s.id === stageId);
+    if (advStage) {
+      const sourceStage = customStages.find(cs => cs.id === advStage.sourceStageId);
+      guidance = advStage.guidance ?? sourceStage?.guidance ?? '';
+      guidanceImages = advStage.guidanceImages ?? [];
+      stageRecord = { title: advStage.title || sourceStage?.title || stageId, guidance };
+    }
+  } else {
+    const record = customStages.find(cs => cs.id === stageId);
+    if (record) {
+      guidance = record.guidance ?? '';
+      stageRecord = { title: record.title, guidance };
+    }
+  }
+  const [introDismissed, setIntroDismissed] = useState(() => !guidance);
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
@@ -576,10 +571,8 @@ export default function InteractiveQuiz() {
       <GuidanceModal
         title={stageRecord.title}
         guidance={guidance}
-        onStart={(dontShowAgain) => {
-          if (dontShowAgain && stageId) writeSuppressed(stageId, guidance);
-          setIntroDismissed(true);
-        }}
+        guidanceImages={guidanceImages}
+        onStart={() => setIntroDismissed(true)}
       />
     );
   }

@@ -49,7 +49,7 @@ describe('GuidanceModal', () => {
     expect(container.textContent).toContain('safe text');
   });
 
-  it('renders images as constrained <img> elements', () => {
+  it('renders standard images as constrained <img> elements', () => {
     const { container } = render(
       <GuidanceModal title="T" guidance="![diagram](https://example.com/x.png)" onStart={() => {}} />
     );
@@ -59,6 +59,36 @@ describe('GuidanceModal', () => {
     expect(img?.getAttribute('alt')).toBe('diagram');
     expect(img?.style.maxWidth).toBe('100%');
     expect(img?.style.height).toBe('auto');
+  });
+
+  it('resolves {image:id} placeholders from guidanceImages', () => {
+    const images = [
+      { id: 'img_abc123', url: 'https://example.com/resolved.png', alt: 'diagram' },
+    ];
+    const { container } = render(
+      <GuidanceModal
+        title="T"
+        guidance="![diagram]({image:img_abc123})"
+        guidanceImages={images}
+        onStart={() => {}}
+      />
+    );
+    const img = container.querySelector('img');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute('src')).toBe('https://example.com/resolved.png');
+  });
+
+  it('does not crash when {image:id} placeholder is not found in guidanceImages', () => {
+    const { container } = render(
+      <GuidanceModal
+        title="T"
+        guidance="![x]({image:nonexistent})"
+        guidanceImages={[]}
+        onStart={() => {}}
+      />
+    );
+    // Should not crash — content is still rendered
+    expect(container.textContent).toContain('T');
   });
 
   it('treats single newlines as hard breaks (remark-breaks)', () => {
@@ -71,20 +101,11 @@ describe('GuidanceModal', () => {
     expect(container.textContent).toContain('line2');
   });
 
-  it('calls onStart(false) when start button is clicked without checkbox', () => {
+  it('calls onStart when start button is clicked', () => {
     const onStart = vi.fn();
     render(<GuidanceModal title="T" guidance="g" onStart={onStart} />);
     fireEvent.click(screen.getByRole('button', { name: /开始答题/ }));
     expect(onStart).toHaveBeenCalledTimes(1);
-    expect(onStart).toHaveBeenCalledWith(false);
-  });
-
-  it('calls onStart(true) when checkbox is ticked and start clicked', () => {
-    const onStart = vi.fn();
-    render(<GuidanceModal title="T" guidance="g" onStart={onStart} />);
-    fireEvent.click(screen.getByLabelText(/不再提示/));
-    fireEvent.click(screen.getByRole('button', { name: /开始答题/ }));
-    expect(onStart).toHaveBeenCalledWith(true);
   });
 
   it('does NOT call onStart when backdrop is clicked', () => {
@@ -95,13 +116,6 @@ describe('GuidanceModal', () => {
     const backdrop = container.querySelector('[data-testid="guidance-backdrop"]');
     expect(backdrop).toBeTruthy();
     fireEvent.click(backdrop!);
-    expect(onStart).not.toHaveBeenCalled();
-  });
-
-  it('does NOT call onStart when Escape is pressed', () => {
-    const onStart = vi.fn();
-    render(<GuidanceModal title="T" guidance="g" onStart={onStart} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
     expect(onStart).not.toHaveBeenCalled();
   });
 });

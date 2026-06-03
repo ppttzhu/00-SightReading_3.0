@@ -5,6 +5,11 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export class GuidanceImageUploadError extends Error {}
 
+export interface UploadResult {
+  url: string;
+  imageId: string;
+}
+
 function pickExtension(file: File): string {
   const dotIndex = file.name.lastIndexOf('.');
   if (dotIndex > 0 && dotIndex < file.name.length - 1) {
@@ -21,15 +26,16 @@ function randomId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function shortId(): string {
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `img_${rand}`;
+}
+
 /**
- * Upload an image file to Supabase Storage and return its public URL.
- *
- * Validates type (must be image/*) and size (<= 5 MB). Stores under
- * a random path so multiple stages can share the bucket without collisions.
- * Image objects are NOT cleaned up when guidance text is deleted — leaving
- * orphan cleanup as a follow-up admin tool.
+ * Upload an image file to Supabase Storage, optionally record in adventure_guidance_images table,
+ * and return public URL + image ID.
  */
-export async function uploadGuidanceImage(file: File): Promise<string> {
+export async function uploadGuidanceImage(file: File, stageId?: string): Promise<UploadResult> {
   if (!supabase) {
     throw new GuidanceImageUploadError('Supabase 未配置，无法上传图片');
   }
@@ -40,16 +46,49 @@ export async function uploadGuidanceImage(file: File): Promise<string> {
     throw new GuidanceImageUploadError(`图片过大（${(file.size / 1024 / 1024).toFixed(1)} MB），最大 5 MB`);
   }
 
-  const path = `${randomId()}.${pickExtension(file)}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+  const storagePath = `${randomId()}.${pickExtension(file)}`;
+  const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(storagePath, file, {
     cacheControl: '31536000',
     upsert: false,
     contentType: file.type,
   });
-  if (error) {
-    throw new GuidanceImageUploadError(`上传失败：${error.message}`);
+  if (uploadErr) {
+    throw new GuidanceImageUploadError(`上传失败：${uploadErr.message}`);
   }
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+  const publicUrl = data.publicUrl;
+  const imageId = shortId();
+
+  // Optionally record in adventure_guidance_images table
+  if (stageId) {
+    const { error: dbErr } = await supabase
+      .from('adventure_guidance_images')
+      .insert({
+        id: imageId,
+        stage_id: stageId,
+        storage_path: storagePath,
+        public_url: publicUrl,
+        alt_text: file.name.replace(/\.[^.]+$/, '').replace(/[[\]\r\n]/g, ' ').trim() || 'image',
+        file_size: file.size,
+      } as never);
+    if (dbErr) {
+      console.warn('[uploadGuidanceImage] DB insert failed:', dbErr.message);
+      // Don't throw — Storage upload succeeded, image is usable
+    }
+  }
+
+  return { url: publicUrl, imageId };
+}
+
+export async function deleteGuidanceImage(imageId: string, stageId: string): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from('adventure_guidance_images')
+    .delete()
+    .eq('id', imageId)
+    .eq('stage_id', stageId);
+  if (error) {
+    console.warn('[deleteGuidanceImage]', error.message);
+  }
 }
