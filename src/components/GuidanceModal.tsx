@@ -1,32 +1,28 @@
-import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import type { GuidanceImage } from '../core/store/useAppStore';
 
 interface Props {
   title: string;
   guidance: string;
-  onStart: (dontShowAgain: boolean) => void;
+  guidanceImages?: GuidanceImage[];
+  onStart: () => void;
 }
 
-export default function GuidanceModal({ title, guidance, onStart }: Props) {
-  const [dontShowAgain, setDontShowAgain] = useState(false);
+/** 预处理 guidance 文本：将 {image:id} 占位符替换为真实 URL */
+function preprocessGuidance(text: string, images: GuidanceImage[]): string {
+  return text.replace(/\{image:([a-z0-9_]+)\}/g, (_match, id) => {
+    const found = images.find(img => img.id === id);
+    return found?.url ?? _match;
+  });
+}
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
+export default function GuidanceModal({ title, guidance, guidanceImages = [], onStart }: Props) {
+  const resolvedGuidance = preprocessGuidance(guidance, guidanceImages);
   return (
     <div
       data-testid="guidance-backdrop"
-      onClick={() => { /* intentionally no-op: backdrop click must not close the modal */ }}
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,0.55)',
@@ -79,28 +75,19 @@ export default function GuidanceModal({ title, guidance, onStart }: Props) {
               ),
             }}
           >
-            {guidance}
+            {resolvedGuidance}
           </ReactMarkdown>
         </div>
 
         <div
           style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: '12px', padding: '16px 28px 24px',
-            borderTop: '1px solid #f3f4f6', flexWrap: 'wrap',
+            display: 'flex', justifyContent: 'center',
+            padding: '16px 28px 24px',
+            borderTop: '1px solid #f3f4f6',
           }}
         >
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#6b7280', fontSize: '0.9rem' }}>
-            <input
-              type="checkbox"
-              checked={dontShowAgain}
-              onChange={(e) => setDontShowAgain(e.target.checked)}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
-            不再提示此关卡
-          </label>
           <button
-            onClick={() => onStart(dontShowAgain)}
+            onClick={onStart}
             style={{
               padding: '12px 28px',
               minHeight: '48px',

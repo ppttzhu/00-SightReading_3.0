@@ -93,6 +93,8 @@ export interface AutoStage {
   stageNum: number;
   title: string;
   description?: string;
+  guidance?: string;
+  guidanceImages?: GuidanceImage[];
   slices: Slice[];
   questionCount: number;
 }
@@ -102,13 +104,22 @@ export interface AutoStage {
 // ============================================================
 export type QuizModuleId = Slice['module']; // 'notes' | 'theory' | 'symbols' | 'patterns'
 
+export interface GuidanceImage {
+  id: string;
+  url: string;
+  alt?: string;
+  fileSize?: number;
+}
+
 export interface AdventureStage {
   id: string;
   title: string;
-  description?: string;
+  description?: string;            // 关卡卡片说明（冒险地图卡片上显示的文字）
+  guidance?: string;               // 学习指导 Markdown，用 {image:id} 占位符引用图片
+  guidanceImages?: GuidanceImage[]; // 学习指导中的图片列表
   levelNum: number;
-  sourceStageId: string;         // 引用 customStages.id，不再为可选（删除时已有引用检查）
-  sourceModule: QuizModuleId;    // 来源模块，用于 CMS 标签展示
+  sourceStageId: string;           // 引用 customStages.id，不再为可选（删除时已有引用检查）
+  sourceModule: QuizModuleId;      // 来源模块，用于 CMS 标签展示
   questionCount: number;
   unlockRule: 'previous_clear';
   source?: 'manual' | 'assistant';
@@ -287,6 +298,8 @@ export const useAppStore = create<AppState>()(
               stageNum: idx + 1,
               title: stage.title,
               description: stage.description,
+              guidance: stage.guidance,
+              guidanceImages: stage.guidanceImages,
               slices: [],
               questionCount: 0,
             };
@@ -300,7 +313,9 @@ export const useAppStore = create<AppState>()(
             module: 'adventure',
             stageNum: idx + 1,
             title: stage.title || sourceStage.title,
-            description: stage.description || sourceStage.guidance,
+            description: stage.description || '',
+            guidance: stage.guidance ?? sourceStage.guidance ?? '',
+            guidanceImages: stage.guidanceImages ?? [],
             slices,
             questionCount: qc,
           };
@@ -423,6 +438,8 @@ export const useAppStore = create<AppState>()(
               id: stage.id,
               title: stage.title,
               description: stage.description,
+              guidance: stage.guidance,
+              guidanceImages: stage.guidanceImages,
               levelNum: stage.levelNum ?? state.adventureStages.length + 1,
               sourceStageId: stage.sourceStageId,
               sourceModule: stage.sourceModule,
