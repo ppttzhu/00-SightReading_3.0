@@ -1,0 +1,138 @@
+[
+  {
+    "id": "manual_C_1778863602450_C4,G4|纯五度 (P5)",
+    "content": {
+      "raw": "C4,G4|纯五度 (P5)",
+      "notes": [
+        "C4",
+        "G4"
+      ],
+      "theory": "纯五度 (P5)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1778863612073_C#2,D2|小二度 (m2)",
+    "content": {
+      "raw": "C#2,D2|小二度 (m2)",
+      "notes": [
+        "C#2",
+        "D2"
+      ],
+      "theory": "小二度 (m2)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1779198394646_C4,C4|纯一度 (P1)",
+    "content": {
+      "raw": "C4,C4|纯一度 (P1)",
+      "notes": [
+        "C4",
+        "C4"
+      ],
+      "theory": "纯一度 (P1)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1779198412970_G4,G4|纯一度 (P1)",
+    "content": {
+      "raw": "G4,G4|纯一度 (P1)",
+      "notes": [
+        "G4",
+        "G4"
+      ],
+      "theory": "纯一度 (P1)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1779198440540_F3,F3|纯一度 (P1)",
+    "content": {
+      "raw": "F3,F3|纯一度 (P1)",
+      "notes": [
+        "F3",
+        "F3"
+      ],
+      "theory": "纯一度 (P1)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1779198465150_C4,E4|大三度 (M3)",
+    "content": {
+      "raw": "C4,E4|大三度 (M3)",
+      "notes": [
+        "C4",
+        "E4"
+      ],
+      "theory": "大三度 (M3)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1779198515455_F3,A3|大三度 (M3)",
+    "content": {
+      "raw": "F3,A3|大三度 (M3)",
+      "notes": [
+        "F3",
+        "A3"
+      ],
+      "theory": "大三度 (M3)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  },
+  {
+    "id": "manual_C_1779198525332_G4,B4|大三度 (M3)",
+    "content": {
+      "raw": "G4,B4|大三度 (M3)",
+      "notes": [
+        "G4",
+        "B4"
+      ],
+      "theory": "大三度 (M3)"
+    },
+    "difficulty": 1,
+    "del_status": false,
+    "created_at": "2026-05-20 14:44:34.142635+00",
+    "updated_at": "2026-05-20 14:44:34.142635+00",
+    "module": "theory",
+    "last_updated_by": null
+  }
+]
