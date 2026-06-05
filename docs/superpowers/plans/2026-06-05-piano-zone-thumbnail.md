@@ -4,7 +4,7 @@
 
 **目标：** 在现有 88 键钢琴上方增加一个带 7 个 range label 音区的缩略导航条。
 
-**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。默认状态显示 range label 和低调当前视窗高亮；滑动时增强当前视窗高亮并清除选区框；点击分区时短暂显示选区框。
+**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。默认状态显示 range label 和低调当前视窗高亮；滑动时增强当前视窗高亮并清除选区框；点击分区时短暂显示选区框。hover/focus 样式只在 fine pointer 设备启用。
 
 **技术栈：** React 19、TypeScript、Vitest、Testing Library、SVG/CSS。
 

@@ -58,13 +58,21 @@
   transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
-.full-piano-keyboard__zone:hover,
-.full-piano-keyboard__zone:focus-visible,
 .full-piano-keyboard__zone--selected {
   border-color: #2563eb;
   background: rgba(219, 234, 254, 0.55);
   color: #1d4ed8;
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .full-piano-keyboard__zone:hover,
+  .full-piano-keyboard__zone:focus-visible {
+    border-color: #2563eb;
+    background: rgba(219, 234, 254, 0.55);
+    color: #1d4ed8;
+    outline: none;
+  }
 }
 
 .full-piano-keyboard__zone span {

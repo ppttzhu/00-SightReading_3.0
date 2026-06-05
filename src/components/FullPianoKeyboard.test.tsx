@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -21,6 +22,15 @@ vi.mock('../core/engine/AudioEngine', () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+describe('FullPianoKeyboard thumbnail CSS', () => {
+  it('scopes zone hover styling to fine-pointer devices', () => {
+    const css = readFileSync(`${process.cwd()}/src/index.css`, 'utf8');
+
+    expect(css).toContain('@media (hover: hover) and (pointer: fine)');
+    expect(css).not.toContain('.full-piano-keyboard__zone:hover,\n.full-piano-keyboard__zone:focus-visible,\n.full-piano-keyboard__zone--selected');
+  });
 });
 
 describe('piano zone geometry', () => {
