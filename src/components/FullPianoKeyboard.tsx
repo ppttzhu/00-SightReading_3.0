@@ -122,11 +122,13 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
   const containerRef = useRef<HTMLDivElement>(null);
   const suppressClickRef = useRef(false);
   const scrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedZoneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Only meaningful while feedback is non-none; flashFill becomes null on
   // 'none', so the highlight disappears without explicit clearing.
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [viewportFrame, setViewportFrame] = useState(() => getViewportFrame(0, 0));
   const [thumbnailActive, setThumbnailActive] = useState(false);
+  const [selectedZoneLabel, setSelectedZoneLabel] = useState<string | null>(null);
 
   const syncViewportFrame = useCallback(() => {
     const el = containerRef.current;
@@ -148,6 +150,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
   useEffect(() => {
     return () => {
       if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current);
+      if (selectedZoneTimerRef.current) clearTimeout(selectedZoneTimerRef.current);
     };
   }, []);
 
@@ -168,6 +171,9 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
   const handleZoneClick = (zone: PianoZone) => {
     const el = containerRef.current;
     if (!el) return;
+    setSelectedZoneLabel(zone.label);
+    if (selectedZoneTimerRef.current) clearTimeout(selectedZoneTimerRef.current);
+    selectedZoneTimerRef.current = setTimeout(() => setSelectedZoneLabel(null), 900);
     const left = getZoneScrollLeft(zone, el.clientWidth);
     if (typeof el.scrollTo === 'function') {
       el.scrollTo({ left, behavior: 'smooth' });
@@ -266,7 +272,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
               key={zone.label}
               type="button"
               aria-label={zone.label}
-              className="full-piano-keyboard__zone"
+              className={`full-piano-keyboard__zone${selectedZoneLabel === zone.label ? ' full-piano-keyboard__zone--selected' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleZoneClick(zone);
@@ -283,7 +289,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
         })}
         <div
           data-testid="piano-thumbnail-viewport"
-          className="full-piano-keyboard__viewport"
+          className={`full-piano-keyboard__viewport${thumbnailActive ? ' full-piano-keyboard__viewport--visible' : ''}`}
           style={{
             left: `${viewportFrame.leftPct}%`,
             width: `${viewportFrame.widthPct}%`,

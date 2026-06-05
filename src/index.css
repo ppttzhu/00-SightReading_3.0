@@ -48,9 +48,9 @@
   top: 4px;
   height: 50px;
   padding: 0;
-  border: 1.5px solid #cbd5e1;
+  border: 1.5px solid transparent;
   border-radius: 7px;
-  background: rgba(241, 245, 249, 0.46);
+  background: transparent;
   color: #475569;
   cursor: pointer;
   font-size: 10px;
@@ -59,7 +59,8 @@
 }
 
 .full-piano-keyboard__zone:hover,
-.full-piano-keyboard__zone:focus-visible {
+.full-piano-keyboard__zone:focus-visible,
+.full-piano-keyboard__zone--selected {
   border-color: #2563eb;
   background: rgba(219, 234, 254, 0.55);
   color: #1d4ed8;
@@ -78,12 +79,17 @@
   position: absolute;
   top: 5px;
   height: 48px;
+  opacity: 0;
   pointer-events: none;
   border: 2px solid #2563eb;
   border-radius: 8px;
   background: rgba(37, 99, 235, 0.1);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
-  transition: left 0.08s linear, width 0.08s linear;
+  transition: left 0.08s linear, width 0.08s linear, opacity 0.14s ease;
+}
+
+.full-piano-keyboard__viewport--visible {
+  opacity: 1;
 }
 
 .full-piano-keyboard__scroll {

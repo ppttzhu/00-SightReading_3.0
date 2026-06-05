@@ -94,5 +94,26 @@ describe('FullPianoKeyboard thumbnail', () => {
     fireEvent.scroll(scrollArea);
 
     expect(frame.style.left).toBe(`${getViewportFrame(400, 600).leftPct}%`);
+    expect(frame.className).toContain('full-piano-keyboard__viewport--visible');
+  });
+
+  it('hides the viewport frame until the full keyboard scrolls', () => {
+    const { container } = render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
+    const frame = container.querySelector('[data-testid="piano-thumbnail-viewport"]') as HTMLDivElement;
+
+    expect(frame.className).not.toContain('full-piano-keyboard__viewport--visible');
+  });
+
+  it('only shows the selected zone frame after choosing a zone', () => {
+    render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
+    const c4Zone = screen.getByRole('button', { name: 'C4-B4' });
+    const c5Zone = screen.getByRole('button', { name: 'C5-B5' });
+
+    expect(c4Zone.className).not.toContain('full-piano-keyboard__zone--selected');
+
+    fireEvent.click(c4Zone);
+
+    expect(c4Zone.className).toContain('full-piano-keyboard__zone--selected');
+    expect(c5Zone.className).not.toContain('full-piano-keyboard__zone--selected');
   });
 });
