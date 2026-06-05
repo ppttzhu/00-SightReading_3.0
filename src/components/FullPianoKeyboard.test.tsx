@@ -97,10 +97,11 @@ describe('FullPianoKeyboard thumbnail', () => {
     expect(frame.className).toContain('full-piano-keyboard__viewport--visible');
   });
 
-  it('hides the viewport frame until the full keyboard scrolls', () => {
+  it('shows a subtle viewport highlight before the full keyboard scrolls', () => {
     const { container } = render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
     const frame = container.querySelector('[data-testid="piano-thumbnail-viewport"]') as HTMLDivElement;
 
+    expect(frame.className).toContain('full-piano-keyboard__viewport--subtle');
     expect(frame.className).not.toContain('full-piano-keyboard__viewport--visible');
   });
 

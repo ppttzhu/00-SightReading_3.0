@@ -81,15 +81,22 @@
   height: 48px;
   opacity: 0;
   pointer-events: none;
-  border: 2px solid #2563eb;
+  border: 1.5px solid rgba(37, 99, 235, 0.28);
   border-radius: 8px;
   background: rgba(37, 99, 235, 0.1);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
-  transition: left 0.08s linear, width 0.08s linear, opacity 0.14s ease;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.04);
+  transition: left 0.08s linear, width 0.08s linear, opacity 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.full-piano-keyboard__viewport--subtle {
+  opacity: 0.42;
 }
 
 .full-piano-keyboard__viewport--visible {
   opacity: 1;
+  border-color: rgba(37, 99, 235, 0.68);
+  background: rgba(37, 99, 235, 0.16);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
 }
 
 .full-piano-keyboard__scroll {

@@ -4,7 +4,7 @@
 
 **目标：** 在现有 88 键钢琴上方增加一个带 7 个 range label 音区的缩略导航条。
 
-**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。默认状态只显示 range label；滑动时显示当前视窗框；点击分区时短暂显示选区框。
+**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。默认状态显示 range label 和低调当前视窗高亮；滑动时增强当前视窗高亮；点击分区时短暂显示选区框。
 
 **技术栈：** React 19、TypeScript、Vitest、Testing Library、SVG/CSS。
 
@@ -192,7 +192,7 @@ it('updates the viewport frame when the full keyboard scrolls', () => {
 
 - [ ] **步骤 3：实现 scroll state 和样式**
 
-在 React state 中保存 `scrollLeft` 和 `clientWidth` 计算出的视窗 frame。组件挂载、居中 C4 后、以及每次 scroll 时都更新它。为外层、缩略图、音区按钮、小键盘、视窗框和滑动时的不透明度添加 CSS class。视窗框默认隐藏，只有 scroll active 时显示；分区框默认隐藏，hover/focus 或点击选中后显示。
+在 React state 中保存 `scrollLeft` 和 `clientWidth` 计算出的视窗 frame。组件挂载、居中 C4 后、以及每次 scroll 时都更新它。为外层、缩略图、音区按钮、小键盘、视窗高亮和滑动时的不透明度添加 CSS class。视窗高亮默认低调显示，scroll active 时增强；分区框默认隐藏，hover/focus 或点击选中后显示。
 
 - [ ] **步骤 4：运行测试确认绿灯**
 

@@ -289,7 +289,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
         })}
         <div
           data-testid="piano-thumbnail-viewport"
-          className={`full-piano-keyboard__viewport${thumbnailActive ? ' full-piano-keyboard__viewport--visible' : ''}`}
+          className={`full-piano-keyboard__viewport full-piano-keyboard__viewport--subtle${thumbnailActive ? ' full-piano-keyboard__viewport--visible' : ''}`}
           style={{
             left: `${viewportFrame.leftPct}%`,
             width: `${viewportFrame.widthPct}%`,
