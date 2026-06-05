@@ -1,26 +1,26 @@
-# Piano Zone Thumbnail Design
+# 钢琴六区缩略导航设计
 
-## Context
-Issue #5 asks for a small keyboard thumbnail above the existing horizontally scrollable 88-key piano. Students can currently swipe or drag the full keyboard, but they can lose their place and cannot jump quickly to a target register.
+## 背景
+Issue #5 希望在现有 88 键横向滑动钢琴上方增加一个小缩略图。现在学生可以通过触屏滑动或桌面拖拽移动大键盘，但滑动范围很长，容易迷失当前位置，也缺少快速跳到目标音区的入口。
 
-During visual brainstorming, we chose the "thumbnail keyboard with anchors" direction and removed the larger "fixed keyboard + zone toggle" idea from this change. The keyboard should remain directly usable by sliding; the thumbnail adds orientation and fast navigation.
+经过 visual companion 讨论，本轮选择“缩略键盘 + 音区锚点”的方向，并移除更大的“滑动键盘 / 固定键盘+音区 toggle”方案。大键盘仍然可以直接滑动和点击作答；缩略图只负责定位和快速导航。
 
-## Goals
-- Add a compact thumbnail above `FullPianoKeyboard` in piano input mode.
-- Show the current full-keyboard viewport inside the thumbnail.
-- Divide the thumbnail into six clickable register zones.
-- Clicking a zone scrolls the full keyboard to that zone's center without submitting an answer.
-- Keep the existing swipe, drag, click-to-answer, and feedback-lock behavior intact.
+## 目标
+- 在 Notes piano 输入模式下，在 `FullPianoKeyboard` 上方增加紧凑缩略键盘。
+- 缩略图显示当前大键盘可见视窗。
+- 缩略图划分为 6 个可点击音区。
+- 点击音区时，大键盘滚动到该音区中心，但不提交答案。
+- 保留现有触屏滑动、桌面拖拽、点击作答和反馈锁定行为。
 
-## Non-Goals
-- Do not add a toggle between sliding keyboard and fixed keyboard.
-- Do not change answer semantics or note generation.
-- Do not require teacher/CMS configuration for the six zones in this first pass.
+## 非目标
+- 不新增“滑动键盘 / 固定键盘+音区”的切换开关。
+- 不改变判题语义或题目生成逻辑。
+- 第一版不要求教师或 CMS 配置 6 个音区。
 
-## Default Zone Model
-The initial six zones use C-centered octave boundaries with slightly wider edge zones:
+## 默认音区模型
+第一版 6 区使用以 C 为主要边界的八度分区，并让两端稍微更宽：
 
-| Zone | Range | Label |
+| 区 | 范围 | 标签 |
 | --- | --- | --- |
 | 1 | `A0-B1` | `A0-B1` |
 | 2 | `C2-B2` | `C2-B2` |
@@ -29,25 +29,25 @@ The initial six zones use C-centered octave boundaries with slightly wider edge 
 | 5 | `C5-B5` | `C5-B5` |
 | 6 | `C6-C8` | `C6-C8` |
 
-These range labels and boundaries can change later based on teacher/student feedback, but the first implementation should hard-code them in the keyboard component to avoid unnecessary settings.
+这些 range label 和边界后续可以根据老师、同学反馈调整；第一版先在键盘组件内硬编码，避免引入不必要的配置入口。
 
-## Interaction Design
-`FullPianoKeyboard` renders the thumbnail immediately above the full keyboard. The thumbnail is a small horizontal piano strip with six translucent clickable zone frames, range labels, and a stronger viewport frame.
+## 交互设计
+`FullPianoKeyboard` 在大键盘上方渲染缩略图。缩略图是一条横向小钢琴，叠加 6 个半透明可点击音区框、range label，以及更醒目的当前视窗框。
 
-When the user scrolls the full keyboard by touch, mouse drag, or native scrollbar, the viewport frame updates from `scrollLeft`, `clientWidth`, and the total keyboard width. While scrolling, the thumbnail becomes more opaque; when idle, it can settle back to a quieter semi-transparent state.
+当用户通过触屏、鼠标拖拽或原生滚动条移动大键盘时，视窗框根据 `scrollLeft`、`clientWidth` 和总键盘宽度同步更新。滑动时缩略图提高不透明度；空闲后回到更安静的半透明状态。
 
-When the user clicks a zone, the component computes the zone center from the corresponding piano key positions and calls `scrollTo({ left, behavior: 'smooth' })` on the full keyboard container. The click does not play audio and does not call `onAnswer`.
+当用户点击某个音区时，组件根据对应琴键位置计算音区中心，并对大键盘容器调用 `scrollTo({ left, behavior: 'smooth' })`。这次点击不播放音频，也不调用 `onAnswer`。
 
-## Component Boundaries
-- `FullPianoKeyboard.tsx` owns key geometry, scroll state, the thumbnail, and zone navigation.
-- Existing callers in `PracticeQuiz.tsx` and `InteractiveQuiz.tsx` should not need API changes.
-- CSS can live in `src/index.css` if class-based styling is clearer than inline SVG styles.
+## 组件边界
+- `FullPianoKeyboard.tsx` 负责琴键几何、滚动状态、缩略图和音区导航。
+- `PracticeQuiz.tsx` 和 `InteractiveQuiz.tsx` 等现有调用方不需要 API 改动。
+- class-based 样式放在 `src/index.css`，避免在组件里堆太多视觉样式。
 
-## Testing
-- Add focused tests for zone data and scroll target calculation so the range model is protected.
-- Add component tests that verify six zone buttons render and that clicking one changes the scroll position or calls the injected scroll behavior.
-- Keep existing notes-practice tests passing.
+## 测试策略
+- 添加纯函数测试，保护 6 区配置、琴键中心点、音区中心和滚动目标计算。
+- 添加组件测试，验证 6 个 range label 按钮渲染，以及点击音区只滚动、不作答。
+- 保持现有 notes-practice 相关测试通过。
 
-## Open Questions
-- Teacher-specific labels for the six zones are intentionally deferred.
-- If feedback shows the first/last zones feel too wide, we can adjust only the zone config without changing the interaction model.
+## 待观察点
+- 教师专用的 6 区名称暂不引入，先用 range label。
+- 如果反馈认为首尾音区过宽，后续只需调整 zone 配置，不需要改交互模型。

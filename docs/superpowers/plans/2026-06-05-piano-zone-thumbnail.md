@@ -1,22 +1,22 @@
-# Piano Zone Thumbnail Implementation Plan
+# 钢琴六区缩略导航实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给 agentic workers：** 必须使用子技能：优先使用 `superpowers:subagent-driven-development`，或使用 `superpowers:executing-plans` 按任务逐步实现。步骤使用 checkbox（`- [ ]`）语法便于追踪。
 
-**Goal:** Add a six-zone range-labeled thumbnail navigator above the existing 88-key piano.
+**目标：** 在现有 88 键钢琴上方增加一个带 6 个 range label 音区的缩略导航条。
 
-**Architecture:** Keep the feature inside `FullPianoKeyboard`: export small geometry helpers for tests, render a thumbnail strip above the existing scroll container, and use the same scroll container for touch/drag/key clicking. The thumbnail never submits answers; it only calls `scrollTo` on the full keyboard.
+**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。
 
-**Tech Stack:** React 19, TypeScript, Vitest, Testing Library, SVG/CSS.
+**技术栈：** React 19、TypeScript、Vitest、Testing Library、SVG/CSS。
 
 ---
 
-### Task 1: Zone Geometry
+### 任务 1：音区几何模型
 
-**Files:**
-- Modify: `src/components/FullPianoKeyboard.tsx`
-- Create: `src/components/FullPianoKeyboard.test.tsx`
+**文件：**
+- 修改：`src/components/FullPianoKeyboard.tsx`
+- 新增：`src/components/FullPianoKeyboard.test.tsx`
 
-- [ ] **Step 1: Write the failing geometry tests**
+- [ ] **步骤 1：先写失败的几何测试**
 
 ```tsx
 import { describe, expect, it } from 'vitest';
@@ -59,29 +59,29 @@ describe('piano zone geometry', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- [ ] **步骤 2：运行测试确认红灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: FAIL because `FullPianoKeyboard.test.tsx` or the exported helpers do not exist yet.
+预期：失败，因为 `FullPianoKeyboard.test.tsx` 或被测试的导出 helper 还不存在。
 
-- [ ] **Step 3: Add minimal geometry exports**
+- [ ] **步骤 3：添加最小几何导出**
 
-In `src/components/FullPianoKeyboard.tsx`, export `PIANO_ZONES`, `TOTAL_W`, `getKeyCenterX`, `getZoneCenterX`, `getZoneScrollLeft`, and `getViewportFrame`. Keep existing keyboard rendering behavior unchanged.
+在 `src/components/FullPianoKeyboard.tsx` 中导出 `PIANO_ZONES`、`TOTAL_W`、`getKeyCenterX`、`getZoneCenterX`、`getZoneScrollLeft` 和 `getViewportFrame`。保持现有键盘渲染行为不变。
 
-- [ ] **Step 4: Run test to verify GREEN**
+- [ ] **步骤 4：运行测试确认绿灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: PASS for geometry tests.
+预期：几何测试通过。
 
-### Task 2: Thumbnail Rendering
+### 任务 2：缩略图渲染
 
-**Files:**
-- Modify: `src/components/FullPianoKeyboard.tsx`
-- Modify: `src/components/FullPianoKeyboard.test.tsx`
+**文件：**
+- 修改：`src/components/FullPianoKeyboard.tsx`
+- 修改：`src/components/FullPianoKeyboard.test.tsx`
 
-- [ ] **Step 1: Write the failing render tests**
+- [ ] **步骤 1：先写失败的渲染测试**
 
 ```tsx
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -103,29 +103,29 @@ describe('FullPianoKeyboard thumbnail', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- [ ] **步骤 2：运行测试确认红灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: FAIL because no thumbnail zone buttons are rendered.
+预期：失败，因为还没有渲染缩略图音区按钮。
 
-- [ ] **Step 3: Render thumbnail UI**
+- [ ] **步骤 3：渲染缩略图 UI**
 
-Render a `.full-piano-keyboard` wrapper, a `.full-piano-keyboard__thumbnail` strip above the scroll container, six `button` overlays labeled with each range, and a `.full-piano-keyboard__viewport` element for the current viewport. Keep the full SVG keyboard unchanged below it.
+渲染 `.full-piano-keyboard` 外层、位于滚动容器上方的 `.full-piano-keyboard__thumbnail` 缩略键盘、6 个带 range label 的 `button` overlay，以及表示当前视窗的 `.full-piano-keyboard__viewport`。下面的大键盘 SVG 保持原样。
 
-- [ ] **Step 4: Run test to verify GREEN**
+- [ ] **步骤 4：运行测试确认绿灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: PASS.
+预期：测试通过。
 
-### Task 3: Zone Click Navigation
+### 任务 3：音区点击导航
 
-**Files:**
-- Modify: `src/components/FullPianoKeyboard.tsx`
-- Modify: `src/components/FullPianoKeyboard.test.tsx`
+**文件：**
+- 修改：`src/components/FullPianoKeyboard.tsx`
+- 修改：`src/components/FullPianoKeyboard.test.tsx`
 
-- [ ] **Step 1: Write failing behavior tests**
+- [ ] **步骤 1：先写失败的行为测试**
 
 ```tsx
 describe('FullPianoKeyboard thumbnail navigation', () => {
@@ -144,30 +144,30 @@ describe('FullPianoKeyboard thumbnail navigation', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- [ ] **步骤 2：运行测试确认红灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: FAIL because zone clicks do not scroll yet.
+预期：失败，因为点击音区还不会滚动。
 
-- [ ] **Step 3: Implement zone click navigation**
+- [ ] **步骤 3：实现音区点击导航**
 
-Add `handleZoneClick(zone)` to compute `getZoneScrollLeft(zone, container.clientWidth)` and call `container.scrollTo({ left, behavior: 'smooth' })`. If `scrollTo` is unavailable, assign `container.scrollLeft = left`.
+添加 `handleZoneClick(zone)`：用 `getZoneScrollLeft(zone, container.clientWidth)` 计算目标位置，并调用 `container.scrollTo({ left, behavior: 'smooth' })`。如果运行环境没有 `scrollTo`，则回退为直接设置 `container.scrollLeft = left`。
 
-- [ ] **Step 4: Run test to verify GREEN**
+- [ ] **步骤 4：运行测试确认绿灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: PASS.
+预期：测试通过。
 
-### Task 4: Viewport Sync And Polish
+### 任务 4：视窗同步和视觉 polish
 
-**Files:**
-- Modify: `src/components/FullPianoKeyboard.tsx`
-- Modify: `src/index.css`
-- Modify: `src/components/FullPianoKeyboard.test.tsx`
+**文件：**
+- 修改：`src/components/FullPianoKeyboard.tsx`
+- 修改：`src/index.css`
+- 修改：`src/components/FullPianoKeyboard.test.tsx`
 
-- [ ] **Step 1: Write a failing viewport sync test**
+- [ ] **步骤 1：先写失败的视窗同步测试**
 
 ```tsx
 it('updates the viewport frame when the full keyboard scrolls', () => {
@@ -183,51 +183,51 @@ it('updates the viewport frame when the full keyboard scrolls', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- [ ] **步骤 2：运行测试确认红灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: FAIL until viewport state is connected to scroll events.
+预期：失败，直到 scroll 事件真正驱动视窗状态更新。
 
-- [ ] **Step 3: Implement scroll state and styles**
+- [ ] **步骤 3：实现 scroll state 和样式**
 
-Store `scrollLeft` and `clientWidth` in React state. Update it on mount, after centering C4, and on every scroll. Add CSS classes for the wrapper, thumbnail, zone buttons, mini keys, viewport frame, and active scrolling opacity.
+在 React state 中保存 `scrollLeft` 和 `clientWidth` 计算出的视窗 frame。组件挂载、居中 C4 后、以及每次 scroll 时都更新它。为外层、缩略图、音区按钮、小键盘、视窗框和滑动时的不透明度添加 CSS class。
 
-- [ ] **Step 4: Run test to verify GREEN**
+- [ ] **步骤 4：运行测试确认绿灯**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: PASS.
+预期：测试通过。
 
-### Task 5: OpenSpec Tasks And Verification
+### 任务 5：OpenSpec checklist 和验证
 
-**Files:**
-- Modify: `openspec/changes/add-piano-zone-thumbnail/tasks.md`
+**文件：**
+- 修改：`openspec/changes/add-piano-zone-thumbnail/tasks.md`
 
-- [ ] **Step 1: Mark OpenSpec tasks complete**
+- [ ] **步骤 1：标记 OpenSpec 任务完成**
 
-Update every task in `openspec/changes/add-piano-zone-thumbnail/tasks.md` from `- [ ]` to `- [x]` only after implementation and verification are complete.
+只有在实现和验证都完成之后，才把 `openspec/changes/add-piano-zone-thumbnail/tasks.md` 里的所有任务从 `- [ ]` 更新为 `- [x]`。
 
-- [ ] **Step 2: Run focused test**
+- [ ] **步骤 2：运行 focused test**
 
-Run: `npm test -- FullPianoKeyboard`
+运行：`npm test -- FullPianoKeyboard`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 3: Run full test suite**
+- [ ] **步骤 3：运行完整测试**
 
-Run: `npm test`
+运行：`npm test`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 4: Run build**
+- [ ] **步骤 4：运行 build**
 
-Run: `npm run build`
+运行：`npm run build`
 
-Expected: PASS.
+预期：通过。
 
-- [ ] **Step 5: Run OpenSpec validation**
+- [ ] **步骤 5：运行 OpenSpec validation**
 
-Run: `openspec validate add-piano-zone-thumbnail --strict`
+运行：`openspec validate add-piano-zone-thumbnail --strict`
 
-Expected: `Change 'add-piano-zone-thumbnail' is valid`.
+预期：`Change 'add-piano-zone-thumbnail' is valid`。
