@@ -13,7 +13,7 @@ Notes(A 类) piano 模式 SHALL 在 88 键滑动键盘上方显示一个缩略�
 - **THEN** 缩略键盘上的视窗框 SHALL 跟随 `scrollLeft` 更新
 
 ### Requirement: Piano Thumbnail Six Zones
-缩略键盘 SHALL 默认划分为 6 个连续可点击音区：`A0-B1`、`C2-B2`、`C3-B3`、`C4-B4`、`C5-B5`、`C6-C8`。每个音区 SHALL 以可见边框呈现，并 SHALL 提供可理解的中文标签。
+缩略键盘 SHALL 默认划分为 6 个连续可点击音区：`A0-B1`、`C2-B2`、`C3-B3`、`C4-B4`、`C5-B5`、`C6-C8`。每个音区 SHALL 以可见边框呈现，并 SHALL 直接使用对应 range 作为 label。
 
 #### Scenario: 六区完整覆盖
 - **WHEN** 缩略键盘渲染完成

@@ -5,7 +5,7 @@
 ## 2. Thumbnail UI
 - [ ] 2.1 在 `FullPianoKeyboard` 内渲染缩略键盘条
 - [ ] 2.2 在缩略键盘上叠加 6 个可点击音区框和当前视窗框
-- [ ] 2.3 添加组件测试，验证 6 个区块按钮存在且 label/range 正确
+- [ ] 2.3 添加组件测试，验证 6 个区块按钮存在且显示对应 range label
 
 ## 3. Navigation Behavior
 - [ ] 3.1 监听大键盘容器 scroll，更新当前视窗框
