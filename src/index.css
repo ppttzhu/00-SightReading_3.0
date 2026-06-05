@@ -23,7 +23,7 @@
   height: 58px;
   margin-bottom: 8px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: #f8fafc;
   opacity: 0.72;
@@ -76,7 +76,7 @@
 .full-piano-keyboard__zone span {
   position: absolute;
   right: 0;
-  bottom: -2px;
+  bottom: -1px;
   left: 0;
   line-height: 1;
   pointer-events: none;

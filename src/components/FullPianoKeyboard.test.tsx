@@ -40,11 +40,15 @@ describe('FullPianoKeyboard thumbnail CSS', () => {
     expect(zoneRule).toContain('background: rgba(255, 255, 255, 0.18)');
   });
 
-  it('does not add a blue outer frame to the thumbnail container', () => {
+  it('does not render a visible outer frame around the thumbnail container', () => {
     const css = readFileSync(`${process.cwd()}/src/index.css`, 'utf8');
+    const thumbnailRule =
+      css.match(/\.full-piano-keyboard__thumbnail\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? '';
     const activeThumbnailRule =
       css.match(/\.full-piano-keyboard__thumbnail--active,\n\.full-piano-keyboard__thumbnail:hover,\n\.full-piano-keyboard__thumbnail:focus-within\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? '';
 
+    expect(thumbnailRule).toContain('border: 1px solid transparent');
+    expect(thumbnailRule).not.toContain('border: 1px solid #e5e7eb');
     expect(activeThumbnailRule).not.toContain('border-color: #bfdbfe');
     expect(activeThumbnailRule).not.toContain('rgba(37, 99, 235');
   });
@@ -53,7 +57,7 @@ describe('FullPianoKeyboard thumbnail CSS', () => {
     const css = readFileSync(`${process.cwd()}/src/index.css`, 'utf8');
     const zoneLabelRule = css.match(/\.full-piano-keyboard__zone span\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? '';
 
-    expect(zoneLabelRule).toContain('bottom: -2px');
+    expect(zoneLabelRule).toContain('bottom: -1px');
     expect(zoneLabelRule).toContain('line-height: 1');
   });
 });
