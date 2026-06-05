@@ -1,8 +1,8 @@
-# 钢琴六区缩略导航实现计划
+# 钢琴七区缩略导航实现计划
 
 > **给 agentic workers：** 必须使用子技能：优先使用 `superpowers:subagent-driven-development`，或使用 `superpowers:executing-plans` 按任务逐步实现。步骤使用 checkbox（`- [ ]`）语法便于追踪。
 
-**目标：** 在现有 88 键钢琴上方增加一个带 6 个 range label 音区的缩略导航条。
+**目标：** 在现有 88 键钢琴上方增加一个带 7 个 range label 音区的缩略导航条。
 
 **架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。
 
@@ -30,14 +30,15 @@ import {
 } from './FullPianoKeyboard';
 
 describe('piano zone geometry', () => {
-  it('defines six range-labeled zones covering the approved ranges', () => {
+  it('defines seven range-labeled zones covering the approved ranges', () => {
     expect(PIANO_ZONES.map((zone) => zone.label)).toEqual([
       'A0-B1',
       'C2-B2',
       'C3-B3',
       'C4-B4',
       'C5-B5',
-      'C6-C8',
+      'C6-B6',
+      'C7-C8',
     ]);
   });
 
@@ -94,7 +95,7 @@ afterEach(() => {
 });
 
 describe('FullPianoKeyboard thumbnail', () => {
-  it('renders six range-labeled zone buttons', () => {
+  it('renders seven range-labeled zone buttons', () => {
     render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
     for (const zone of PIANO_ZONES) {
       expect(screen.getByRole('button', { name: zone.label })).toBeTruthy();
@@ -111,7 +112,7 @@ describe('FullPianoKeyboard thumbnail', () => {
 
 - [ ] **步骤 3：渲染缩略图 UI**
 
-渲染 `.full-piano-keyboard` 外层、位于滚动容器上方的 `.full-piano-keyboard__thumbnail` 缩略键盘、6 个带 range label 的 `button` overlay，以及表示当前视窗的 `.full-piano-keyboard__viewport`。下面的大键盘 SVG 保持原样。
+渲染 `.full-piano-keyboard` 外层、位于滚动容器上方的 `.full-piano-keyboard__thumbnail` 缩略键盘、7 个带 range label 的 `button` overlay，以及表示当前视窗的 `.full-piano-keyboard__viewport`。下面的大键盘 SVG 保持原样。
 
 - [ ] **步骤 4：运行测试确认绿灯**
 

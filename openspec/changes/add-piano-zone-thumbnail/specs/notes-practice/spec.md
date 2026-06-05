@@ -12,18 +12,19 @@ Notes(A 类) piano 模式 SHALL 在 88 键滑动键盘上方显示一个缩略�
 - **WHEN** 用户通过触屏滑动、桌面拖拽或原生横向滚动条移动大键盘
 - **THEN** 缩略键盘上的视窗框 SHALL 跟随 `scrollLeft` 更新
 
-### Requirement: 钢琴缩略图六区入口
-缩略键盘 SHALL 默认划分为 6 个连续可点击音区：`A0-B1`、`C2-B2`、`C3-B3`、`C4-B4`、`C5-B5`、`C6-C8`。每个音区 SHALL 以可见边框呈现，并 SHALL 直接使用对应 range 作为 label。
+### Requirement: 钢琴缩略图七区入口
+缩略键盘 SHALL 默认划分为 7 个连续可点击音区：`A0-B1`、`C2-B2`、`C3-B3`、`C4-B4`、`C5-B5`、`C6-B6`、`C7-C8`。每个音区 SHALL 以可见边框呈现，并 SHALL 直接使用对应 range 作为 label。
 
-#### Scenario: 六区完整覆盖
+#### Scenario: 七区完整覆盖
 - **WHEN** 缩略键盘渲染完成
-- **THEN** 系统 SHALL 显示 6 个音区入口
+- **THEN** 系统 SHALL 显示 7 个音区入口
 - **AND** 第一区 SHALL 覆盖 `A0-B1`
 - **AND** 第二区 SHALL 覆盖 `C2-B2`
 - **AND** 第三区 SHALL 覆盖 `C3-B3`
 - **AND** 第四区 SHALL 覆盖 `C4-B4`
 - **AND** 第五区 SHALL 覆盖 `C5-B5`
-- **AND** 第六区 SHALL 覆盖 `C6-C8`
+- **AND** 第六区 SHALL 覆盖 `C6-B6`
+- **AND** 第七区 SHALL 覆盖 `C7-C8`
 
 #### Scenario: 点击音区跳转
 - **WHEN** 用户点击缩略键盘上的任一音区

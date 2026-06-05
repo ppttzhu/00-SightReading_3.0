@@ -59,7 +59,8 @@ export const PIANO_ZONES: PianoZone[] = [
   { label: 'C3-B3', start: 'C3', end: 'B3' },
   { label: 'C4-B4', start: 'C4', end: 'B4' },
   { label: 'C5-B5', start: 'C5', end: 'B5' },
-  { label: 'C6-C8', start: 'C6', end: 'C8' },
+  { label: 'C6-B6', start: 'C6', end: 'B6' },
+  { label: 'C7-C8', start: 'C7', end: 'C8' },
 ];
 
 function clamp(n: number, min: number, max: number): number {

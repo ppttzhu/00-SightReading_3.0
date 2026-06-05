@@ -24,14 +24,15 @@ afterEach(() => {
 });
 
 describe('piano zone geometry', () => {
-  it('defines six range-labeled zones covering the approved ranges', () => {
+  it('defines seven range-labeled zones covering the approved ranges', () => {
     expect(PIANO_ZONES.map((zone) => zone.label)).toEqual([
       'A0-B1',
       'C2-B2',
       'C3-B3',
       'C4-B4',
       'C5-B5',
-      'C6-C8',
+      'C6-B6',
+      'C7-C8',
     ]);
   });
 
@@ -56,7 +57,7 @@ describe('piano zone geometry', () => {
 });
 
 describe('FullPianoKeyboard thumbnail', () => {
-  it('renders six range-labeled zone buttons', () => {
+  it('renders seven range-labeled zone buttons', () => {
     render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
 
     for (const zone of PIANO_ZONES) {
