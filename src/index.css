@@ -33,8 +33,6 @@
 .full-piano-keyboard__thumbnail--active,
 .full-piano-keyboard__thumbnail:hover,
 .full-piano-keyboard__thumbnail:focus-within {
-  border-color: #bfdbfe;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
   opacity: 1;
 }
 
@@ -78,8 +76,9 @@
 .full-piano-keyboard__zone span {
   position: absolute;
   right: 0;
-  bottom: 3px;
+  bottom: -2px;
   left: 0;
+  line-height: 1;
   pointer-events: none;
 }
 
