@@ -117,4 +117,18 @@ describe('FullPianoKeyboard thumbnail', () => {
     expect(c4Zone.className).toContain('full-piano-keyboard__zone--selected');
     expect(c5Zone.className).not.toContain('full-piano-keyboard__zone--selected');
   });
+
+  it('clears the selected zone frame when the full keyboard scrolls', () => {
+    const { container } = render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
+    const scrollArea = container.querySelector('[data-testid="full-piano-scroll"]') as HTMLDivElement;
+    const c7Zone = screen.getByRole('button', { name: 'C7-C8' });
+
+    fireEvent.click(c7Zone);
+    expect(c7Zone.className).toContain('full-piano-keyboard__zone--selected');
+
+    scrollArea.scrollLeft = 1200;
+    fireEvent.scroll(scrollArea);
+
+    expect(c7Zone.className).not.toContain('full-piano-keyboard__zone--selected');
+  });
 });

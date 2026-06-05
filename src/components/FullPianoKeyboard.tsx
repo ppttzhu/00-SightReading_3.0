@@ -215,9 +215,14 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
 
   const onScroll = () => {
     setThumbnailActive(true);
+    setSelectedZoneLabel(null);
     syncViewportFrame();
     if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current);
     scrollIdleTimerRef.current = setTimeout(() => setThumbnailActive(false), 700);
+    if (selectedZoneTimerRef.current) {
+      clearTimeout(selectedZoneTimerRef.current);
+      selectedZoneTimerRef.current = null;
+    }
   };
 
   return (
