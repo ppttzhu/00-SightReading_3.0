@@ -31,6 +31,14 @@ describe('FullPianoKeyboard thumbnail CSS', () => {
     expect(css).toContain('@media (hover: hover) and (pointer: fine)');
     expect(css).not.toContain('.full-piano-keyboard__zone:hover,\n.full-piano-keyboard__zone:focus-visible,\n.full-piano-keyboard__zone--selected');
   });
+
+  it('keeps default zone boundaries visible without using selected styling', () => {
+    const css = readFileSync(`${process.cwd()}/src/index.css`, 'utf8');
+    const zoneRule = css.match(/\.full-piano-keyboard__zone\s*\{(?<body>[^}]+)\}/)?.groups?.body ?? '';
+
+    expect(zoneRule).toContain('border: 1px solid rgba(100, 116, 139, 0.28)');
+    expect(zoneRule).toContain('background: rgba(255, 255, 255, 0.18)');
+  });
 });
 
 describe('piano zone geometry', () => {

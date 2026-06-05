@@ -7,7 +7,7 @@ Notes(A 类) piano 模式 SHALL 在 88 键滑动键盘上方显示一个缩略�
 - **WHEN** 用户进入 Notes piano 模式并看到 88 键滑动键盘
 - **THEN** 系统 SHALL 在大键盘上方渲染缩略键盘
 - **AND** 缩略键盘 SHALL 默认以浅蓝半透明 tint 标示当前主键盘可见范围
-- **AND** 音区边框默认不常驻显示，避免与当前视窗高亮同时形成过多框线
+- **AND** 每个音区 SHALL 默认显示轻量中性边界，使分区范围可辨识但不抢过当前视窗高亮
 
 #### Scenario: 滑动时视窗同步
 - **WHEN** 用户通过触屏滑动、桌面拖拽或原生横向滚动条移动大键盘
@@ -16,7 +16,7 @@ Notes(A 类) piano 模式 SHALL 在 88 键滑动键盘上方显示一个缩略�
 - **AND** 滑动空闲后，当前视窗高亮 SHALL 回到低调显示状态
 
 ### Requirement: 钢琴缩略图七区入口
-缩略键盘 SHALL 默认划分为 7 个连续可点击音区：`A0-B1`、`C2-B2`、`C3-B3`、`C4-B4`、`C5-B5`、`C6-B6`、`C7-C8`。每个音区 SHALL 直接使用对应 range 作为 label；音区边框默认不常驻显示，只有用户点击选中该音区时显示。hover/focus 引起的音区边框 SHALL 仅在 `(hover: hover) and (pointer: fine)` 设备上启用，避免触屏浏览器保留 sticky hover 状态。
+缩略键盘 SHALL 默认划分为 7 个连续可点击音区：`A0-B1`、`C2-B2`、`C3-B3`、`C4-B4`、`C5-B5`、`C6-B6`、`C7-C8`。每个音区 SHALL 直接使用对应 range 作为 label；音区 SHALL 默认显示轻量中性边界，只有用户点击选中、或在支持 hover 的 fine pointer 设备上 hover/focus 时，才显示更强的蓝色选区边框。hover/focus 引起的蓝色边框 SHALL 仅在 `(hover: hover) and (pointer: fine)` 设备上启用，避免触屏浏览器保留 sticky hover 状态。
 
 #### Scenario: 七区完整覆盖
 - **WHEN** 缩略键盘渲染完成
