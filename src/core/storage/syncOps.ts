@@ -332,7 +332,7 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
  */
 export async function syncRecordAdventureCompletion(
   stageId: string,
-  stats: { correctCount: number; wrongCount: number; timeSpentSec: number },
+  stats: { correctCount: number; wrongCount: number; timeSpentSec: number; passed: boolean },
 ): Promise<void> {
   if (!supabase) return;
   const { data } = await supabase.auth.getSession();
@@ -359,6 +359,7 @@ export async function syncRecordAdventureCompletion(
         wrong_count: stats.wrongCount,
         time_spent_sec: stats.timeSpentSec,
         score,
+        passed: stats.passed,
         attempt_count: existing.attempt_count + 1,
         completed_at: new Date().toISOString(),
       } as never)

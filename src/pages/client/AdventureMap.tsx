@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
 import { Check, Loader2, Lock, Music2, Play, RefreshCw, Route, Trophy } from 'lucide-react';
 import { useAppStore } from '../../core/store/useAppStore';
+import { supabase } from '../../core/auth/supabaseClient';
 
 const pathColors = ['#2563eb', '#0891b2', '#7c3aed', '#16a34a', '#ea580c', '#d946ef', '#f59e0b', '#06b6d4', '#84cc16', '#6366f1'];
+
+interface CompletionInfo {
+  attemptCount: number;
+  bestScore: number;
+  passed: boolean;
+}
 
 export default function AdventureMap() {
   const navigate = useNavigate();
@@ -17,11 +24,38 @@ export default function AdventureMap() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [completions, setCompletions] = useState<Map<string, CompletionInfo>>(new Map());
 
   useEffect(() => {
-    // simulate brief data resolution; in production this waits for provider.load()
-    const timer = setTimeout(() => setLoading(false), 300);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    const load = async () => {
+      // Load completions data from Supabase
+      if (supabase) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session && !cancelled) {
+          const { data } = await supabase
+            .from('adventure_stage_completions')
+            .select('stage_id, score, attempt_count, passed');
+          if (data && !cancelled) {
+            const map = new Map<string, CompletionInfo>();
+            for (const row of data as any[]) {
+              const existing = map.get(row.stage_id);
+              if (!existing || (row.score ?? 0) > existing.bestScore) {
+                map.set(row.stage_id, {
+                  attemptCount: row.attempt_count ?? 1,
+                  bestScore: row.score ?? 0,
+                  passed: row.passed ?? true,
+                });
+              }
+            }
+            setCompletions(map);
+          }
+        }
+      }
+      if (!cancelled) setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const stages = useMemo(
@@ -31,6 +65,32 @@ export default function AdventureMap() {
 
   const totalLevels = stages.length;
   const completedCount = stages.filter(s => completedIds.includes(s.id)).length;
+
+  const renderPassCriteria = useCallback((stage: typeof stages[number]) => {
+    if (!stage.passCriteria?.enabled) return null;
+    return (
+      <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#fef2f2', color: '#dc2626', fontWeight: 600, marginLeft: '6px' }}>
+        需 ≥{stage.passCriteria.minAccuracy}%
+      </span>
+    );
+  }, []);
+
+  const renderCompletionStats = useCallback((stageId: string, isCompleted: boolean) => {
+    const info = completions.get(stageId);
+    if (!info) return null;
+    if (isCompleted) {
+      return (
+        <small style={{ display: 'block', color: '#059669', fontWeight: 600, marginTop: '2px', fontSize: '0.75rem' }}>
+          最高正确率 {info.bestScore}%
+        </small>
+      );
+    }
+    return (
+      <small style={{ display: 'block', color: '#d97706', fontWeight: 600, marginTop: '2px', fontSize: '0.75rem' }}>
+        已试 {info.attemptCount} 次 · 最高 {info.bestScore}%
+      </small>
+    );
+  }, [completions]);
 
   // ── 加载态 ──
   if (loading) {
@@ -106,8 +166,11 @@ export default function AdventureMap() {
             const prevId = index > 0 ? stages[index - 1].id : null;
             const isUnlocked = index === 0 || (prevId ? completedIds.includes(prevId) : false);
             const canPlay = isUnlocked && stage.slices.length > 0;
+            const hasAttempts = completions.has(stageId);
             const status = isCompleted ? 'complete' : canPlay ? 'ready' : 'locked';
             const tone = pathColors[index % pathColors.length];
+
+            const actionLabel = isCompleted ? '复习' : hasAttempts ? '继续挑战' : canPlay ? '闯关' : '锁定';
 
             return (
               <button
@@ -123,13 +186,22 @@ export default function AdventureMap() {
                   </span>
                 </span>
                 <span className="quest-card-body">
-                  <strong>{stage.title}</strong>
+                  <strong>
+                    {stage.title}
+                    {!isCompleted && renderPassCriteria(stage)}
+                  </strong>
                   <small className={stage.description ? 'quest-desc' : 'quest-placeholder'}>
                     {stage.description || '等待解锁'}
                   </small>
+                  {renderCompletionStats(stageId, isCompleted)}
+                  {isCompleted && stage.passCriteria?.enabled && (
+                    <small style={{ display: 'block', color: '#9ca3af', marginTop: '2px', fontSize: '0.7rem' }}>
+                      通关要求 ≥{stage.passCriteria.minAccuracy}%
+                    </small>
+                  )}
                 </span>
                 <span className="quest-action">
-                  {isCompleted ? '复习' : canPlay ? '闯关' : '锁定'}
+                  {actionLabel}
                 </span>
               </button>
             );

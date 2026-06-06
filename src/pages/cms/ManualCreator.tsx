@@ -142,28 +142,44 @@ function AutocompleteInput({
   );
 }
 
+// 音名字母索引
+const LETTER_IDX: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+
+// ( diatonicSteps, semitones ) → 音程名称
+const INTERVAL_NAME_TABLE: Record<string, string> = {
+  '0,0': '纯一度 (P1)', '0,1': '增一度 (A1)',
+  '1,0': '减二度 (d2)', '1,1': '小二度 (m2)', '1,2': '大二度 (M2)', '1,3': '增二度 (A2)',
+  '2,2': '减三度 (d3)', '2,3': '小三度 (m3)', '2,4': '大三度 (M3)', '2,5': '增三度 (A3)',
+  '3,4': '减四度 (d4)', '3,5': '纯四度 (P4)', '3,6': '增四度 (A4)',
+  '4,6': '减五度 (d5)', '4,7': '纯五度 (P5)', '4,8': '增五度 (A5)',
+  '5,7': '减六度 (d6)', '5,8': '小六度 (m6)', '5,9': '大六度 (M6)', '5,10': '增六度 (A6)',
+  '6,9': '减七度 (d7)', '6,10': '小七度 (m7)', '6,11': '大七度 (M7)', '6,12': '增七度 (A7)',
+  '7,11': '减八度 (d8)', '7,12': '纯八度 (P8)', '7,13': '增八度 (A8)',
+};
+
 // 计算两个音之间的音程名称
 function calcIntervalName(noteA: string, noteB: string): string | null {
   const STEP_TO_SEMI: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-  const INTERVAL_MAP: Record<number, string> = {
-    0: '纯一度 (P1)', 1: '小二度 (m2)', 2: '大二度 (M2)', 3: '小三度 (m3)', 4: '大三度 (M3)',
-    5: '纯四度 (P4)', 6: '增四度/减五度 (A4/d5)', 7: '纯五度 (P5)',
-    8: '小六度 (m6)', 9: '大六度 (M6)', 10: '小七度 (m7)', 11: '大七度 (M7)', 12: '纯八度 (P8)',
-  };
 
   const parsePitch = (p: string) => {
     const m = p.match(/^([A-G])(#|b)?(\d)$/);
     if (!m) return null;
     const alter = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
-    return STEP_TO_SEMI[m[1]] + alter + (parseInt(m[3]) + 1) * 12;
+    return { midi: STEP_TO_SEMI[m[1]] + alter + (parseInt(m[3]) + 1) * 12, letter: m[1], octave: parseInt(m[3]) };
   };
 
-  const midiA = parsePitch(noteA);
-  const midiB = parsePitch(noteB);
-  if (midiA == null || midiB == null) return null;
+  const a = parsePitch(noteA);
+  const b = parsePitch(noteB);
+  if (!a || !b) return null;
 
-  const semitones = Math.abs(midiB - midiA) % 12;
-  return INTERVAL_MAP[semitones] || null;
+  const semitones = Math.abs(b.midi - a.midi);
+  // 确定高低音，保证 diatonic steps 非负
+  const low = a.midi <= b.midi ? a : b;
+  const high = a.midi <= b.midi ? b : a;
+  const totalDiatonic = (high.octave - low.octave) * 7 + (LETTER_IDX[high.letter] - LETTER_IDX[low.letter]);
+  const absDiatonic = Math.abs(totalDiatonic);
+  const key = `${Math.min(absDiatonic, 7)},${semitones}`;
+  return INTERVAL_NAME_TABLE[key] || null;
 }
 
 function IntervalRow({ noteA, setNoteA, noteB, setNoteB, intervalName, setIntervalName, onAdd }: {

@@ -97,6 +97,12 @@ export interface AutoStage {
   guidanceImages?: GuidanceImage[];
   slices: Slice[];
   questionCount: number;
+  noteDisplayMs?: number;          // 音符显示时间（毫秒），闯关模式设置后携带
+  noteHiddenMs?: number;           // 音符隐藏时间（毫秒），闯关模式设置后携带
+  passCriteria?: {                 // 通关标准，闯关模式使用
+    enabled: boolean;
+    minAccuracy: number;
+  };
 }
 
 // ============================================================
@@ -121,6 +127,12 @@ export interface AdventureStage {
   sourceStageId: string;           // 引用 customStages.id，不再为可选（删除时已有引用检查）
   sourceModule: QuizModuleId;      // 来源模块，用于 CMS 标签展示
   questionCount: number;
+  noteDisplayMs?: number;          // 音符显示时间（毫秒），默认 3000
+  noteHiddenMs?: number;           // 音符隐藏时间（毫秒），默认 6000
+  passCriteria?: {                 // 通关标准
+    enabled: boolean;              //   是否启用
+    minAccuracy: number;           //   最低正确率百分比（1-100）
+  };
   unlockRule: 'previous_clear';
   source?: 'manual' | 'assistant';
   createdAt?: number;
@@ -183,7 +195,7 @@ interface AppState {
   updateAdventureStage: (id: string, patch: Partial<Omit<AdventureStage, 'id'>>) => void;
   removeAdventureStage: (id: string) => void;
   moveAdventureStage: (id: string, direction: 'up' | 'down') => void;
-  completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number }) => void;
+  completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number; passed?: boolean }) => void;
 
   addCustomStage: (stage: CustomStage) => void;
   updateCustomStage: (id: string, patch: Partial<CustomStage>) => void;
@@ -302,6 +314,9 @@ export const useAppStore = create<AppState>()(
               guidanceImages: stage.guidanceImages,
               slices: [],
               questionCount: 0,
+              noteDisplayMs: stage.noteDisplayMs ?? 3000,
+              noteHiddenMs: stage.noteHiddenMs ?? 6000,
+              passCriteria: stage.passCriteria,
             };
           }
           const slices = sourceStage.sliceIds
@@ -318,6 +333,9 @@ export const useAppStore = create<AppState>()(
             guidanceImages: stage.guidanceImages ?? [],
             slices,
             questionCount: qc,
+            noteDisplayMs: stage.noteDisplayMs ?? 3000,
+            noteHiddenMs: stage.noteHiddenMs ?? 6000,
+            passCriteria: stage.passCriteria,
           };
         });
       },
@@ -483,15 +501,22 @@ export const useAppStore = create<AppState>()(
       },
 
       completeAdventureStage: (stageId, stats) => {
-        let newIds: string[] = [];
+        const passed = stats?.passed ?? true;
         set((state) => {
-          if (state.adventureCompletedStageIds.includes(stageId)) return state;
-          newIds = [...state.adventureCompletedStageIds, stageId];
-          return { adventureCompletedStageIds: newIds };
+          if (passed) {
+            if (state.adventureCompletedStageIds.includes(stageId)) return state;
+            return { adventureCompletedStageIds: [...state.adventureCompletedStageIds, stageId] };
+          }
+          // 未通过 → 从已完成列表中移除（兼容先前已通关但重试未达标的情况）
+          if (!state.adventureCompletedStageIds.includes(stageId)) return state;
+          return { adventureCompletedStageIds: state.adventureCompletedStageIds.filter(id => id !== stageId) };
         });
-        if (newIds.length > 0) {
-          void syncRecordAdventureCompletion(stageId, stats || { correctCount: 0, wrongCount: 0, timeSpentSec: 0 });
-        }
+        void syncRecordAdventureCompletion(stageId, {
+          correctCount: stats?.correctCount ?? 0,
+          wrongCount: stats?.wrongCount ?? 0,
+          timeSpentSec: stats?.timeSpentSec ?? 0,
+          passed,
+        });
       },
 
       setStageOrder: (moduleId, orderedIds) => {
