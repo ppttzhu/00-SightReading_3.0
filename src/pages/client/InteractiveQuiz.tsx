@@ -192,6 +192,7 @@ export default function InteractiveQuiz() {
 
   // 每题错误次数 & 揭示正确答案
   const wrongAttemptsRef = useRef(0);
+  const firstWrongAnswerRef = useRef('');
   const [revealed, setRevealed] = useState(false);
 
   // 题末回顾数据
@@ -295,6 +296,7 @@ export default function InteractiveQuiz() {
   useEffect(() => {
     questionStartedRef.current = Date.now();
     wrongAttemptsRef.current = 0;
+    firstWrongAnswerRef.current = '';
     setRevealed(false);
   }, [currentSliceIndex]);
 
@@ -567,12 +569,12 @@ export default function InteractiveQuiz() {
     });
 
     if (isCorrect) {
-      // 推入回顾数据：第一次就答对才算正确，之前有错即使最后对了也算错
+      // 推入回顾数据：第一次就答对才算正确
       const hadPreviousWrong = wrongAttemptsRef.current > 0;
       questionResultsRef.current.push({
         slice: currentSlice,
         correctAnswer: correct,
-        userAnswer: answer,
+        userAnswer: hadPreviousWrong ? firstWrongAnswerRef.current : answer,
         isCorrect: !hadPreviousWrong,
         revealed: false,
       });
@@ -591,6 +593,7 @@ export default function InteractiveQuiz() {
     } else {
       wrongCountRef.current += 1;  // 跟踪冒险闯关统计
       wrongAttemptsRef.current += 1;
+      if (wrongAttemptsRef.current === 1) firstWrongAnswerRef.current = answer;
 
       if (wrongAttemptsRef.current >= 2) {
         // 第二次错：揭示正确答案
