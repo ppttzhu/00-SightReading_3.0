@@ -29,6 +29,7 @@ export default function CustomStageEditor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [diffFilter, setDiffFilter] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomStage | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [msg, setMsg] = useState('');
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
@@ -393,12 +394,28 @@ export default function CustomStageEditor() {
 
     {deleteTarget && (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-        <div style={{ background: 'white', borderRadius: '12px', padding: '28px 32px', width: '360px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '28px 32px', width: '400px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
           <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1f2937', marginBottom: '10px' }}>删除关卡</div>
+          {deleteError && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '0.85rem', marginBottom: '16px' }}>
+              {deleteError}
+            </div>
+          )}
           <div style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '24px' }}>确认删除关卡「{deleteTarget.title}」？此操作不可撤销。</div>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button onClick={() => setDeleteTarget(null)} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer' }}>取消</button>
-            <button onClick={() => { removeCustomStage(deleteTarget.id); setDeleteTarget(null); }} style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}>删除</button>
+            <button onClick={() => { setDeleteTarget(null); setDeleteError(''); }} style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer' }}>取消</button>
+            <button
+              onClick={() => {
+                setDeleteError('');
+                try {
+                  removeCustomStage(deleteTarget.id);
+                  setDeleteTarget(null);
+                } catch (e: any) {
+                  setDeleteError(e.message || '删除失败');
+                }
+              }}
+              style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+            >删除</button>
           </div>
         </div>
       </div>

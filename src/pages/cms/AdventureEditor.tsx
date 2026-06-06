@@ -315,7 +315,7 @@ export default function AdventureEditor() {
   const visibleSourceStages = useMemo(() => {
     const q = search.trim().toLowerCase();
     return customStages
-      .filter(s => moduleFilter === 'all' || s.module === moduleFilter)
+      .filter(s => (moduleFilter === 'all' || s.module === moduleFilter) && s.sliceIds.length > 0)
       .filter(s => !q || s.title.toLowerCase().includes(q))
       .sort((a, b) => {
         const da = Number(stageAvgDifficulty(a, sliceMap));
