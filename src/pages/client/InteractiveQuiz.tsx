@@ -106,10 +106,10 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
 function generateOptions(slice: Slice): string[] {
   const content = slice.content as unknown as Record<string, unknown>;
 
-  // 教师指定选项时直接使用（打乱顺序保证随机性）
+  // 教师指定选项时直接使用（保留教师配置的顺序）
   const fixedOptions = content.options as string[] | undefined;
   if (fixedOptions && fixedOptions.length >= 2) {
-    return [...fixedOptions].sort(() => Math.random() - 0.5);
+    return [...fixedOptions];
   }
 
   let correct = '';
