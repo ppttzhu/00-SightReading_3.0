@@ -8,6 +8,7 @@ interface Props {
   guidance: string;
   guidanceImages?: GuidanceImage[];
   onStart: () => void;
+  buttonText?: string;
 }
 
 /** 预处理 guidance 文本：将 {image:id} 占位符替换为真实 URL */
@@ -18,7 +19,7 @@ function preprocessGuidance(text: string, images: GuidanceImage[]): string {
   });
 }
 
-export default function GuidanceModal({ title, guidance, guidanceImages = [], onStart }: Props) {
+export default function GuidanceModal({ title, guidance, guidanceImages = [], onStart, buttonText = '开始答题' }: Props) {
   const resolvedGuidance = preprocessGuidance(guidance, guidanceImages);
   return (
     <div
@@ -98,7 +99,7 @@ export default function GuidanceModal({ title, guidance, guidanceImages = [], on
               boxShadow: '0 8px 20px rgba(59,130,246,0.35)',
             }}
           >
-            开始答题
+            {buttonText}
           </button>
         </div>
       </div>

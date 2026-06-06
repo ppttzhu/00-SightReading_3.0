@@ -781,6 +781,7 @@ export default function InteractiveQuiz() {
               guidance={guidance}
               guidanceImages={guidanceImages}
               onStart={() => setShowGuidance(false)}
+              buttonText="好滴"
             />
           )}
         </div>
