@@ -350,19 +350,21 @@ export default function InteractiveQuiz() {
       if (currentSlice.module === 'theory') {
         // ---- C: 乐理 → 画音程(两个音)，紧凑排列 ----
         if (noteA && noteB) {
-          // 同音：渲染两个全音符，符干方向一致
+          // 同音：和不同音一样，渲染两个半音符
           if (noteA === noteB) {
-            const { key, accidental } = parsePitchForVexflow(noteA);
-            const stemDir = resolveStemDirection(key, key, clef);
-            const vfNotes = [0, 1].map(() => {
-              const note = new StaveNote({ keys: [key], duration: 'w', clef, stemDirection: stemDir });
-              if (accidental) note.addModifier(new Accidental(accidental));
+            const parsedA = parsePitchForVexflow(noteA);
+            const parsedB = parsePitchForVexflow(noteB);
+            const stemDir = resolveStemDirection(parsedA.key, parsedB.key, clef);
+            const vfNotes = [parsedA, parsedB].map(p => {
+              const note = new StaveNote({ keys: [p.key], duration: 'h', clef, stemDirection: stemDir });
+              if (p.accidental) note.addModifier(new Accidental(p.accidental));
               return note;
             });
-            const voice = new Voice({ numBeats: 8, beatValue: 4 });
+            const beats = vfNotes.length * 2;
+            const voice = new Voice({ numBeats: beats, beatValue: 4 });
             voice.setMode(2);
             voice.addTickables(vfNotes);
-            new Formatter().joinVoices([voice]).format([voice], 40);
+            new Formatter().joinVoices([voice]).format([voice], 160);
             voice.draw(context, stave);
           } else {
             const parsedA = parsePitchForVexflow(noteA);

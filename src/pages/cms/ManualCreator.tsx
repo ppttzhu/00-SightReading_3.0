@@ -316,15 +316,14 @@ export default function ManualCreator() {
       if (parsedA && parsedB) {
         const stemDir = resolveStemDirection(parsedA.key, parsedB.key, actualPlacement);
         if (noteAVal === noteBVal) {
-          const vfNotes = [0, 1].map(() => {
-            const note = new StaveNote({ keys: [parsedA.key], duration: 'w', clef: actualPlacement, stemDirection: stemDir });
-            if (parsedA.accidental) note.addModifier(new Accidental(parsedA.accidental));
-            return note;
-          });
-          const voice = new Voice({ numBeats: 8, beatValue: 4 });
+          const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement, stemDirection: stemDir });
+          if (parsedA.accidental) note1.addModifier(new Accidental(parsedA.accidental));
+          const note2 = new StaveNote({ keys: [parsedB.key], duration: 'h', clef: actualPlacement, stemDirection: stemDir });
+          if (parsedB.accidental) note2.addModifier(new Accidental(parsedB.accidental));
+          const voice = new Voice({ numBeats: 4, beatValue: 4 });
           voice.setMode(2);
-          voice.addTickables(vfNotes);
-          new Formatter().joinVoices([voice]).format([voice], 50);
+          voice.addTickables([note1, note2]);
+          new Formatter().joinVoices([voice]).format([voice], 280);
           voice.draw(context, activeStave);
         } else {
           const note1 = new StaveNote({ keys: [parsedA.key], duration: 'h', clef: actualPlacement, stemDirection: stemDir });
