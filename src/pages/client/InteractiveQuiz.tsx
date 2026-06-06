@@ -654,14 +654,7 @@ export default function InteractiveQuiz() {
         setPassOverlay(true);
         setTimeout(() => navigate('/client/adventure'), 1200);
       } else {
-        setResultData({
-          correctCount: correctCountRef.current,
-          wrongCount: wrongCountRef.current,
-          accuracy,
-          passed: false,
-          requiredAccuracy: pc?.minAccuracy,
-          timeSpentSec: timeSec,
-        });
+        navigate('/client/adventure');
       }
     } else {
       unlockNextStage(stage.module, stageIndex);
@@ -681,15 +674,43 @@ export default function InteractiveQuiz() {
   if (showReview) {
     const results = questionResultsRef.current;
     const correctCount = results.filter(r => r.isCorrect).length;
-    const wrongCount = results.length - correctCount;
+    const wrongCount2 = results.length - correctCount;
     const revealedCount = results.filter(r => r.revealed).length;
+    const reviewTimeSec = Math.round((Date.now() - questStartRef.current) / 1000);
+    const reviewTotal = correctCountRef.current + wrongCountRef.current;
+    const reviewAccuracy = reviewTotal > 0 ? Math.round((correctCountRef.current / reviewTotal) * 100) : 100;
+    const reviewPc = stage?.passCriteria;
+    const reviewPassed = !reviewPc?.enabled || reviewAccuracy >= reviewPc.minAccuracy;
 
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 1000, overflowY: 'auto', padding: '24px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1f2937', marginBottom: '4px' }}>答题回顾</h2>
-          <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '20px' }}>
-            共 {results.length} 题 · 正确 {correctCount} · 错误 {wrongCount} · 揭示 {revealedCount}
+          {/* 结果摘要 */}
+          {stage?.module === 'adventure' && !reviewPassed && (
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '4px' }}>😅</div>
+              <h2 style={{ margin: '0 0 2px', fontSize: '1.2rem', fontWeight: 700, color: '#1f2937' }}>差一点就过关了！</h2>
+              <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: '#6b7280' }}>{stage?.title}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#6b7280' }}>正确率</span>
+                  <span style={{ fontWeight: 700, color: '#dc2626' }}>{reviewAccuracy}% {reviewPc?.enabled && <span style={{ fontWeight: 400, color: '#9ca3af' }}>/ 要求 ≥{reviewPc.minAccuracy}%</span>}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#6b7280' }}>答对/答错</span>
+                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctCountRef.current}/{wrongCountRef.current}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#6b7280' }}>用时</span>
+                  <span style={{ fontWeight: 700, color: '#374151' }}>{Math.floor(reviewTimeSec / 60)}分{reviewTimeSec % 60}秒</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1f2937', marginBottom: '4px' }}>答题回顾</h2>
+          <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '16px' }}>
+            共 {results.length} 题 · 正确 {correctCount} · 错误 {wrongCount2} · 揭示 {revealedCount}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
             {results.map((r, i) => {
