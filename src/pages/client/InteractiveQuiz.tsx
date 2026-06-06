@@ -567,12 +567,13 @@ export default function InteractiveQuiz() {
     });
 
     if (isCorrect) {
-      // 推入回顾数据
+      // 推入回顾数据：第一次就答对才算正确，之前有错即使最后对了也算错
+      const hadPreviousWrong = wrongAttemptsRef.current > 0;
       questionResultsRef.current.push({
         slice: currentSlice,
         correctAnswer: correct,
         userAnswer: answer,
-        isCorrect: true,
+        isCorrect: !hadPreviousWrong,
         revealed: false,
       });
 
