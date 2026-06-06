@@ -683,7 +683,6 @@ export default function InteractiveQuiz() {
     const revealedCount = results.filter(r => r.revealed).length;
     const reviewTimeSec = Math.round(((questEndRef.current || Date.now()) - questStartRef.current) / 1000);
     const correctQ = results.filter(r => r.isCorrect).length;
-    const wrongQ = results.length - correctQ;
     const reviewAccuracy = results.length > 0 ? Math.round((correctQ / results.length) * 100) : 100;
     const reviewPc = stage?.passCriteria;
     const reviewPassed = !reviewPc?.enabled || reviewAccuracy >= reviewPc.minAccuracy;
@@ -704,7 +703,7 @@ export default function InteractiveQuiz() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
                   <span style={{ color: '#6b7280' }}>答对/答错</span>
-                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctQ}/{wrongQ}</span>
+                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctQ}/{results.length}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
                   <span style={{ color: '#6b7280' }}>用时</span>
