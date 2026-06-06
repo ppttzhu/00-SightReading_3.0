@@ -399,17 +399,19 @@ export default function IntervalPractice() {
         const highParsed = parsePitchForVexflow(q.highPitch);
 
         if (q.lowPitch === q.highPitch) {
-          // 同音：两个全音符并排
+          // 同音：和不同音一样，渲染单个全音符
           const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
-          const vfNotes = [0, 1].map(() => {
-            const n = new StaveNote({ keys: [lowParsed.key], duration: 'w', clef: q.clef, stemDirection: stemDir });
-            if (lowParsed.accidental) n.addModifier(new Accidental(lowParsed.accidental));
-            return n;
+          const note = new StaveNote({
+            keys: [lowParsed.key],
+            duration: 'w',
+            clef: q.clef,
+            stemDirection: stemDir,
           });
-          const voice = new Voice({ numBeats: 8, beatValue: 4 });
+          if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental));
+          const voice = new Voice({ numBeats: 4, beatValue: 4 });
           voice.setMode(2);
-          voice.addTickables(vfNotes);
-          new Formatter().joinVoices([voice]).format([voice], 40);
+          voice.addTickables([note]);
+          new Formatter().joinVoices([voice]).format([voice], 200);
           voice.draw(context, stave);
         } else {
           const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
@@ -432,22 +434,17 @@ export default function IntervalPractice() {
         // --- 旋律音程：两音并排 ---
         const lowParsed = parsePitchForVexflow(q.lowPitch);
         const highParsed = parsePitchForVexflow(q.highPitch);
-        const isUnison = q.lowPitch === q.highPitch;
         const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
 
         const vfNotes = [lowParsed, highParsed].map(p => {
-          const dur = isUnison ? 'w' : 'h';
-          const n = new StaveNote({ keys: [p.key], duration: dur, clef: q.clef, stemDirection: stemDir });
+          const n = new StaveNote({ keys: [p.key], duration: 'h', clef: q.clef, stemDirection: stemDir });
           if (p.accidental) n.addModifier(new Accidental(p.accidental));
           return n;
         });
-
-        const numBeats = isUnison ? 8 : 4;
-        const width = isUnison ? 40 : 160;
-        const voice = new Voice({ numBeats, beatValue: 4 });
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
         voice.setMode(2);
         voice.addTickables(vfNotes);
-        new Formatter().joinVoices([voice]).format([voice], width);
+        new Formatter().joinVoices([voice]).format([voice], 160);
         voice.draw(context, stave);
       }
     } catch (e) {
