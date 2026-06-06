@@ -188,6 +188,7 @@ export default function InteractiveQuiz() {
   const correctCountRef = useRef(0);
   const wrongCountRef = useRef(0);
   const questStartRef = useRef(Date.now());
+  const questEndRef = useRef(0);
 
   // 每题错误次数 & 揭示正确答案
   const wrongAttemptsRef = useRef(0);
@@ -621,6 +622,7 @@ export default function InteractiveQuiz() {
   };
 
   function showReviewScreen() {
+    questEndRef.current = Date.now();
     setShowReview(true);
   }
 
@@ -631,6 +633,7 @@ export default function InteractiveQuiz() {
     correctCountRef.current = 0;
     wrongCountRef.current = 0;
     questStartRef.current = Date.now();
+    questEndRef.current = 0;
     questionResultsRef.current = [];
     setSessionKey(Math.random());
   };
@@ -639,8 +642,10 @@ export default function InteractiveQuiz() {
     if (!stage) return;
     setShowReview(false);
     const timeSec = Math.round((Date.now() - questStartRef.current) / 1000);
-    const total = correctCountRef.current + wrongCountRef.current;
-    const accuracy = total > 0 ? Math.round((correctCountRef.current / total) * 100) : 100;
+    const qResults = questionResultsRef.current;
+    const correctQ = qResults.filter(r => r.isCorrect).length;
+    const totalQ = qResults.length;
+    const accuracy = totalQ > 0 ? Math.round((correctQ / totalQ) * 100) : 100;
     if (stage.module === 'adventure') {
       const pc = stage.passCriteria;
       const passed = !pc?.enabled || accuracy >= pc.minAccuracy;
@@ -676,9 +681,10 @@ export default function InteractiveQuiz() {
     const correctCount = results.filter(r => r.isCorrect).length;
     const wrongCount2 = results.length - correctCount;
     const revealedCount = results.filter(r => r.revealed).length;
-    const reviewTimeSec = Math.round((Date.now() - questStartRef.current) / 1000);
-    const reviewTotal = correctCountRef.current + wrongCountRef.current;
-    const reviewAccuracy = reviewTotal > 0 ? Math.round((correctCountRef.current / reviewTotal) * 100) : 100;
+    const reviewTimeSec = Math.round(((questEndRef.current || Date.now()) - questStartRef.current) / 1000);
+    const correctQ = results.filter(r => r.isCorrect).length;
+    const wrongQ = results.length - correctQ;
+    const reviewAccuracy = results.length > 0 ? Math.round((correctQ / results.length) * 100) : 100;
     const reviewPc = stage?.passCriteria;
     const reviewPassed = !reviewPc?.enabled || reviewAccuracy >= reviewPc.minAccuracy;
 
@@ -698,7 +704,7 @@ export default function InteractiveQuiz() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
                   <span style={{ color: '#6b7280' }}>答对/答错</span>
-                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctCountRef.current}/{wrongCountRef.current}</span>
+                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctQ}/{wrongQ}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
                   <span style={{ color: '#6b7280' }}>用时</span>
@@ -753,14 +759,27 @@ export default function InteractiveQuiz() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={handleRetry} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
               再来一次
             </button>
+            {stage?.module === 'adventure' && guidance && (
+              <button onClick={() => setShowGuidance(true)} style={{ padding: '12px 28px', borderRadius: '12px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}>
+                查看学习指导
+              </button>
+            )}
             <button onClick={finishQuiz} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
               返回闯关地图
             </button>
           </div>
+          {showGuidance && guidance && (
+            <GuidanceModal
+              title={stageRecord?.title || stage?.title || ''}
+              guidance={guidance}
+              guidanceImages={guidanceImages}
+              onStart={() => setShowGuidance(false)}
+            />
+          )}
         </div>
       </div>
     );
