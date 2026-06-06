@@ -18,22 +18,61 @@ const STEP_TO_SEMITONE: Record<string, number> = {
   'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
 };
 
-// 音程半音数 -> 名称映射
-const INTERVAL_NAMES: Record<number, string> = {
-  0: '纯一度 (P1)',
-  1: '小二度 (m2)',
-  2: '大二度 (M2)',
-  3: '小三度 (m3)',
-  4: '大三度 (M3)',
-  5: '纯四度 (P4)',
-  6: '三全音 (TT)',
-  7: '纯五度 (P5)',
-  8: '小六度 (m6)',
-  9: '大六度 (M6)',
-  10: '小七度 (m7)',
-  11: '大七度 (M7)',
-  12: '纯八度 (P8)',
+const LETTER_INDEX: Record<string, number> = {
+  'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6
 };
+
+// ( diatonicSteps, semitones ) → 音程名称
+const INTERVAL_TABLE: Record<string, string> = {
+  '0,0': '纯一度 (P1)',
+  '0,1': '增一度 (A1)',
+  '1,0': '减二度 (d2)',
+  '1,1': '小二度 (m2)',
+  '1,2': '大二度 (M2)',
+  '1,3': '增二度 (A2)',
+  '2,2': '减三度 (d3)',
+  '2,3': '小三度 (m3)',
+  '2,4': '大三度 (M3)',
+  '2,5': '增三度 (A3)',
+  '3,4': '减四度 (d4)',
+  '3,5': '纯四度 (P4)',
+  '3,6': '增四度 (A4)',
+  '4,6': '减五度 (d5)',
+  '4,7': '纯五度 (P5)',
+  '4,8': '增五度 (A5)',
+  '5,7': '减六度 (d6)',
+  '5,8': '小六度 (m6)',
+  '5,9': '大六度 (M6)',
+  '5,10': '增六度 (A6)',
+  '6,9': '减七度 (d7)',
+  '6,10': '小七度 (m7)',
+  '6,11': '大七度 (M7)',
+  '6,12': '增七度 (A7)',
+  '7,11': '减八度 (d8)',
+  '7,12': '纯八度 (P8)',
+  '7,13': '增八度 (A8)',
+};
+
+function calcInterval(semitones: number, midiA: number, midiB: number, nameA: string, nameB: string): string {
+  const letterA = nameA[0];
+  const letterB = nameB[0];
+  const idxA = LETTER_INDEX[letterA] ?? -1;
+  const idxB = LETTER_INDEX[letterB] ?? -1;
+  if (idxA < 0 || idxB < 0) return `${semitones}半音`;
+
+  // 谁低谁在前，保证 diatonic steps 非负
+  const low = midiA <= midiB ? { name: nameA, idx: idxA } : { name: nameB, idx: idxB };
+  const high = midiA <= midiB ? { name: nameB, idx: idxB } : { name: nameA, idx: idxA };
+  // 跨八度补偿
+  const lowOctave = parseInt(low.name.match(/\d$/)?.[0] ?? '4');
+  const highOctave = parseInt(high.name.match(/\d$/)?.[0] ?? '4');
+  const totalDiatonic = (highOctave - lowOctave) * 7 + (high.idx - low.idx);
+  const absDiatonic = Math.abs(totalDiatonic);
+
+  // 可能跨八度，但我们的 INTERVAL_TABLE 只覆盖 0-7 diatonic steps
+  const key = `${Math.min(absDiatonic, 7)},${semitones}`;
+  return INTERVAL_TABLE[key] || `${semitones}半音`;
+}
 
 // 辅助函数：将音高字符串转换为 MIDI 编号
 function pitchToMidi(step: string, octave: number, alter: number): number {
@@ -243,7 +282,7 @@ export class EngineExtractor {
     for (let i = 0; i < pitches.length - 1; i++) {
       const interval = Math.abs(pitches[i + 1].midi - pitches[i].midi);
       if (interval > 0 && interval <= 12) {
-        const intervalName = INTERVAL_NAMES[interval] || `${interval}半音`;
+        const intervalName = calcInterval(interval, pitches[i].midi, pitches[i+1].midi, pitches[i].name, pitches[i+1].name);
         const display = `${pitches[i].name} → ${pitches[i + 1].name} (${intervalName})`;
         slices.push({
           id: `C_interval_${i}_${interval}`,

@@ -68,6 +68,23 @@ function describeStage(
   };
 }
 
+/** 音符显示时间预设值（毫秒） */
+const NOTE_DISPLAY_PRESETS = [
+  { label: '2s', value: 2000 },
+  { label: '3s', value: 3000 },
+  { label: '4s', value: 4000 },
+  { label: '5s', value: 5000 },
+  { label: '8s', value: 8000 },
+];
+
+const NOTE_HIDDEN_PRESETS = [
+  { label: '3s', value: 3000 },
+  { label: '6s', value: 6000 },
+  { label: '8s', value: 8000 },
+  { label: '10s', value: 10000 },
+  { label: '15s', value: 15000 },
+];
+
 /** 关卡编辑弹框 */
 function StageEditModal({
   stage,
@@ -75,16 +92,23 @@ function StageEditModal({
   onClose,
 }: {
   stage: AdventureStage;
-  onSave: (title: string, description: string, guidance: string, guidanceImages: GuidanceImage[]) => void;
+  onSave: (title: string, description: string, guidance: string, guidanceImages: GuidanceImage[], noteDisplayMs?: number, noteHiddenMs?: number, passCriteria?: { enabled: boolean; minAccuracy: number }) => void;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState(stage.title);
   const [desc, setDesc] = useState(stage.description || '');
   const [guidance, setGuidance] = useState(stage.guidance || '');
   const [images, setImages] = useState<GuidanceImage[]>(stage.guidanceImages || []);
+  const [noteDisplayMs, setNoteDisplayMs] = useState(stage.noteDisplayMs ?? 3000);
+  const [noteHiddenMs, setNoteHiddenMs] = useState(stage.noteHiddenMs ?? 6000);
+  const [passEnabled, setPassEnabled] = useState(stage.passCriteria?.enabled ?? false);
+  const [minAccuracy, setMinAccuracy] = useState(stage.passCriteria?.minAccuracy ?? 80);
+
+  const qc = stage.questionCount;
+  const showQcWarning = passEnabled && minAccuracy >= 80 && qc > 0 && qc < 5;
 
   const handleSave = () => {
-    onSave(title, desc, guidance, images);
+    onSave(title, desc, guidance, images, noteDisplayMs, noteHiddenMs, { enabled: passEnabled, minAccuracy });
   };
 
   return (
@@ -138,6 +162,100 @@ function StageEditModal({
               rows={2}
               style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }}
             />
+          </div>
+
+          {/* 音符显示时间配置 */}
+          <div style={{ marginBottom: '16px', padding: '14px', background: '#f9fafb', borderRadius: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+              音符显示时间
+            </label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>显示：</span>
+              {NOTE_DISPLAY_PRESETS.map(p => (
+                <button
+                  key={p.value}
+                  onClick={() => setNoteDisplayMs(p.value)}
+                  style={{
+                    padding: '4px 12px', borderRadius: '6px', border: `1px solid ${noteDisplayMs === p.value ? '#f59e0b' : '#d1d5db'}`,
+                    background: noteDisplayMs === p.value ? '#fef3c7' : 'white', color: '#374151', fontWeight: noteDisplayMs === p.value ? 700 : 400,
+                    cursor: 'pointer', fontSize: '0.82rem',
+                  }}
+                >{p.label}</button>
+              ))}
+              <input
+                type="number"
+                min={500}
+                max={30000}
+                step={100}
+                value={noteDisplayMs}
+                onChange={e => setNoteDisplayMs(Number(e.target.value))}
+                style={{ width: '76px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>ms</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }}>
+              <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>隐藏：</span>
+              {NOTE_HIDDEN_PRESETS.map(p => (
+                <button
+                  key={p.value}
+                  onClick={() => setNoteHiddenMs(p.value)}
+                  style={{
+                    padding: '4px 12px', borderRadius: '6px', border: `1px solid ${noteHiddenMs === p.value ? '#f59e0b' : '#d1d5db'}`,
+                    background: noteHiddenMs === p.value ? '#fef3c7' : 'white', color: '#374151', fontWeight: noteHiddenMs === p.value ? 700 : 400,
+                    cursor: 'pointer', fontSize: '0.82rem',
+                  }}
+                >{p.label}</button>
+              ))}
+              <input
+                type="number"
+                min={500}
+                max={60000}
+                step={100}
+                value={noteHiddenMs}
+                onChange={e => setNoteHiddenMs(Number(e.target.value))}
+                style={{ width: '76px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.82rem', textAlign: 'center' }}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>ms</span>
+            </div>
+          </div>
+
+          {/* 通关标准配置 */}
+          <div style={{ marginBottom: '16px', padding: '14px', background: '#f9fafb', borderRadius: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <label style={{ fontWeight: 600, color: '#374151', fontSize: '0.9rem' }}>
+                通关标准
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#6b7280', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={passEnabled}
+                  onChange={e => setPassEnabled(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                启用
+              </label>
+            </div>
+            {passEnabled && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '0.82rem', color: '#6b7280', minWidth: '60px' }}>最低正确率</span>
+                  <input
+                    type="range"
+                    min={50}
+                    max={100}
+                    value={minAccuracy}
+                    onChange={e => setMinAccuracy(Number(e.target.value))}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: '1rem', fontWeight: 700, color: '#374151', minWidth: '48px', textAlign: 'right' }}>{minAccuracy}%</span>
+                </div>
+                {showQcWarning && (
+                  <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: '#d97706', lineHeight: 1.4 }}>
+                    ⚠️ 当前关卡仅 {qc} 题，正确率要求 {minAccuracy}% 可能偏高。建议至少 5 题以上以保证判定可靠性。
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 学习指导 */}
@@ -356,6 +474,16 @@ export default function AdventureEditor() {
                             📖 含指导
                           </span>
                         )}
+                        {(stage.noteDisplayMs || stage.noteHiddenMs) && (
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#f0fdf4', color: '#16a34a', fontWeight: 600, marginLeft: '4px' }}>
+                            {(stage.noteDisplayMs ?? 3000) / 1000}s/{(stage.noteHiddenMs ?? 6000) / 1000}s
+                          </span>
+                        )}
+                        {stage.passCriteria?.enabled && (
+                          <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', background: '#fef2f2', color: '#dc2626', fontWeight: 600, marginLeft: '4px' }}>
+                            ≥{stage.passCriteria.minAccuracy}%
+                          </span>
+                        )}
                       </div>
                       {stage.description && (
                         <p className="stage-desc">{stage.description}</p>
@@ -384,8 +512,8 @@ export default function AdventureEditor() {
       {modalStage && (
         <StageEditModal
           stage={modalStage}
-          onSave={(title, desc, guidance, images) => {
-            updateAdventureStage(modalStage.id, { title, description: desc, guidance, guidanceImages: images });
+          onSave={(title, desc, guidance, images, noteDisplayMs, noteHiddenMs, passCriteria) => {
+            updateAdventureStage(modalStage.id, { title, description: desc, guidance, guidanceImages: images, noteDisplayMs, noteHiddenMs, passCriteria });
             setModalStage(null);
             showMsg('已更新关卡信息。');
           }}

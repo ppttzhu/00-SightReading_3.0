@@ -168,13 +168,43 @@ export default function InteractiveQuiz() {
   const completeAdventureStage = useAppStore(state => state.completeAdventureStage);
   const recordPractice = useAppStore(state => state.recordPractice);
 
-  // Track a session key that changes each time the component mounts (new attempt)
-  const [sessionKey] = useState(() => Math.random());
+  // Track a session key that changes each time the component mounts (new attempt) or user retries
+  const [sessionKey, setSessionKey] = useState(() => Math.random());
+
+  // Result modal state for pass/fail
+  const [resultData, setResultData] = useState<{
+    correctCount: number;
+    wrongCount: number;
+    accuracy: number;
+    passed: boolean;
+    requiredAccuracy?: number;
+    timeSpentSec: number;
+  } | null>(null);
+
+  const [showGuidance, setShowGuidance] = useState(false);
+  const [passOverlay, setPassOverlay] = useState(false);
 
   // 冒险闯关统计：跟踪正确/错误数、总用时
   const correctCountRef = useRef(0);
   const wrongCountRef = useRef(0);
   const questStartRef = useRef(Date.now());
+  const questEndRef = useRef(0);
+
+  // 每题错误次数 & 揭示正确答案
+  const wrongAttemptsRef = useRef(0);
+  const firstWrongAnswerRef = useRef('');
+  const [revealed, setRevealed] = useState(false);
+
+  // 题末回顾数据
+  interface QuestionResult {
+    slice: Slice;
+    correctAnswer: string;
+    userAnswer: string;
+    isCorrect: boolean;
+    revealed: boolean;
+  }
+  const questionResultsRef = useRef<QuestionResult[]>([]);
+  const [showReview, setShowReview] = useState(false);
 
   const { stage, stageIndex } = useMemo(() => {
     // 冒险关卡检测（放在 split 逻辑之前）
@@ -265,14 +295,21 @@ export default function InteractiveQuiz() {
   const questionStartedRef = useRef(Date.now());
   useEffect(() => {
     questionStartedRef.current = Date.now();
+    wrongAttemptsRef.current = 0;
+    firstWrongAnswerRef.current = '';
+    setRevealed(false);
   }, [currentSliceIndex]);
 
   const currentSlice = stage?.slices[currentSliceIndex];
 
-  // Blink effect: show note for 3s, hide for 6s, loop
+  // Blink effect: show note for configured time, hide for configured time, loop
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const blinkResetKey = `${currentSliceIndex}_${introDismissed}`;
-  const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, blinkResetKey);
+  const { noteVisible, resetBlink } = useBlinkTimer(
+    stage?.noteDisplayMs ?? 3000,
+    stage?.noteHiddenMs ?? 6000,
+    blinkResetKey,
+  );
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -532,6 +569,16 @@ export default function InteractiveQuiz() {
     });
 
     if (isCorrect) {
+      // 推入回顾数据：第一次就答对才算正确
+      const hadPreviousWrong = wrongAttemptsRef.current > 0;
+      questionResultsRef.current.push({
+        slice: currentSlice,
+        correctAnswer: correct,
+        userAnswer: hadPreviousWrong ? firstWrongAnswerRef.current : answer,
+        isCorrect: !hadPreviousWrong,
+        revealed: false,
+      });
+
       setFeedback('correct');
       correctCountRef.current += 1;  // 跟踪冒险闯关统计
       setTimeout(() => {
@@ -540,33 +587,333 @@ export default function InteractiveQuiz() {
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
-          if (stage.module === 'adventure') {
-            const timeSec = Math.round((Date.now() - questStartRef.current) / 1000);
-            completeAdventureStage(stage.id, {
-              correctCount: correctCountRef.current,
-              wrongCount: wrongCountRef.current,
-              timeSpentSec: timeSec,
-            });
-            navigate('/client/adventure');
-          } else {
-            unlockNextStage(stage.module, stageIndex);
-            navigate(-1);
-            setTimeout(() => alert('🎉 Stage Cleared!'), 100);
-          }
+          showReviewScreen();
         }
       }, 800);
     } else {
-      setFeedback('wrong');
       wrongCountRef.current += 1;  // 跟踪冒险闯关统计
-      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
+      wrongAttemptsRef.current += 1;
+      if (wrongAttemptsRef.current === 1) firstWrongAnswerRef.current = answer;
+
+      if (wrongAttemptsRef.current >= 2) {
+        // 第二次错：揭示正确答案
+        const correctAnswer = getCorrectAnswer();
+        questionResultsRef.current.push({
+          slice: currentSlice,
+          correctAnswer,
+          userAnswer: answer,
+          isCorrect: false,
+          revealed: true,
+        });
+        setFeedback('none');
+        setRevealed(true);
+      } else {
+        // 第一次错：红闪，可重试
+        setFeedback('wrong');
+        setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
+      }
     }
   };
   handleAnswerRef.current = handleAnswer;
+
+  const handleRevealNext = () => {
+    if (!stage) return;
+    if (currentSliceIndex < stage.slices.length - 1) {
+      setCurrentSliceIndex(prev => prev + 1);
+    } else {
+      showReviewScreen();
+    }
+  };
+
+  function showReviewScreen() {
+    questEndRef.current = Date.now();
+    setShowReview(true);
+  }
+
+  const handleRetry = () => {
+    setResultData(null);
+    setShowReview(false);
+    setCurrentSliceIndex(0);
+    correctCountRef.current = 0;
+    wrongCountRef.current = 0;
+    questStartRef.current = Date.now();
+    questEndRef.current = 0;
+    questionResultsRef.current = [];
+    setSessionKey(Math.random());
+  };
+
+  function finishQuiz() {
+    if (!stage) return;
+    setShowReview(false);
+    const timeSec = Math.round((Date.now() - questStartRef.current) / 1000);
+    const qResults = questionResultsRef.current;
+    const correctQ = qResults.filter(r => r.isCorrect).length;
+    const totalQ = qResults.length;
+    const accuracy = totalQ > 0 ? Math.round((correctQ / totalQ) * 100) : 100;
+    if (stage.module === 'adventure') {
+      const pc = stage.passCriteria;
+      const passed = !pc?.enabled || accuracy >= pc.minAccuracy;
+      completeAdventureStage(stage.id, {
+        correctCount: correctCountRef.current,
+        wrongCount: wrongCountRef.current,
+        timeSpentSec: timeSec,
+        passed,
+      });
+      if (passed) {
+        setPassOverlay(true);
+        setTimeout(() => navigate('/client/adventure'), 1200);
+      } else {
+        navigate('/client/adventure');
+      }
+    } else {
+      unlockNextStage(stage.module, stageIndex);
+      navigate(-1);
+      setTimeout(() => alert('🎉 Stage Cleared!'), 100);
+    }
+  }
+
+  const handleBackToMap = () => navigate('/client/adventure');
 
   const progressPercent = ((currentSliceIndex) / stage.slices.length) * 100;
 
   // B 类的题目用纯文字大卡片展示（不用 VexFlow）
   const isSymbolType = currentSlice?.module === 'symbols';
+
+  // ── 题末回顾 ──
+  if (showReview) {
+    const results = questionResultsRef.current;
+    const correctCount = results.filter(r => r.isCorrect).length;
+    const wrongCount2 = results.length - correctCount;
+    const revealedCount = results.filter(r => r.revealed).length;
+    const reviewTimeSec = Math.round(((questEndRef.current || Date.now()) - questStartRef.current) / 1000);
+    const correctQ = results.filter(r => r.isCorrect).length;
+    const reviewAccuracy = results.length > 0 ? Math.round((correctQ / results.length) * 100) : 100;
+    const reviewPc = stage?.passCriteria;
+    const reviewPassed = !reviewPc?.enabled || reviewAccuracy >= reviewPc.minAccuracy;
+
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 1000, overflowY: 'auto', padding: '24px' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          {/* 结果摘要 */}
+          {stage?.module === 'adventure' && !reviewPassed && (
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '4px' }}>😅</div>
+              <h2 style={{ margin: '0 0 2px', fontSize: '1.2rem', fontWeight: 700, color: '#1f2937' }}>差一点就过关了！</h2>
+              <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: '#6b7280' }}>{stage?.title}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#6b7280' }}>正确率</span>
+                  <span style={{ fontWeight: 700, color: '#dc2626' }}>{reviewAccuracy}% {reviewPc?.enabled && <span style={{ fontWeight: 400, color: '#9ca3af' }}>/ 要求 ≥{reviewPc.minAccuracy}%</span>}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#6b7280' }}>答对/答错</span>
+                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctQ}/{results.length}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#6b7280' }}>用时</span>
+                  <span style={{ fontWeight: 700, color: '#374151' }}>{Math.floor(reviewTimeSec / 60)}分{reviewTimeSec % 60}秒</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1f2937', marginBottom: '4px' }}>答题回顾</h2>
+          <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '16px' }}>
+            共 {results.length} 题 · 正确 {correctCount} · 错误 {wrongCount2} · 揭示 {revealedCount}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+            {results.map((r, i) => {
+              const content = r.slice.content as any;
+              let questionLabel = '';
+              if (r.slice.module === 'theory') {
+                const noteA = content.noteA || content.notes?.[0] || '';
+                const noteB = content.noteB || content.notes?.[1] || '';
+                questionLabel = noteA && noteB ? `${noteA} → ${noteB}` : r.slice.id;
+              } else if (r.slice.module === 'notes') {
+                questionLabel = content.pitch || content.raw || '';
+              } else if (r.slice.module === 'symbols') {
+                questionLabel = content.symbol || content.raw || '';
+              } else {
+                questionLabel = content.raw || content.pattern || '';
+              }
+
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '12px 16px', borderRadius: '12px',
+                  background: r.isCorrect ? '#f0fdf4' : '#fef2f2',
+                  border: `1px solid ${r.isCorrect ? '#bbf7d0' : '#fecaca'}`,
+                }}>
+                  <span style={{ fontSize: '1.3rem' }}>{r.isCorrect ? '✅' : r.revealed ? '💡' : '❌'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: '#1f2937', fontSize: '0.9rem' }}>{questionLabel}</div>
+                    <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>
+                      {r.isCorrect ? (
+                        <span style={{ color: '#059669' }}>✓ {r.correctAnswer}</span>
+                      ) : (
+                        <span>
+                          你的答案：<span style={{ color: '#dc2626' }}>{r.userAnswer}</span>
+                          {' · '}正确答案：<span style={{ color: '#059669', fontWeight: 600 }}>{r.correctAnswer}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={handleRetry} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+              再来一次
+            </button>
+            {stage?.module === 'adventure' && guidance && (
+              <button onClick={() => setShowGuidance(true)} style={{ padding: '12px 28px', borderRadius: '12px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}>
+                查看学习指导
+              </button>
+            )}
+            <button onClick={finishQuiz} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+              返回闯关地图
+            </button>
+          </div>
+          {showGuidance && guidance && (
+            <GuidanceModal
+              title={stageRecord?.title || stage?.title || ''}
+              guidance={guidance}
+              guidanceImages={guidanceImages}
+              onStart={() => setShowGuidance(false)}
+              buttonText="好滴"
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── 通关成功过渡遮罩 ──
+  if (passOverlay) {
+    const confettiColors = ['#f59e0b','#ef4444','#3b82f6','#10b981','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+    const confetti = Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.8,
+      duration: 0.8 + Math.random() * 0.8,
+      color: confettiColors[i % confettiColors.length],
+      size: 6 + Math.random() * 6,
+      shape: Math.random() > 0.5 ? '50%' : '2px',
+      drift: (Math.random() - 0.5) * 80,
+    }));
+
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'linear-gradient(180deg, #fefce8 0%, #ffffff 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        flexDirection: 'column', gap: '12px', overflow: 'hidden',
+      }}>
+        <style>{`
+          @keyframes confetti-fall {
+            0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(-110vh) translateX(var(--drift)) rotate(720deg); opacity: 0; }
+          }
+          @keyframes celebrate-pop {
+            0%   { transform: scale(0.3); opacity: 0; }
+            50%  { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes sparkle-twinkle {
+            0%, 100% { transform: scale(0) rotate(0deg); opacity: 0; }
+            50%      { transform: scale(1) rotate(180deg); opacity: 1; }
+          }
+        `}</style>
+        {confetti.map(c => (
+          <div key={c.id} style={{
+            position: 'absolute', top: '100%', left: `${c.left}%`,
+            width: c.size, height: c.size, borderRadius: c.shape,
+            background: c.color, opacity: 0,
+            animation: `confetti-fall ${c.duration}s ease-out ${c.delay}s forwards`,
+            '--drift': `${c.drift}px`,
+          } as React.CSSProperties} />
+        ))}
+        {/* 中心内容 */}
+        <div style={{
+          animation: 'celebrate-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.1s both',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+        }}>
+          <div style={{ fontSize: '4.5rem', lineHeight: 1 }}>🎉</div>
+          <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, background: 'linear-gradient(135deg, #059669, #10b981)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            通关成功！
+          </h2>
+        </div>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: '#94a3b8', animation: 'celebrate-pop 0.4s ease-out 0.3s both' }}>
+          正在返回闯关地图...
+        </p>
+      </div>
+    );
+  }
+
+  // ── 通关结算弹框 ──
+  if (resultData) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '24px', width: '100%', maxWidth: '440px', padding: '32px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>😅</div>
+          <h2 style={{ margin: '0 0 4px', fontSize: '1.3rem', fontWeight: 700, color: '#1f2937' }}>
+            差一点就过关了！
+          </h2>
+          <p style={{ margin: '0 0 24px', fontSize: '0.9rem', color: '#6b7280' }}>
+            {stage.title}
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', background: '#f9fafb', borderRadius: '12px', fontSize: '0.9rem' }}>
+              <span style={{ color: '#6b7280' }}>正确率</span>
+              <span style={{ fontWeight: 700, color: '#dc2626' }}>{resultData.accuracy}% {resultData.requiredAccuracy != null && <span style={{ fontWeight: 400, color: '#9ca3af' }}>/ 要求 ≥{resultData.requiredAccuracy}%</span>}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', background: '#f9fafb', borderRadius: '12px', fontSize: '0.9rem' }}>
+              <span style={{ color: '#6b7280' }}>答对/答错</span>
+              <span style={{ fontWeight: 700, color: '#374151' }}>{resultData.correctCount}/{resultData.wrongCount}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', background: '#f9fafb', borderRadius: '12px', fontSize: '0.9rem' }}>
+              <span style={{ color: '#6b7280' }}>用时</span>
+              <span style={{ fontWeight: 700, color: '#374151' }}>{Math.floor(resultData.timeSpentSec / 60)}分{resultData.timeSpentSec % 60}秒</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              onClick={handleRetry}
+              style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}
+            >
+              再来一次
+            </button>
+            {guidance && (
+              <button
+                onClick={() => setShowGuidance(true)}
+                style={{ padding: '12px 24px', borderRadius: '12px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}
+              >
+                查看学习指导
+              </button>
+            )}
+            <button
+              onClick={handleBackToMap}
+              style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: 'transparent', color: '#9ca3af', fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
+            >
+              返回闯关地图
+            </button>
+          </div>
+
+          {/* 学习指导蒙层（在结算弹框之上） */}
+          {showGuidance && guidance && (
+            <GuidanceModal
+              title={stageRecord?.title || stage.title}
+              guidance={guidance}
+              guidanceImages={guidanceImages}
+              onStart={() => setShowGuidance(false)}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!introDismissed && guidance && stageRecord) {
     return (
@@ -680,10 +1027,15 @@ export default function InteractiveQuiz() {
               </div>
             )}
           <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
-            {options.map((opt, i) => (
+            {options.map((opt, i) => {
+              const currentCorrect = revealed ? getCorrectAnswer() : '';
+              const isCorrectOption = revealed && opt === currentCorrect;
+              const isWrongPick = revealed && opt !== currentCorrect;
+              return (
               <button
                 key={`${currentSliceIndex}_${i}_${opt}`}
                 onClick={() => {
+                  if (revealed) return;
                   if (audioEnabled && currentSlice) {
                     if (currentSlice.module === 'notes') {
                       void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
@@ -701,36 +1053,40 @@ export default function InteractiveQuiz() {
                   maxWidth: '260px',
                   padding: '14px 20px',
                   borderRadius: '20px',
-                  border: '1px solid #f3f4f6',
-                  background: 'white',
+                  border: isCorrectOption ? '2px solid #10b981' : isWrongPick ? '2px solid #e5e7eb' : '1px solid #f3f4f6',
+                  background: isCorrectOption ? '#ecfdf5' : isWrongPick ? '#f9fafb' : 'white',
                   fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
                   fontWeight: '700',
-                  color: '#374151',
-                  cursor: 'pointer',
+                  color: isCorrectOption ? '#059669' : isWrongPick ? '#d1d5db' : '#374151',
+                  cursor: revealed ? 'default' : 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
+                  boxShadow: isCorrectOption ? '0 0 0 3px rgba(16,185,129,0.15)' : '0 4px 15px rgba(0,0,0,0.03)',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   lineHeight: '1.4',
                   textAlign: 'center'
                 }}
                 onMouseEnter={e => {
+                  if (revealed) return;
                   e.currentTarget.style.transform = 'translateY(-4px)';
                   e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
                   e.currentTarget.style.borderColor = '#e5e7eb';
                 }}
                 onMouseDown={e => {
+                  if (revealed) return;
                   if (audioEnabled) void audioEngine.prime();
                   e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
                   e.currentTarget.style.background = '#f8fafc';
                   e.currentTarget.style.color = '#3b82f6';
                 }}
                 onMouseUp={e => {
+                  if (revealed) return;
                   e.currentTarget.style.transform = 'translateY(-4px)';
                   e.currentTarget.style.background = 'white';
                   e.currentTarget.style.color = '#374151';
                 }}
                 onMouseLeave={e => {
+                  if (revealed) return;
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.background = 'white';
                   e.currentTarget.style.color = '#374151';
@@ -740,8 +1096,18 @@ export default function InteractiveQuiz() {
               >
                 {opt}
               </button>
-            ))}
+            );
+          })}
           </div>
+          {revealed && (
+            <button onClick={handleRevealNext} style={{
+              marginTop: '24px', padding: '10px 28px', borderRadius: '12px',
+              border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700,
+              fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+            }}>
+              下一题 →
+            </button>
+          )}
           </div>
         )}
       </div>
