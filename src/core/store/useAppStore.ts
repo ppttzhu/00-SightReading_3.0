@@ -503,13 +503,11 @@ export const useAppStore = create<AppState>()(
       completeAdventureStage: (stageId, stats) => {
         const passed = stats?.passed ?? true;
         set((state) => {
-          if (passed) {
-            if (state.adventureCompletedStageIds.includes(stageId)) return state;
+          // 只增不减：只要通过一次，就永久添加到完成列表，解锁下一关
+          if (passed && !state.adventureCompletedStageIds.includes(stageId)) {
             return { adventureCompletedStageIds: [...state.adventureCompletedStageIds, stageId] };
           }
-          // 未通过 → 从已完成列表中移除（兼容先前已通关但重试未达标的情况）
-          if (!state.adventureCompletedStageIds.includes(stageId)) return state;
-          return { adventureCompletedStageIds: state.adventureCompletedStageIds.filter(id => id !== stageId) };
+          return state;
         });
         void syncRecordAdventureCompletion(stageId, {
           correctCount: stats?.correctCount ?? 0,

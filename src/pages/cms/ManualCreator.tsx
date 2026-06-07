@@ -380,13 +380,14 @@ export default function ManualCreator() {
       const finalPlacement = intervalPlacement === 'auto'
         ? resolvePlacement(noteA.trim(), intervalPlacement)
         : intervalPlacement;
+      const answer = intervalName.trim() || derivedInterval;
       const intervalContent: IntervalContent = {
         noteA: noteA.trim(),
         noteB: noteB.trim(),
-        theory: intervalName.trim() || derivedInterval,
+        theory: answer,
         placement: finalPlacement,
         raw,
-        ...(opts && { options: [intervalName.trim() || derivedInterval, ...opts] }),
+        ...(opts && { options: opts.some(opt => opt === answer) ? opts : [answer, ...opts] }),
       };
       sliceContent = intervalContent;
       idKey = raw;
@@ -397,7 +398,7 @@ export default function ManualCreator() {
       const correct = type === 'symbols' ? symbolAnswer.trim()
         : type === 'notes' ? content.trim()
         : content.trim();
-      sliceContent = opts ? { ...base, options: [correct, ...opts] } : base;
+      sliceContent = opts && opts.some(opt => opt === correct) ? { ...base, options: opts } : opts ? { ...base, options: [correct, ...opts] } : base;
       idKey = content.trim();
     }
 
@@ -426,7 +427,8 @@ export default function ManualCreator() {
       if (type === 'symbols' && line.includes('|')) {
         const parts = line.split('|').map(s => s.trim());
         const [symbol, answer, ...dists] = parts;
-        contentObj = { symbol, answer, ...(dists.length > 0 && { options: [answer, ...dists] }) };
+        const answerInDists = dists.some(d => d === answer);
+        contentObj = { symbol, answer, ...(dists.length > 0 && { options: answerInDists ? dists : [answer, ...dists] }) };
       } else if (type === 'theory') {
         if (line.includes('|')) {
           const parts = line.split('|').map(s => s.trim());
@@ -441,9 +443,10 @@ export default function ManualCreator() {
             const finalPlacement = currentTheoryPlacement === 'auto'
               ? resolvePlacement(noteA, 'auto')
               : currentTheoryPlacement;
+            const answerInDists = dists.some(d => d === theory);
             contentObj = {
               noteA, noteB, theory, placement: finalPlacement, raw,
-              ...(dists.length > 0 && { options: [theory, ...dists] }),
+              ...(dists.length > 0 && { options: answerInDists ? dists : [theory, ...dists] }),
             } as IntervalContent;
           } else {
             contentObj = buildContent(type, line);
@@ -455,9 +458,11 @@ export default function ManualCreator() {
         // notes / patterns: pitch|answer|distractor1|distractor2...
         const parts = line.split('|').map(s => s.trim());
         const value = parts[0];
-        const dists = parts.slice(1);
+        const answer = parts[1];
+        const dists = parts.slice(2);
         const base = buildContent(type, value);
-        contentObj = dists.length > 0 ? { ...base, options: [parts[1], ...parts.slice(2)] } : base;
+        const answerInDists = dists.some(d => d === answer);
+        contentObj = dists.length > 0 ? { ...base, options: answerInDists ? dists : [answer, ...dists] } : base;
         // override line for placement resolution below
         if (type === 'notes') {
           contentObj = { ...contentObj, placement: resolvePlacement(value, currentPlacement) };
