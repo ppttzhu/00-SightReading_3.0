@@ -254,7 +254,7 @@ export default function StageBuilder() {
                         )}
                       </div>
 
-                      {/* 干扰项 */}
+                      {/* 指定选项 */}
                       {opts && opts.length > 0 && (
                         <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                           选项: {opts.join(' / ')}
