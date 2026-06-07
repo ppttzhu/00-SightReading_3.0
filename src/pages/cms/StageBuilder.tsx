@@ -225,6 +225,27 @@ export default function StageBuilder() {
                 const stageNames = sliceStageMap.get(slice.id);
                 const opts = c.options as string[] | undefined;
 
+                // 判断选项是否包含正确答案（用于显示是否会打乱）
+                let willShuffle = false;
+                if (opts && opts.length > 0) {
+                  let correctAnswer = '';
+                  switch (slice.module) {
+                    case 'notes':
+                      correctAnswer = String(c.pitch || '');
+                      break;
+                    case 'symbols':
+                      correctAnswer = String(c.answer || '');
+                      break;
+                    case 'theory':
+                      correctAnswer = String(c.theory || c.raw || '');
+                      break;
+                    case 'patterns':
+                      correctAnswer = String(c.raw || c.pattern || '');
+                      break;
+                  }
+                  willShuffle = !!correctAnswer && !opts.includes(correctAnswer);
+                }
+
                 return (
                   <div key={slice.id} style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
@@ -256,9 +277,20 @@ export default function StageBuilder() {
 
                       {/* 指定选项 */}
                       {opts && opts.length > 0 && (
-                        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                          选项: {opts.join(' / ')}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                            选项: {opts.join(' / ')}
+                          </span>
+                          {willShuffle ? (
+                            <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '600' }}>
+                              🔀 会打乱
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: '#e0f2fe', color: '#0369a1', fontWeight: '600' }}>
+                              📌 固定顺序
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       {/* 所属关卡 */}
