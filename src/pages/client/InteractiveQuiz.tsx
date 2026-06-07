@@ -167,9 +167,24 @@ export default function InteractiveQuiz() {
   const unlockNextStage = useAppStore(state => state.unlockNextStage);
   const completeAdventureStage = useAppStore(state => state.completeAdventureStage);
   const recordPractice = useAppStore(state => state.recordPractice);
+  const getAdventureStages = useAppStore(state => state.getAdventureStages);
 
   // Track a session key that changes each time the component mounts (new attempt) or user retries
   const [sessionKey, setSessionKey] = useState(() => Math.random());
+
+  // 当关卡ID变化时重置所有状态（处理"继续闯关"场景）
+  useEffect(() => {
+    setCurrentSliceIndex(0);
+    setShowReview(false);
+    setResultData(null);
+    setIntroDismissed(false);
+    correctCountRef.current = 0;
+    wrongCountRef.current = 0;
+    questStartRef.current = Date.now();
+    questEndRef.current = 0;
+    questionResultsRef.current = [];
+    setSessionKey(Math.random());
+  }, [stageId]);
 
   // Result modal state for pass/fail
   const [resultData, setResultData] = useState<{
@@ -627,6 +642,34 @@ export default function InteractiveQuiz() {
 
   function showReviewScreen() {
     questEndRef.current = Date.now();
+    // 冒险模式：答题结束后立即判断是否通过，如果通过则先显示烟花
+    if (stage?.module === 'adventure') {
+      const qResults = questionResultsRef.current;
+      const correctQ = qResults.filter(r => r.isCorrect).length;
+      const totalQ = qResults.length;
+      const accuracy = totalQ > 0 ? Math.round((correctQ / totalQ) * 100) : 100;
+      const pc = stage.passCriteria;
+      const passed = !pc?.enabled || accuracy >= pc.minAccuracy;
+      const timeSec = Math.round((questEndRef.current - questStartRef.current) / 1000);
+
+      completeAdventureStage(stage.id, {
+        correctCount: correctCountRef.current,
+        wrongCount: wrongCountRef.current,
+        timeSpentSec: timeSec,
+        passed,
+      });
+
+      if (passed) {
+        // 通过：先显示烟花庆祝，然后显示回顾界面
+        setPassOverlay(true);
+        setTimeout(() => {
+          setPassOverlay(false);
+          setShowReview(true);
+        }, 1200);
+        return;
+      }
+    }
+    // 未通过或非冒险模式：显示回顾界面
     setShowReview(true);
   }
 
@@ -645,27 +688,11 @@ export default function InteractiveQuiz() {
   function finishQuiz() {
     if (!stage) return;
     setShowReview(false);
-    const timeSec = Math.round((Date.now() - questStartRef.current) / 1000);
-    const qResults = questionResultsRef.current;
-    const correctQ = qResults.filter(r => r.isCorrect).length;
-    const totalQ = qResults.length;
-    const accuracy = totalQ > 0 ? Math.round((correctQ / totalQ) * 100) : 100;
     if (stage.module === 'adventure') {
-      const pc = stage.passCriteria;
-      const passed = !pc?.enabled || accuracy >= pc.minAccuracy;
-      completeAdventureStage(stage.id, {
-        correctCount: correctCountRef.current,
-        wrongCount: wrongCountRef.current,
-        timeSpentSec: timeSec,
-        passed,
-      });
-      if (passed) {
-        setPassOverlay(true);
-        setTimeout(() => navigate('/client/adventure'), 1200);
-      } else {
-        navigate('/client/adventure');
-      }
+      // 冒险模式：直接返回地图（通关判断和烟花已在 showReviewScreen 中处理）
+      navigate('/client/adventure');
     } else {
+      // 普通模式：解锁下一关
       unlockNextStage(stage.module, stageIndex);
       navigate(-1);
       setTimeout(() => alert('🎉 Stage Cleared!'), 100);
@@ -673,6 +700,10 @@ export default function InteractiveQuiz() {
   }
 
   const handleBackToMap = () => navigate('/client/adventure');
+
+  const handleContinueAdventure = (nextStageId: string) => {
+    navigate(`/client/quiz/${nextStageId}`);
+  };
 
   const progressPercent = ((currentSliceIndex) / stage.slices.length) * 100;
 
@@ -682,6 +713,11 @@ export default function InteractiveQuiz() {
   // ── 题末回顾 ──
   if (showReview) {
     const results = questionResultsRef.current;
+    // 错题在前，正确题在后
+    const sortedResults = [...results].sort((a, b) => {
+      if (a.isCorrect === b.isCorrect) return 0;
+      return a.isCorrect ? 1 : -1;
+    });
     const correctCount = results.filter(r => r.isCorrect).length;
     const wrongCount2 = results.length - correctCount;
     const revealedCount = results.filter(r => r.revealed).length;
@@ -691,9 +727,21 @@ export default function InteractiveQuiz() {
     const reviewPc = stage?.passCriteria;
     const reviewPassed = !reviewPc?.enabled || reviewAccuracy >= reviewPc.minAccuracy;
 
+    // 找到下一个冒险关卡
+    let nextStage: typeof stage | null = null;
+    if (stage?.module === 'adventure' && reviewPassed) {
+      const allAdventureStages = getAdventureStages();
+      const currentIdx = allAdventureStages.findIndex(s => s.id === stage.id);
+      if (currentIdx >= 0 && currentIdx < allAdventureStages.length - 1) {
+        nextStage = allAdventureStages[currentIdx + 1];
+      }
+    }
+
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 1000, overflowY: 'auto', padding: '24px' }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+      <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
+        {/* 可滚动内容区域 */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', paddingBottom: '100px' }}>
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           {/* 结果摘要 */}
           {stage?.module === 'adventure' && !reviewPassed && (
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
@@ -722,7 +770,7 @@ export default function InteractiveQuiz() {
             共 {results.length} 题 · 正确 {correctCount} · 错误 {wrongCount2} · 揭示 {revealedCount}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-            {results.map((r, i) => {
+            {sortedResults.map((r, i) => {
               const content = r.slice.content as any;
               let questionLabel = '';
               if (r.slice.module === 'theory') {
@@ -762,30 +810,46 @@ export default function InteractiveQuiz() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={handleRetry} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-              再来一次
-            </button>
-            {stage?.module === 'adventure' && guidance && (
-              <button onClick={() => setShowGuidance(true)} style={{ padding: '12px 28px', borderRadius: '12px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}>
-                查看学习指导
-              </button>
-            )}
-            <button onClick={finishQuiz} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-              返回闯关地图
-            </button>
-          </div>
-          {showGuidance && guidance && (
-            <GuidanceModal
-              title={stageRecord?.title || stage?.title || ''}
-              guidance={guidance}
-              guidanceImages={guidanceImages}
-              onStart={() => setShowGuidance(false)}
-              buttonText="好滴"
-            />
-          )}
         </div>
       </div>
+
+      {/* 固定在视口底部的操作按钮 */}
+      <div style={{
+        borderTop: '1px solid #e5e7eb',
+        background: 'white',
+        padding: '16px 24px',
+        boxShadow: '0 -4px 12px rgba(0,0,0,0.08)'
+      }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={handleRetry} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+            再来一次
+          </button>
+          {stage?.module === 'adventure' && reviewPassed && nextStage && (
+            <button onClick={() => handleContinueAdventure(nextStage.id)} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#10b981', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+              继续闯关
+            </button>
+          )}
+          {stage?.module === 'adventure' && guidance && (
+            <button onClick={() => setShowGuidance(true)} style={{ padding: '12px 28px', borderRadius: '12px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}>
+              查看学习指导
+            </button>
+          )}
+          <button onClick={finishQuiz} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
+            返回闯关地图
+          </button>
+        </div>
+      </div>
+
+      {showGuidance && guidance && (
+        <GuidanceModal
+          title={stageRecord?.title || stage?.title || ''}
+          guidance={guidance}
+          guidanceImages={guidanceImages}
+          onStart={() => setShowGuidance(false)}
+          buttonText="好滴"
+        />
+      )}
+    </div>
     );
   }
 
