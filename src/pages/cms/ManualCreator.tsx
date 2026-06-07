@@ -681,13 +681,16 @@ export default function ManualCreator() {
                     </div>
                   </div>
                 </div>
-                {/* 干扰项（可选） */}
+                {/* 指定选项（可选） */}
                 <input
                   value={distractors}
                   onChange={e => setDistractors(e.target.value)}
-                  placeholder="干扰项（可选），用 | 分隔，如 大三度 (M3)|小三度 (m3)|纯四度 (P4)"
+                  placeholder="指定选项（可选），用 | 分隔，如 大三度 (M3)|小三度 (m3)|纯四度 (P4)|纯五度 (P5)"
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
                 />
+                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '6px', lineHeight: '1.4' }}>
+                  💡 提示：如果选项中包含正确答案，学生端会保留您配置的顺序；否则系统会打乱选项顺序以防作弊
+                </div>
               </>
             ) : (
               // A / B / D 类型
@@ -723,13 +726,16 @@ export default function ManualCreator() {
                     }}>+ 添加到素材池</button>
                   </div>
                 )}
-                {/* 干扰项（可选） */}
+                {/* 指定选项（可选） */}
                 <input
                   value={distractors}
                   onChange={e => setDistractors(e.target.value)}
-                  placeholder="干扰项（可选），用 | 分隔，如 弱 (piano)|中强 (mezzo-forte)|强 (forte)"
+                  placeholder="指定选项（可选），用 | 分隔，如 弱 (piano)|中强 (mezzo-forte)|强 (forte)|极强 (fortissimo)"
                   style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
                 />
+                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '6px', marginBottom: '10px', lineHeight: '1.4' }}>
+                  💡 提示：如果选项中包含正确答案，学生端会保留您配置的顺序；否则系统会打乱选项顺序以防作弊
+                </div>
                 {/* 单音：谱号位置选择 */}
                 {type === 'notes' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -795,12 +801,12 @@ export default function ManualCreator() {
             onChange={(e) => setBatchText(e.target.value)}
             placeholder={
               type === 'symbols'
-                ? `每行格式: 符号|答案|干扰1|干扰2|干扰3（干扰项可选）\n例如：\npp|极弱 (pianissimo)|弱 (piano)|中弱 (mezzo-piano)|中强 (mezzo-forte)\nff|极强 (fortissimo)\nstaccato|断音 (staccato)`
+                ? `每行格式: 符号|答案|选项2|选项3|选项4（指定选项可选）\n例如：\npp|极弱 (pianissimo)|弱 (piano)|中弱 (mezzo-piano)|中强 (mezzo-forte)\nff|极强 (fortissimo)\nstaccato|断音 (staccato)`
                 : type === 'theory'
-                ? `每行格式: 音A,音B|答案|干扰1|干扰2|干扰3（干扰项可选）\n答案可以是任意维度：音程名、方向、级进/跳进等\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4,G4|纯五度 (P5)|大五度|小五度|增五度\nC4,D4|上行|下行\nC4,D4|级进|跳进\nD4,E4|大三度 (M3)\n[低音]\nA2,B2|大二度 (M2)`
+                ? `每行格式: 音A,音B|答案|选项2|选项3|选项4（指定选项可选）\n答案可以是任意维度：音程名、方向、级进/跳进等\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4,G4|纯五度 (P5)|大五度|小五度|增五度\nC4,D4|上行|下行\nC4,D4|级进|跳进\nD4,E4|大三度 (M3)\n[低音]\nA2,B2|大二度 (M2)`
                 : type === 'notes'
-                ? `每行格式: 音高|答案|干扰1|干扰2|干扰3（干扰项可选）\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4|C|D|E|F\nD4\n[低音]\nA2|A|G|B|C`
-                : `每行格式: 音型|答案|干扰1|干扰2|干扰3（干扰项可选）\n例如：\n上行音阶跑动|上行音阶跑动|下行音阶跑动|分解和弦|琶音上行\n分解和弦`
+                ? `每行格式: 音高|答案|选项2|选项3|选项4（指定选项可选）\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4|C|D|E|F\nD4\n[低音]\nA2|A|G|B|C`
+                : `每行格式: 音型|答案|选项2|选项3|选项4（指定选项可选）\n例如：\n上行音阶跑动|上行音阶跑动|下行音阶跑动|分解和弦|琶音上行\n分解和弦`
             }
             style={{
               width: '100%', height: '200px', padding: '16px', borderRadius: '8px',

@@ -103,6 +103,18 @@ const PATTERN_DEFAULT_NOTES: Record<string, string[]> = {
   '八度跳进':    ['C4', 'C5', 'C4', 'C5'],
 };
 
+// 确定性打乱函数（基于种子）
+function shuffleWithSeed(array: string[], seed: number): string[] {
+  const arr = [...array];
+  let currentSeed = seed;
+  for (let i = arr.length - 1; i > 0; i--) {
+    currentSeed = (currentSeed * 9301 + 49297) % 233280;
+    const j = Math.floor((currentSeed / 233280) * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function generateOptions(slice: Slice): string[] {
   const content = slice.content as unknown as Record<string, unknown>;
 
@@ -537,8 +549,44 @@ export default function InteractiveQuiz() {
   // ============================================================
   const options = useMemo(() => {
     if (!currentSlice) return [];
-    return generateOptions(currentSlice);
-  }, [currentSlice]);
+    const opts = generateOptions(currentSlice);
+    const content = currentSlice.content as unknown as Record<string, unknown>;
+    const fixedOptions = content.options as string[] | undefined;
+
+    // 如果是教师配置的选项，判断是否需要打乱
+    if (fixedOptions && fixedOptions.length >= 2) {
+      // 获取正确答案
+      let correctAnswer = '';
+      switch (currentSlice.module) {
+        case 'notes':
+          correctAnswer = extractNoteAnswer((content.pitch as string) || '');
+          break;
+        case 'symbols':
+          correctAnswer = (content.answer as string) || '';
+          if (!correctAnswer) {
+            const rawSymbol = (content.raw as string) || (content.symbol as string) || '';
+            correctAnswer = SYMBOL_MAP[rawSymbol] || rawSymbol;
+          }
+          break;
+        case 'theory':
+          correctAnswer = (content.theory as string) || (content.raw as string) || '';
+          break;
+        case 'patterns':
+          correctAnswer = (content.raw as string) || (content.pattern as string) || '';
+          break;
+      }
+
+      // 如果选项中包含正确答案，保留教师配置的顺序
+      if (opts.includes(correctAnswer)) {
+        return opts;
+      }
+
+      // 如果选项中不包含正确答案，说明是系统补充的，使用确定性打乱
+      return shuffleWithSeed(opts, sessionKey + currentSliceIndex);
+    }
+
+    return opts;
+  }, [currentSlice, sessionKey, currentSliceIndex]);
 
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
