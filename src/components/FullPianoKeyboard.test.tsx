@@ -104,7 +104,7 @@ describe('FullPianoKeyboard thumbnail', () => {
     }
   });
 
-  it('scrolls to a zone without answering', () => {
+  it('jumps to a zone immediately without answering', () => {
     const onAnswer = vi.fn();
     const scrollTo = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
@@ -113,10 +113,16 @@ describe('FullPianoKeyboard thumbnail', () => {
     });
     HTMLElement.prototype.scrollTo = scrollTo;
 
-    render(<FullPianoKeyboard feedback="none" onAnswer={onAnswer} />);
-    fireEvent.click(screen.getByRole('button', { name: 'C4-B4' }));
+    const { container } = render(<FullPianoKeyboard feedback="none" onAnswer={onAnswer} />);
+    const scrollArea = container.querySelector('[data-testid="full-piano-scroll"]') as HTMLDivElement;
+    const frame = container.querySelector('[data-testid="piano-thumbnail-viewport"]') as HTMLDivElement;
+    const targetLeft = getZoneScrollLeft(PIANO_ZONES[6], 600);
 
-    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    fireEvent.click(screen.getByRole('button', { name: 'C7-C8' }));
+
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(scrollArea.scrollLeft).toBe(targetLeft);
+    expect(frame.style.left).toBe(`${getViewportFrame(targetLeft, 600).leftPct}%`);
     expect(onAnswer).not.toHaveBeenCalled();
   });
 
@@ -163,6 +169,23 @@ describe('FullPianoKeyboard thumbnail', () => {
     const c7Zone = screen.getByRole('button', { name: 'C7-C8' });
 
     fireEvent.click(c7Zone);
+    expect(c7Zone.className).toContain('full-piano-keyboard__zone--selected');
+
+    fireEvent.scroll(scrollArea);
+    scrollArea.scrollLeft = 1200;
+    fireEvent.scroll(scrollArea);
+
+    expect(c7Zone.className).not.toContain('full-piano-keyboard__zone--selected');
+  });
+
+  it('keeps the selected zone frame for the immediate programmatic jump scroll event', () => {
+    const { container } = render(<FullPianoKeyboard feedback="none" onAnswer={() => {}} />);
+    const scrollArea = container.querySelector('[data-testid="full-piano-scroll"]') as HTMLDivElement;
+    const c7Zone = screen.getByRole('button', { name: 'C7-C8' });
+
+    fireEvent.click(c7Zone);
+    fireEvent.scroll(scrollArea);
+
     expect(c7Zone.className).toContain('full-piano-keyboard__zone--selected');
 
     scrollArea.scrollLeft = 1200;

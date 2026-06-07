@@ -123,6 +123,7 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
   const suppressClickRef = useRef(false);
   const scrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedZoneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const programmaticZoneScrollRef = useRef(false);
   // Only meaningful while feedback is non-none; flashFill becomes null on
   // 'none', so the highlight disappears without explicit clearing.
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
@@ -175,11 +176,12 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
     if (selectedZoneTimerRef.current) clearTimeout(selectedZoneTimerRef.current);
     selectedZoneTimerRef.current = setTimeout(() => setSelectedZoneLabel(null), 900);
     const left = getZoneScrollLeft(zone, el.clientWidth);
-    if (typeof el.scrollTo === 'function') {
-      el.scrollTo({ left, behavior: 'smooth' });
-    } else {
-      el.scrollLeft = left;
-    }
+    programmaticZoneScrollRef.current = true;
+    el.scrollLeft = left;
+    setViewportFrame(getViewportFrame(left, el.clientWidth));
+    setThumbnailActive(true);
+    if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current);
+    scrollIdleTimerRef.current = setTimeout(() => setThumbnailActive(false), 700);
   };
 
   // Mouse-only drag-to-pan. Avoid setPointerCapture: it retargets the
@@ -214,12 +216,14 @@ export default function FullPianoKeyboard({ onAnswer, feedback, previewAudio = f
   };
 
   const onScroll = () => {
+    const preserveSelectedZone = programmaticZoneScrollRef.current;
+    programmaticZoneScrollRef.current = false;
     setThumbnailActive(true);
-    setSelectedZoneLabel(null);
+    if (!preserveSelectedZone) setSelectedZoneLabel(null);
     syncViewportFrame();
     if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current);
     scrollIdleTimerRef.current = setTimeout(() => setThumbnailActive(false), 700);
-    if (selectedZoneTimerRef.current) {
+    if (!preserveSelectedZone && selectedZoneTimerRef.current) {
       clearTimeout(selectedZoneTimerRef.current);
       selectedZoneTimerRef.current = null;
     }

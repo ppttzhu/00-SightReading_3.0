@@ -4,7 +4,7 @@
 
 **目标：** 在现有 88 键钢琴上方增加一个带 7 个 range label 音区的缩略导航条。
 
-**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责调用大键盘的 `scrollTo`。默认状态显示 range label、轻量中性分区边界和低调当前视窗高亮；滑动时增强当前视窗高亮并清除蓝色选区框；点击分区时短暂显示蓝色选区框。hover/focus 的蓝色样式只在 fine pointer 设备启用。
+**架构：** 功能保持在 `FullPianoKeyboard` 内：导出少量几何计算 helper 便于测试；在现有滚动容器上方渲染缩略键盘；触屏滑动、桌面拖拽、琴键点击仍然使用原来的大键盘滚动容器。缩略图不提交答案，只负责立即设置大键盘的 `scrollLeft` 并同步当前视窗。默认状态显示 range label、轻量中性分区边界和低调当前视窗高亮；用户手动滑动时增强当前视窗高亮并清除蓝色选区框；点击分区时短暂显示蓝色选区框。hover/focus 的蓝色样式只在 fine pointer 设备启用。
 
 **技术栈：** React 19、TypeScript、Vitest、Testing Library、SVG/CSS。
 
@@ -130,7 +130,7 @@ describe('FullPianoKeyboard thumbnail', () => {
 
 ```tsx
 describe('FullPianoKeyboard thumbnail navigation', () => {
-  it('scrolls to a zone without answering', () => {
+  it('jumps to a zone immediately without answering', () => {
     const onAnswer = vi.fn();
     const scrollTo = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, value: 600 });
@@ -139,7 +139,7 @@ describe('FullPianoKeyboard thumbnail navigation', () => {
     render(<FullPianoKeyboard feedback="none" onAnswer={onAnswer} />);
     fireEvent.click(screen.getByRole('button', { name: 'C4-B4' }));
 
-    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }));
+    expect(scrollTo).not.toHaveBeenCalled();
     expect(onAnswer).not.toHaveBeenCalled();
   });
 });
@@ -153,7 +153,7 @@ describe('FullPianoKeyboard thumbnail navigation', () => {
 
 - [ ] **步骤 3：实现音区点击导航**
 
-添加 `handleZoneClick(zone)`：用 `getZoneScrollLeft(zone, container.clientWidth)` 计算目标位置，并调用 `container.scrollTo({ left, behavior: 'smooth' })`。如果运行环境没有 `scrollTo`，则回退为直接设置 `container.scrollLeft = left`。
+添加 `handleZoneClick(zone)`：用 `getZoneScrollLeft(zone, container.clientWidth)` 计算目标位置，直接设置 `container.scrollLeft = left`，并立即同步缩略图当前视窗。程序跳转产生的第一下 scroll event 不清除点击选区；用户后续手动滑动仍会清除选区。
 
 - [ ] **步骤 4：运行测试确认绿灯**
 
