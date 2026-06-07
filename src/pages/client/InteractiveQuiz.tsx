@@ -11,6 +11,7 @@ import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 import { playIntervalPairAudio, playSequentialNotes, STAGGER_DELAY_MS, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
+import { useOptionsFontSize } from '../../hooks/useOptionsFontSize';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
 import { getAllChordNames } from '../../core/engine/chordAnalyzer';
@@ -682,6 +683,9 @@ export default function InteractiveQuiz() {
     return opts;
   }, [currentSlice, sessionKey, currentSliceIndex]);
 
+  // Use a uniform font size based on the longest option text
+  const optionsFontSize = useOptionsFontSize(options);
+
   const getCorrectAnswer = (): string => {
     if (!currentSlice) return '';
     const content = currentSlice.content as unknown as Record<string, unknown>;
@@ -1263,7 +1267,7 @@ export default function InteractiveQuiz() {
                   borderRadius: '20px',
                   border: isCorrectOption ? '2px solid #10b981' : isWrongPick ? '2px solid #e5e7eb' : '1px solid #f3f4f6',
                   background: isCorrectOption ? '#ecfdf5' : isWrongPick ? '#f9fafb' : 'white',
-                  fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.5rem',
+                  fontSize: optionsFontSize,
                   fontWeight: '700',
                   color: isCorrectOption ? '#059669' : isWrongPick ? '#d1d5db' : '#374151',
                   cursor: revealed ? 'default' : 'pointer',
