@@ -14,6 +14,109 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.full-piano-keyboard {
+  width: 100%;
+}
+
+.full-piano-keyboard__thumbnail {
+  position: relative;
+  height: 58px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f8fafc;
+  opacity: 0.72;
+  transition: opacity 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.full-piano-keyboard__thumbnail--active,
+.full-piano-keyboard__thumbnail:hover,
+.full-piano-keyboard__thumbnail:focus-within {
+  opacity: 1;
+}
+
+.full-piano-keyboard__thumbnail-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.full-piano-keyboard__zone {
+  top: 4px;
+  height: 50px;
+  padding: 0;
+  border: 1px solid rgba(100, 116, 139, 0.28);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #475569;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.full-piano-keyboard__zone--selected {
+  border-color: #2563eb;
+  background: rgba(219, 234, 254, 0.55);
+  color: #1d4ed8;
+  outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .full-piano-keyboard__zone:hover,
+  .full-piano-keyboard__zone:focus-visible {
+    border-color: #2563eb;
+    background: rgba(219, 234, 254, 0.55);
+    color: #1d4ed8;
+    outline: none;
+  }
+}
+
+.full-piano-keyboard__zone span {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.full-piano-keyboard__viewport {
+  position: absolute;
+  top: 5px;
+  height: 48px;
+  opacity: 0;
+  pointer-events: none;
+  border: 1.5px solid rgba(37, 99, 235, 0.28);
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.04);
+  transition: left 0.08s linear, width 0.08s linear, opacity 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.full-piano-keyboard__viewport--subtle {
+  opacity: 0.42;
+}
+
+.full-piano-keyboard__viewport--visible {
+  opacity: 1;
+  border-color: rgba(37, 99, 235, 0.68);
+  background: rgba(37, 99, 235, 0.16);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.full-piano-keyboard__scroll {
+  width: 100%;
+  max-width: 2288px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
 body {
   margin: 0;
   padding: 0;
