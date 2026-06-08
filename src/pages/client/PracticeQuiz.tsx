@@ -258,6 +258,7 @@ export default function PracticeQuiz() {
       const isLetter = mapKeyToNote(e.key) !== null;
       const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
       if (!isLetter && !isAccidental) return;
+      e.preventDefault();
       buffer.push(e.key);
       if (timer) clearTimeout(timer);
       timer = setTimeout(flush, WINDOW_MS);
