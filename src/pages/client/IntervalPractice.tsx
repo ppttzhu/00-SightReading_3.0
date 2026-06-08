@@ -205,6 +205,7 @@ interface IntervalQuestion {
   intervalName: string;
   clef: string;
   isHarmonic: boolean;
+  dir: number; // 1 = 上行, -1 = 下行
 }
 
 function generateInterval(
@@ -285,6 +286,7 @@ function generateInterval(
     intervalName,
     clef: getClef(lowMidi, highMidi, clefPref),
     isHarmonic,
+    dir,
   };
 }
 
@@ -452,6 +454,24 @@ export default function IntervalPractice() {
     }
   }, [currentQuestion]);
 
+  // 题目出现时自动播放音程（和声/上行=低→高, 下行=高→低）— 等待采样器就绪后播放
+  useEffect(() => {
+    if (!audioEnabled || !currentQuestion.lowPitch || !currentQuestion.highPitch) return;
+    let cancelled = false;
+    (async () => {
+      while (!audioEngine.isReady && !cancelled) {
+        await new Promise<void>(r => setTimeout(r, 100));
+      }
+      if (cancelled) return;
+      const first = currentQuestion.isHarmonic || currentQuestion.dir === 1
+        ? currentQuestion.lowPitch : currentQuestion.highPitch;
+      const second = currentQuestion.isHarmonic || currentQuestion.dir === 1
+        ? currentQuestion.highPitch : currentQuestion.lowPitch;
+      playIntervalPairAudio(first, second);
+    })();
+    return () => { cancelled = true; };
+  }, [currentQuestion, audioEnabled]);
+
   const options = useMemo(() => {
     return generateOptions(currentQuestion, type);
   }, [currentQuestion, type]);
@@ -580,7 +600,6 @@ export default function IntervalPractice() {
                 <button
                   key={`${currentQuestion.semitones}_${i}_${opt}`}
                   onClick={() => {
-                    if (audioEnabled) playIntervalPairAudio(currentQuestion.lowPitch, currentQuestion.highPitch);
                     handleAnswer(opt);
                   }}
                   style={{

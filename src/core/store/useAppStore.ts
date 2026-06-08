@@ -43,12 +43,18 @@ export interface IntervalContent {
   options?: string[];
 }
 
-/** 音型题目 content */
+/** 音型题目 content（支持和弦识别子类型） */
 export interface PatternContent {
   pattern: string;
   raw: string;
   notes?: string[];
   options?: string[];
+
+  // 和弦识别专用（可选，存在时标记为和弦题）
+  chordType?: 'chord';
+  chordName?: string;       // 和弦答案，如 'C Major'
+  inversion?: string;       // 'root' | '1st' | '2nd' | '3rd' | ''
+  displayMode?: 'block' | 'arpeggio';
 }
 
 export type SliceContent = NoteContent | SymbolContent | IntervalContent | PatternContent;
@@ -82,6 +88,16 @@ export function areSlicesDuplicate(a: Slice, b: Slice): boolean {
     const bNoteA = bContent.noteA as string || bNotes?.[0];
     const bNoteB = bContent.noteB as string || bNotes?.[1];
     return aNoteA === bNoteA && aNoteB === bNoteB;
+  }
+  if (a.module === 'patterns') {
+    const aChordType = aContent.chordType as string | undefined;
+    const bChordType = bContent.chordType as string | undefined;
+    // 和弦题：按 chordName 去重（相同和弦名视为重复）
+    if (aChordType === 'chord' && bChordType === 'chord') {
+      return (aContent.chordName as string) === (bContent.chordName as string);
+    }
+    // 传统音型题保持原有去重逻辑
+    return true;
   }
   return true;
 }
