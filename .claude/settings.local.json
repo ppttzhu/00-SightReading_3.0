@@ -61,7 +61,16 @@
       "mcp__chrome-devtools__close_page",
       "Bash(netstat -ano)",
       "mcp__chrome-devtools__list_network_requests",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(gh pr create --title 'fix: 关卡删除弹框错误捕获 & 主线排关过滤空关卡' --body ' *)",
+      "Bash(gh pr create --title 'fix: 教师端配置的选项顺序不在学生端打乱' --body ' *)",
+      "mcp__chrome-devtools__get_network_request",
+      "Bash(openspec spec *)",
+      "Bash(npx tsx -e ' *)",
+      "Bash(cat node_modules/.bin/tsx)",
+      "Bash(npx --yes tsx -e ' *)",
+      "mcp__pencil__get_editor_state",
+      "mcp__pencil__open_document"
     ]
   },
   "hooks": {
