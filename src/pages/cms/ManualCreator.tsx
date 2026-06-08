@@ -3,6 +3,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnecto
 import { useAppStore } from '../../core/store/useAppStore';
 import { resolvePlacement } from '../../core/engine/pitchUtils';
 import type { StaffPlacement } from '../../core/engine/pitchUtils';
+import { analyzeChord } from '../../core/engine/chordAnalyzer';
 
 const NOTE_STEP: Record<string, number> = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
 
@@ -55,7 +56,27 @@ const ALL_INTERVALS = [
   '小六度 (m6)', '大六度 (M6)', '小七度 (m7)', '大七度 (M7)', '纯八度 (P8)',
 ];
 
-const ALL_PATTERNS = ['上行音阶跑动', '下行音阶跑动', '分解和弦', '琶音上行', '琶音下行', 'Alberti Bass', '重复音型', '八度跳进'];
+// ── 和弦识别字典 ──────────────────────────────────────────────
+const CHORD_ROOTS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const CHORD_ACCIDENTALS = ['', '#', 'b'];
+const CHORD_QUALITIES = [
+  { key: 'Major', label: '大三' },
+  { key: 'Minor', label: '小三' },
+  { key: 'Diminished', label: '减三' },
+  { key: 'Augmented', label: '增三' },
+  { key: 'Dom7', label: '属七' },
+  { key: 'Maj7', label: '大七' },
+  { key: 'Min7', label: '小七' },
+];
+const CHORD_INVERSIONS = [
+  { key: 'root', label: '原位' },
+  { key: '1st', label: '第一转位' },
+  { key: '2nd', label: '第二转位' },
+];
+const CHORD_DISPLAY_MODES = [
+  { key: 'block' as const, label: '柱式' },
+  { key: 'arpeggio' as const, label: '分解' },
+];
 
 // ── 自动补全输入框 ────────────────────────────────────────────
 function AutocompleteInput({
@@ -217,7 +238,7 @@ const TYPE_OPTIONS = [
   { value: 'notes',    label: '单音',           placeholder: '输入音高，如 C4、F#5、Bb3' },
   { value: 'symbols',  label: '音乐表情记号',   placeholder: '输入符号名称，如 ff、staccato、fermata' },
   { value: 'theory',   label: '双音/音程关系',  placeholder: '格式: 音符1,音符2|名称，如 C4,G4|纯五度 (P5)' },
-  { value: 'patterns', label: '音型',           placeholder: '输入音型描述，如 上行音阶 C-D-E-F-G' },
+  { value: 'patterns', label: '音型/和弦',      placeholder: '输入音型描述，或进入和弦子模式使用快速选择' },
 ];
 
 export default function ManualCreator() {
@@ -240,6 +261,22 @@ export default function ManualCreator() {
   const [placement, setPlacement] = useState<StaffPlacement>('auto');
   const previewRef = useRef<HTMLDivElement>(null);
   const intervalPreviewRef = useRef<HTMLDivElement>(null);
+  const chordPreviewRef = useRef<HTMLDivElement>(null);
+
+  // ── 和弦识别状态 ──
+  const [chordEnabled] = useState(true);     // patterns 默认就是和弦模式
+  const [chordInputMode, setChordInputMode] = useState<'quick' | 'custom'>('quick');
+  const [chordRoot, setChordRoot] = useState('C');
+  const [chordRootAcc, setChordRootAcc] = useState('');       // '' | '#' | 'b'
+  const [chordRootOctave, setChordRootOctave] = useState(4);  // 根音八度
+  const [chordQuality, setChordQuality] = useState('Major');
+  const [chordInversion, setChordInversion] = useState('root');
+  const [chordDisplayMode, setChordDisplayMode] = useState<'block' | 'arpeggio'>('block');
+  const [chordQuickAnswer, setChordQuickAnswer] = useState('C');
+  const [chordQuickNotes, setChordQuickNotes] = useState('C4, E4, G4');
+  const [chordCustomPitches, setChordCustomPitches] = useState('');
+  const [chordCustomAnswer, setChordCustomAnswer] = useState('');
+  const [chordAnalysisResult, setChordAnalysisResult] = useState<string | null>(null);
 
   // ── 单音大谱表预览 ──
   const isValidPitch = (s: string) => /^[A-Ga-g][#b]?\d$/.test(s);
@@ -362,6 +399,178 @@ export default function ManualCreator() {
 
   const currentTypeOption = TYPE_OPTIONS.find(t => t.value === type)!;
 
+  /** Sync quick-select auto-generated answer + notes into editable fields. */
+  function syncQuickChordFields(root: string, acc: string, quality: string, inversion: string, octave?: number) {
+    const o = octave ?? chordRootOctave;
+    setChordQuickAnswer(makeChordName(root, acc, quality));
+    const notes = generateChordNotes(root, acc, quality, inversion, o);
+    setChordQuickNotes(notes.join(', '));
+  }
+
+  // ── 和弦辅助函数 ──
+  const LETTER_TO_SEMI: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const QUALITY_INTERVALS: Record<string, number[]> = {
+    Major: [0, 4, 7], Minor: [0, 3, 7], Diminished: [0, 3, 6], Augmented: [0, 4, 8],
+    Dom7: [0, 4, 7, 10], Maj7: [0, 4, 7, 11], Min7: [0, 3, 7, 10],
+  };
+
+  /** Generate chord note names from root + quality + inversion.
+   *  @param rootOctave - the octave for the root note (default 4) */
+  function generateChordNotes(root: string, acc: string, quality: string, inversion: string, rootOctave = 4): string[] {
+    const intervals = QUALITY_INTERVALS[quality];
+    if (!intervals) return [];
+    const rootSemi = LETTER_TO_SEMI[root] ?? 0;
+    const accAdj = acc === '#' ? 1 : acc === 'b' ? -1 : 0;
+    // Use the provided octave; adjust downward if flat pushes into negative pitch class
+    const startOctave = rootOctave + (accAdj < 0 && rootSemi + accAdj < 0 ? -1 : 0);
+
+    const notes: string[] = intervals.map(semi => {
+      const absoluteSemi = rootSemi + accAdj + semi;
+      let octave = startOctave + Math.floor(absoluteSemi / 12);
+      const noteSemi = ((absoluteSemi % 12) + 12) % 12;
+      // Convert semitone to letter + accidental
+      const SEMI_TO_NATURAL: [string, number][] = [
+        ['C', 0], ['D', 2], ['E', 4], ['F', 5], ['G', 7], ['A', 9], ['B', 11],
+      ];
+      const [letter, natural] = SEMI_TO_NATURAL.find(([, n]) => n === noteSemi)
+        ?? SEMI_TO_NATURAL.reduce((a, [l, n]) => Math.abs(n - noteSemi) < Math.abs(a[1] - noteSemi) ? [l, n] as [string, number] : a, ['C', 0] as [string, number]);
+      const diff = noteSemi - natural;
+      const noteAcc = diff === 0 ? '' : diff === 1 ? '#' : diff === 2 ? '##' : diff === -1 ? 'b' : diff === -2 ? 'bb' : '';
+      // Adjust accidental display: prefer the "standard" spelling for this chord quality
+      return `${letter}${noteAcc}${octave}`;
+    });
+
+    // Apply inversion
+    if (inversion === '1st' && notes.length >= 2) {
+      const first = notes.shift()!;
+      const m = first.match(/(\d+)$/);
+      const oct = m ? parseInt(m[1]) + 1 : 5;
+      notes.push(first.replace(/\d+$/, String(oct)));
+    } else if (inversion === '2nd' && notes.length >= 3) {
+      const first = notes.shift()!;
+      const second = notes.shift()!;
+      const m1 = first.match(/(\d+)$/);
+      const m2 = second.match(/(\d+)$/);
+      const o1 = m1 ? parseInt(m1[1]) + 1 : 5;
+      const o2 = m2 ? parseInt(m2[1]) + 1 : 5;
+      notes.push(first.replace(/\d+$/, String(o1)));
+      notes.push(second.replace(/\d+$/, String(o2)));
+    }
+
+    // Ensure accidentals use input accidental spelling for the root note
+    return notes.map((n, i) => {
+      if (i === 0 && acc) {
+        const letterMatch = n.match(/^([A-G])/);
+        if (letterMatch && letterMatch[1] === root) {
+          return `${root}${acc}${n.replace(/^[A-G][#b]*/, '')}`;
+        }
+      }
+      return n;
+    });
+  }
+
+  /** Generate a human-readable chord name from root+acc+quality. */
+  function makeChordName(root: string, acc: string, quality: string): string {
+    const suffix: Record<string, string> = {
+      Major: '', Minor: 'm', Diminished: 'dim', Augmented: 'aug',
+      Dom7: '7', Maj7: 'maj7', Min7: 'm7',
+    };
+    return `${root}${acc}${suffix[quality] ?? quality}`;
+  }
+
+  // ── 和弦 VexFlow 预览 ──
+  useEffect(() => {
+    if (!chordPreviewRef.current || type !== 'patterns' || !chordEnabled) return;
+    chordPreviewRef.current.innerHTML = '';
+
+    let noteNames: string[] | undefined;
+
+    if (chordInputMode === 'quick') {
+      noteNames = chordQuickNotes.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+      if (noteNames.length < 2) {
+        noteNames = generateChordNotes(chordRoot, chordRootAcc, chordQuality, chordInversion, chordRootOctave);
+      }
+    } else {
+      const pitchList = chordCustomPitches.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+      if (pitchList.length >= 2) {
+        noteNames = pitchList;
+      }
+    }
+
+    if (!noteNames || noteNames.length < 2) return;
+
+    const renderer = new Renderer(chordPreviewRef.current, Renderer.Backends.SVG);
+    const width = Math.min(400, chordPreviewRef.current.clientWidth - 20);
+    const height = 240;
+    renderer.resize(width, height);
+    const context = renderer.getContext();
+    const staveW = width - 40;
+
+    // 大谱表：高音 + 低音谱表
+    const staveTop = new Stave(10, 20, staveW);
+    staveTop.addClef('treble');
+    staveTop.setContext(context).draw();
+
+    const staveBottom = new Stave(10, 120, staveW);
+    staveBottom.addClef('bass');
+    staveBottom.setContext(context).draw();
+
+    const connector = new StaveConnector(staveTop, staveBottom);
+    connector.setType(StaveConnector.type.BRACE);
+    connector.setContext(context).draw();
+
+    // 根据音高选择谱表：取中位数判断
+    const midiVals = noteNames.map(n => {
+      const noteVal: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+      const m = n.match(/^([A-Ga-g])(#|b)?(\d+)$/);
+      if (!m) return 60;
+      const adj = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
+      return noteVal[m[1].toUpperCase()] + adj + (parseInt(m[3]) + 1) * 12;
+    });
+    const avgMidi = midiVals.reduce((a, b) => a + b, 0) / midiVals.length;
+    const clef = avgMidi >= 64 ? 'treble' : 'bass';  // E4=64
+    const activeStave = clef === 'treble' ? staveTop : staveBottom;
+
+    try {
+      if (chordDisplayMode === 'block') {
+        // Block chord: stacked notes
+        const vfKeys = noteNames.map(n => {
+          const m = n.match(/^([A-Ga-g])(#|b)?(\d+)$/);
+          return m ? `${m[1].toLowerCase()}/${m[3]}` : 'c/4';
+        });
+        const chordNote = new StaveNote({ keys: vfKeys, duration: 'w', clef });
+        noteNames.forEach(n => {
+          const m = n.match(/^[A-Ga-g]((#|b)+)?\d+$/);
+          if (m && m[1]) {
+            chordNote.addModifier(new Accidental(m[1]), noteNames.indexOf(n));
+          }
+        });
+        const voice = new Voice({ numBeats: 4, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables([chordNote]);
+        new Formatter().joinVoices([voice]).format([voice], 280);
+        voice.draw(context, activeStave);
+      } else {
+        // Arpeggio: quarter note sequence
+        const vfNotes = noteNames.map(n => {
+          const m = n.match(/^([A-Ga-g])(#|b)?(\d+)$/);
+          const key = m ? `${m[1].toLowerCase()}/${m[3]}` : 'c/4';
+          const note = new StaveNote({ keys: [key], duration: 'q', clef });
+          if (m && m[2]) note.addModifier(new Accidental(m[2]));
+          return note;
+        });
+        const beats = vfNotes.length;
+        const voice = new Voice({ numBeats: beats, beatValue: 4 });
+        voice.setMode(2);
+        voice.addTickables(vfNotes);
+        new Formatter().joinVoices([voice]).format([voice], Math.min(360, beats * 60));
+        voice.draw(context, activeStave);
+      }
+    } catch (e) {
+      console.error('Chord preview error:', e);
+    }
+  }, [type, chordEnabled, chordInputMode, chordRoot, chordRootAcc, chordRootOctave, chordQuality, chordInversion, chordDisplayMode, chordCustomPitches, chordQuickNotes, chordQuickAnswer]);
+
   const parseDistractors = (raw: string): string[] | undefined => {
     const parts = raw.split('|').map(s => s.trim()).filter(Boolean);
     return parts.length > 0 ? parts : undefined;
@@ -391,6 +600,47 @@ export default function ManualCreator() {
       };
       sliceContent = intervalContent;
       idKey = raw;
+    } else if (type === 'patterns' && chordEnabled) {
+      // ── 和弦模式 ──
+      if (chordInputMode === 'quick') {
+        let noteNames = chordQuickNotes.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+        if (noteNames.length < 2) {
+          // 如果老师把音高删空了，fallback 自动生成
+          noteNames = generateChordNotes(chordRoot, chordRootAcc, chordQuality, chordInversion, chordRootOctave);
+        }
+        const chordName = chordQuickAnswer.trim() || makeChordName(chordRoot, chordRootAcc, chordQuality);
+        const raw = `${chordName} (${noteNames.join(',')})`;
+        const chordContent = {
+          pattern: '',
+          raw,
+          notes: noteNames,
+          chordType: 'chord' as const,
+          chordName,
+          inversion: chordInversion,
+          displayMode: chordDisplayMode,
+          ...(opts && { options: opts.some(opt => opt === chordName) ? opts : [chordName, ...opts] }),
+        };
+        sliceContent = chordContent;
+        idKey = raw;
+      } else {
+        const pitchList = chordCustomPitches.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+        if (pitchList.length < 2) return;
+        const analysis = analyzeChord(pitchList);
+        const chordName = chordCustomAnswer.trim() || analysis?.name || pitchList.join('+');
+        const raw = `${chordName} (${pitchList.join(',')})`;
+        const chordContent = {
+          pattern: '',
+          raw,
+          notes: pitchList,
+          chordType: 'chord' as const,
+          chordName,
+          inversion: analysis?.inversion ?? 'root',
+          displayMode: chordDisplayMode,
+          ...(opts && { options: opts.some(opt => opt === chordName) ? opts : [chordName, ...opts] }),
+        };
+        sliceContent = chordContent;
+        idKey = raw;
+      }
     } else {
       if (!content.trim()) return;
       if (type === 'symbols' && !symbolAnswer.trim()) return;
@@ -404,6 +654,7 @@ export default function ManualCreator() {
 
     const { added, skipped } = addSlices([{ id: `manual_${type}_${Date.now()}_${idKey}`, module: type, content: sliceContent as any, difficulty }]);
     setContent(''); setSymbolAnswer(''); setNoteA(''); setNoteB(''); setIntervalName(''); setDistractors('');
+    setChordCustomPitches('');
     showResult(added, skipped);
   };
 
@@ -458,12 +709,31 @@ export default function ManualCreator() {
         // notes / patterns: pitch|answer|distractor1|distractor2...
         const parts = line.split('|').map(s => s.trim());
         const value = parts[0];
-        const answer = parts[1];
+        const answer = parts[1] || value;
         const dists = parts.slice(2);
-        const base = buildContent(type, value);
-        const answerInDists = dists.some(d => d === answer);
-        contentObj = dists.length > 0 ? { ...base, options: answerInDists ? dists : [answer, ...dists] } : base;
-        // override line for placement resolution below
+
+        // Detect chord batch: value is comma-separated pitches like "C4,E4,G4"
+        const isChordBatch = type === 'patterns' && /^[A-G][#b]?\d(?:[,，\s]+[A-G][#b]?\d)+$/.test(value);
+
+        let contentObj;
+        if (isChordBatch) {
+          const pitchList = value.split(/[,，\s]+/).filter(Boolean);
+          const analysis = analyzeChord(pitchList);
+          const chordName = answer;
+          contentObj = {
+            pattern: '',
+            raw: `${chordName} (${pitchList.join(',')})`,
+            notes: pitchList,
+            chordType: 'chord',
+            chordName,
+            inversion: analysis?.inversion ?? 'root',
+            displayMode: 'block',
+          };
+        } else {
+          const base = buildContent(type, value);
+          const answerInDists = dists.some(d => d === answer);
+          contentObj = dists.length > 0 ? { ...base, options: answerInDists ? dists : [answer, ...dists] } : base;
+        }
         if (type === 'notes') {
           contentObj = { ...contentObj, placement: resolvePlacement(value, currentPlacement) };
         }
@@ -509,7 +779,41 @@ export default function ManualCreator() {
         // 旧格式：理论值作为 raw 字符串存储
         return { theory: value, notes: [], raw: value, pattern: '' } as unknown as { theory: string; notes: string[]; raw: string; pattern: string };
       }
-      case 'patterns': return { pattern: value, raw: value } as { pattern: string; raw: string };
+      case 'patterns': {
+        // If chord mode is active, build chord content
+        if (chordEnabled) {
+          let noteNames: string[] = [];
+          let chordName = '';
+          let inv = 'root';
+          let disp: 'block' | 'arpeggio' = 'block';
+          if (chordInputMode === 'quick') {
+            noteNames = chordQuickNotes.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+            if (noteNames.length < 2) {
+              noteNames = generateChordNotes(chordRoot, chordRootAcc, chordQuality, chordInversion, chordRootOctave);
+            }
+            chordName = chordQuickAnswer.trim() || makeChordName(chordRoot, chordRootAcc, chordQuality);
+            inv = chordInversion;
+            disp = chordDisplayMode;
+          } else {
+            const pitchList = chordCustomPitches.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+            noteNames = pitchList;
+            const analysis = analyzeChord(pitchList);
+            chordName = chordCustomAnswer.trim() || analysis?.name || pitchList.join('+');
+            inv = analysis?.inversion ?? 'root';
+            disp = chordDisplayMode;
+          }
+          return {
+            pattern: '',
+            raw: `${chordName} (${noteNames.join(',')})`,
+            notes: noteNames,
+            chordType: 'chord' as const,
+            chordName,
+            inversion: inv,
+            displayMode: disp,
+          };
+        }
+        return { pattern: value, raw: value } as { pattern: string; raw: string };
+      }
       default: return { raw: value } as unknown as { raw: string; pitch?: string; placement?: string; symbol?: string; answer?: string; theory?: string; notes?: string[]; pattern?: string };
     }
   };
@@ -695,47 +999,213 @@ export default function ManualCreator() {
             ) : (
               // A / B / D 类型
               <>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <AutocompleteInput
-                    value={content} onChange={setContent}
-                    candidates={type === 'notes' ? ALL_PITCHES : type === 'symbols' ? Object.keys(SYMBOL_MAP) : ALL_PATTERNS}
-                    placeholder={currentTypeOption.placeholder}
-                    onKeyDown={(e) => e.key === 'Enter' && type !== 'symbols' && handleAddSingle()}
-                  />
-                  {type !== 'symbols' && (
-                    <button onClick={handleAddSingle} disabled={!content.trim()} style={{
-                      padding: '12px 24px', borderRadius: '8px', border: 'none', whiteSpace: 'nowrap',
-                      background: content.trim() ? '#3b82f6' : '#94a3b8', color: 'white', fontWeight: 'bold',
-                      cursor: content.trim() ? 'pointer' : 'not-allowed',
+                {type === 'patterns' ? (
+                  <>
+                    {/* 输入模式切换 */}
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.95rem', color: '#6b7280', fontWeight: 600, alignSelf: 'center' }}>方式：</span>
+                      <button onClick={() => setChordInputMode('quick')} style={{ padding: '6px 16px', borderRadius: '8px', border: chordInputMode === 'quick' ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordInputMode === 'quick' ? '#eff6ff' : 'white', color: chordInputMode === 'quick' ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontWeight: chordInputMode === 'quick' ? 'bold' : 'normal', fontSize: '0.95rem' }}>
+                        快速选择
+                      </button>
+                      <button onClick={() => setChordInputMode('custom')} style={{ padding: '6px 16px', borderRadius: '8px', border: chordInputMode === 'custom' ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordInputMode === 'custom' ? '#eff6ff' : 'white', color: chordInputMode === 'custom' ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontWeight: chordInputMode === 'custom' ? 'bold' : 'normal', fontSize: '0.95rem' }}>
+                        自定义音高
+                      </button>
+                    </div>
+
+                    {chordInputMode === 'quick' ? (
+                      <>
+                        {/* 根音 + 性质 并排（放不下会换行） */}
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 200px', minWidth: '200px' }}>
+                            <div style={{ fontSize: '0.95rem', color: '#6b7280', marginBottom: '4px', fontWeight: 600 }}>根音</div>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {CHORD_ROOTS.map(r => (
+                                <button key={r} onClick={() => { setChordRoot(r); syncQuickChordFields(r, chordRootAcc, chordQuality, chordInversion); }} style={{ width: '38px', padding: '6px 0', borderRadius: '6px', border: chordRoot === r && !chordRootAcc ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordRoot === r && !chordRootAcc ? '#eff6ff' : 'white', color: chordRoot === r && !chordRootAcc ? '#1d4ed8' : '#374151', cursor: 'pointer', fontWeight: chordRoot === r && !chordRootAcc ? 'bold' : 'normal', fontSize: '0.95rem' }}>
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              {CHORD_ACCIDENTALS.map(a => (
+                                <button key={a || 'natural'} onClick={() => { setChordRootAcc(a); syncQuickChordFields(chordRoot, a, chordQuality, chordInversion); }} style={{ padding: '4px 12px', borderRadius: '6px', border: chordRootAcc === a ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordRootAcc === a ? '#eff6ff' : 'white', color: chordRootAcc === a ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontWeight: chordRootAcc === a ? 'bold' : 'normal', fontSize: '0.9rem' }}>
+                                {a === '' ? '♮' : a === '#' ? '♯' : '♭'}
+                              </button>
+                              ))}
+                              <span style={{ marginLeft: '8px', fontSize: '0.9rem', color: '#6b7280', fontWeight: 600 }}>八度</span>
+                              {[3, 4, 5].map(o => (
+                                <button key={o} onClick={() => { setChordRootOctave(o); syncQuickChordFields(chordRoot, chordRootAcc, chordQuality, chordInversion, o); }} style={{ width: '32px', padding: '4px 0', borderRadius: '6px', border: chordRootOctave === o ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordRootOctave === o ? '#eff6ff' : 'white', color: chordRootOctave === o ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontWeight: chordRootOctave === o ? 'bold' : 'normal', fontSize: '0.9rem' }}>
+                                  {o}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ flex: '1 1 200px', minWidth: '200px' }}>
+                            <div style={{ fontSize: '0.95rem', color: '#6b7280', marginBottom: '4px', fontWeight: 600 }}>性质</div>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                              {CHORD_QUALITIES.slice(0, 4).map(q => (
+                                <button key={q.key} onClick={() => { setChordQuality(q.key); syncQuickChordFields(chordRoot, chordRootAcc, q.key, chordInversion); }} style={{ padding: '6px 14px', borderRadius: '6px', border: chordQuality === q.key ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordQuality === q.key ? '#eff6ff' : 'white', color: chordQuality === q.key ? '#1d4ed8' : '#374151', cursor: 'pointer', fontWeight: chordQuality === q.key ? 'bold' : 'normal', fontSize: '0.9rem' }}>
+                                  {q.label}
+                                </button>
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {CHORD_QUALITIES.slice(4).map(q => (
+                                <button key={q.key} onClick={() => { setChordQuality(q.key); syncQuickChordFields(chordRoot, chordRootAcc, q.key, chordInversion); }} style={{ padding: '6px 14px', borderRadius: '6px', border: chordQuality === q.key ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordQuality === q.key ? '#eff6ff' : 'white', color: chordQuality === q.key ? '#1d4ed8' : '#374151', cursor: 'pointer', fontWeight: chordQuality === q.key ? 'bold' : 'normal', fontSize: '0.9rem' }}>
+                                  {q.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 答案 + 音高 并排 */}
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 180px', minWidth: '180px' }}>
+                            <div style={{ fontSize: '0.95rem', color: '#6b7280', marginBottom: '4px', fontWeight: 600 }}>答案</div>
+                            <input value={chordQuickAnswer} onChange={e => setChordQuickAnswer(e.target.value)}
+                              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                              placeholder="C Major" />
+                          </div>
+                          <div style={{ flex: '1 1 180px', minWidth: '180px' }}>
+                            <div style={{ fontSize: '0.95rem', color: '#6b7280', marginBottom: '4px', fontWeight: 600 }}>音高</div>
+                            <input value={chordQuickNotes} onChange={e => setChordQuickNotes(e.target.value)}
+                              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box', fontFamily: 'monospace' }}
+                              placeholder="C4, E4, G4" />
+                          </div>
+                        </div>
+
+                        {/* 转位 + 显示 一行 */}
+                        <div style={{ display: 'flex', gap: '16px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 600 }}>转位</span>
+                            {CHORD_INVERSIONS.map(inv => (
+                              <button key={inv.key} onClick={() => { setChordInversion(inv.key); syncQuickChordFields(chordRoot, chordRootAcc, chordQuality, inv.key); }} style={{ padding: '5px 12px', borderRadius: '6px', border: chordInversion === inv.key ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordInversion === inv.key ? '#eff6ff' : 'white', color: chordInversion === inv.key ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                {inv.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 600 }}>显示</span>
+                            {CHORD_DISPLAY_MODES.map(m => (
+                              <button key={m.key} onClick={() => setChordDisplayMode(m.key)} style={{ padding: '5px 12px', borderRadius: '6px', border: chordDisplayMode === m.key ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordDisplayMode === m.key ? '#eff6ff' : 'white', color: chordDisplayMode === m.key ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <AutocompleteInput
+                          value={chordCustomPitches}
+                          onChange={v => {
+                            setChordCustomPitches(v);
+                            setChordCustomAnswer('');
+                            const pitchList = v.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+                            if (pitchList.length >= 2) {
+                              const analysis = analyzeChord(pitchList);
+                              setChordAnalysisResult(analysis?.name ?? '无法识别');
+                              if (analysis) { setChordCustomAnswer(analysis.name); }
+                            } else { setChordAnalysisResult(null); }
+                          }}
+                          candidates={ALL_PITCHES}
+                          placeholder="C4, E4, G4（逗号或空格分隔）"
+                        />
+                        {chordAnalysisResult && (
+                          <div style={{ marginTop: '6px', padding: '8px 12px', borderRadius: '8px', background: chordAnalysisResult === '无法识别' ? '#fef3c7' : '#ecfdf5', border: `1px solid ${chordAnalysisResult === '无法识别' ? '#fcd34d' : '#6ee7b7'}`, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ color: chordAnalysisResult === '无法识别' ? '#92400e' : '#065f46', fontSize: '0.9rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              {chordAnalysisResult === '无法识别' ? '⚠️ 无法识别' : '✓ 自动识别'}
+                            </span>
+                            <input value={chordCustomAnswer} onChange={e => setChordCustomAnswer(e.target.value)}
+                              placeholder={chordAnalysisResult === '无法识别' ? '手动输入和弦名' : chordAnalysisResult}
+                              style={{ flex: 1, minWidth: '140px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.9rem', background: 'white', color: '#1f2937' }} />
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 600 }}>显示</span>
+                          {CHORD_DISPLAY_MODES.map(m => (
+                            <button key={m.key} onClick={() => setChordDisplayMode(m.key)} style={{ padding: '5px 12px', borderRadius: '6px', border: chordDisplayMode === m.key ? '2px solid #3b82f6' : '1px solid #d1d5db', background: chordDisplayMode === m.key ? '#eff6ff' : 'white', color: chordDisplayMode === m.key ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontSize: '0.9rem' }}>
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {/* 指定选项 */}
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '4px', fontWeight: 600 }}>选项自定义（| 分隔，留空自动生成）</div>
+                      <input value={distractors} onChange={e => setDistractors(e.target.value)}
+                        placeholder="C Major|A Minor|G7"
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+                    </div>
+
+                    {/* 预览 */}
+                    {(chordInputMode === 'quick' || chordCustomPitches.trim()) && (
+                      <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '12px', marginBottom: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '6px' }}>
+                          {chordDisplayMode === 'block' ? '柱式和弦预览' : '分解和弦预览'} — {chordInputMode === 'quick' ? chordQuickAnswer : chordCustomAnswer || chordAnalysisResult || ''}
+                        </div>
+                        <div ref={chordPreviewRef}></div>
+                      </div>
+                    )}
+
+                    <button onClick={handleAddSingle} style={{
+                      padding: '12px 24px', borderRadius: '8px', border: 'none', width: '100%',
+                      background: (chordInputMode === 'quick' || chordCustomPitches.trim().split(/[,，\s]+/).filter(Boolean).length >= 2) ? '#3b82f6' : '#94a3b8',
+                      color: 'white', fontWeight: 'bold', cursor: (chordInputMode === 'quick' || chordCustomPitches.trim().split(/[,，\s]+/).filter(Boolean).length >= 2) ? 'pointer' : 'not-allowed', fontSize: '0.95rem',
                     }}>+ 添加到素材池</button>
-                  )}
-                </div>
-                {type === 'symbols' && (
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <AutocompleteInput
-                      value={symbolAnswer} onChange={v => setSymbolAnswer(v)}
-                      candidates={Object.values(SYMBOL_MAP)}
-                      placeholder="输入正确答案，如 极弱 (pianissimo)"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddSingle()}
-                    />
-                    <button onClick={handleAddSingle} disabled={!content.trim() || !symbolAnswer.trim()} style={{
-                      padding: '12px 24px', borderRadius: '8px', border: 'none', whiteSpace: 'nowrap',
-                      background: content.trim() && symbolAnswer.trim() ? '#3b82f6' : '#94a3b8',
-                      color: 'white', fontWeight: 'bold',
-                      cursor: content.trim() && symbolAnswer.trim() ? 'pointer' : 'not-allowed',
-                    }}>+ 添加到素材池</button>
-                  </div>
+                  </>
+                ) : (
+                  <>
+                    {/* A / B 类型 */}
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <AutocompleteInput
+                        value={content} onChange={setContent}
+                        candidates={type === 'notes' ? ALL_PITCHES : type === 'symbols' ? Object.keys(SYMBOL_MAP) : []}
+                        placeholder={currentTypeOption.placeholder}
+                        onKeyDown={(e) => e.key === 'Enter' && type !== 'symbols' && handleAddSingle()}
+                      />
+                      {type !== 'symbols' && (
+                        <button onClick={handleAddSingle} disabled={!content.trim()} style={{
+                          padding: '12px 24px', borderRadius: '8px', border: 'none', whiteSpace: 'nowrap',
+                          background: content.trim() ? '#3b82f6' : '#94a3b8', color: 'white', fontWeight: 'bold',
+                          cursor: content.trim() ? 'pointer' : 'not-allowed',
+                        }}>+ 添加到素材池</button>
+                      )}
+                    </div>
+                    {type === 'symbols' && (
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <AutocompleteInput
+                          value={symbolAnswer} onChange={v => setSymbolAnswer(v)}
+                          candidates={Object.values(SYMBOL_MAP)}
+                          placeholder="输入正确答案，如 极弱 (pianissimo)"
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddSingle()}
+                        />
+                        <button onClick={handleAddSingle} disabled={!content.trim() || !symbolAnswer.trim()} style={{
+                          padding: '12px 24px', borderRadius: '8px', border: 'none', whiteSpace: 'nowrap',
+                          background: content.trim() && symbolAnswer.trim() ? '#3b82f6' : '#94a3b8',
+                          color: 'white', fontWeight: 'bold',
+                          cursor: content.trim() && symbolAnswer.trim() ? 'pointer' : 'not-allowed',
+                        }}>+ 添加到素材池</button>
+                      </div>
+                    )}
+                  </>
                 )}
-                {/* 指定选项（可选） */}
-                <input
-                  value={distractors}
-                  onChange={e => setDistractors(e.target.value)}
-                  placeholder="指定选项（可选），用 | 分隔，如 弱 (piano)|中强 (mezzo-forte)|强 (forte)|极强 (fortissimo)"
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
-                />
-                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '6px', marginBottom: '10px', lineHeight: '1.4' }}>
-                  💡 提示：如果选项中包含正确答案，学生端会保留您配置的顺序；否则系统会打乱选项顺序以防作弊
-                </div>
+
+                {type !== 'patterns' && (
+                  <>
+                    <input
+                      value={distractors}
+                      onChange={e => setDistractors(e.target.value)}
+                      placeholder="指定选项（可选），用 | 分隔，如 C Major|A Minor|G7"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                    />
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '6px', marginBottom: '10px', lineHeight: '1.4' }}>
+                      💡 提示：如果选项中包含正确答案，学生端会保留您配置的顺序；否则系统会打乱选项顺序以防作弊
+                    </div>
+                  </>
+                )}
                 {/* 单音：谱号位置选择 */}
                 {type === 'notes' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -806,6 +1276,8 @@ export default function ManualCreator() {
                 ? `每行格式: 音A,音B|答案|选项2|选项3|选项4（指定选项可选）\n答案可以是任意维度：音程名、方向、级进/跳进等\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4,G4|纯五度 (P5)|大五度|小五度|增五度\nC4,D4|上行|下行\nC4,D4|级进|跳进\nD4,E4|大三度 (M3)\n[低音]\nA2,B2|大二度 (M2)`
                 : type === 'notes'
                 ? `每行格式: 音高|答案|选项2|选项3|选项4（指定选项可选）\n可用 [高音] [低音] [自动] 标记谱表\n例如：\n[高音]\nC4|C|D|E|F\nD4\n[低音]\nA2|A|G|B|C`
+                : type === 'patterns'
+                ? `和弦格式：C4,E4,G4|C Major|F Major|A Minor|G Major\n音型格式：上行音阶跑动|上行音阶跑动|下行音阶跑动|分解和弦|琶音上行`
                 : `每行格式: 音型|答案|选项2|选项3|选项4（指定选项可选）\n例如：\n上行音阶跑动|上行音阶跑动|下行音阶跑动|分解和弦|琶音上行\n分解和弦`
             }
             style={{

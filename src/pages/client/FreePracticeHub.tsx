@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import { Activity, Hash, LibraryBig, Music, SlidersHorizontal } from 'lucide-react';
+import { Activity, Hash, LibraryBig, Music, SlidersHorizontal, Guitar } from 'lucide-react';
 
 const freeModules = [
   {
@@ -24,6 +24,16 @@ const freeModules = [
     action: '/client/practice/intervals',
   },
   {
+    id: 'chords',
+    title: '和弦识别练习',
+    label: 'Chord',
+    detail: '从老师出好的和弦题库中随机抽题，认出和弦名。',
+    color: '#d97706',
+    bg: '#fffbeb',
+    icon: Guitar,
+    action: '/client/free/patterns',  // 和弦题存在 patterns 模块
+  },
+  {
     id: 'symbols',
     title: '符号题库',
     label: 'Symbols',
@@ -37,7 +47,7 @@ const freeModules = [
     id: 'patterns',
     title: '音型题库',
     label: 'Patterns',
-    detail: '先进入现有关卡页，后续再扩展音型筛选。',
+    detail: '传统音型 + 和弦识别题目均在此模块。',
     color: '#059669',
     bg: '#ecfdf5',
     icon: Activity,

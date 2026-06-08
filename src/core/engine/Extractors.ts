@@ -1,5 +1,6 @@
 import { MusicXMLParser } from './MusicXMLParser';
 import { getGrandStaffPlacement } from './pitchUtils';
+import { analyzeChord } from './chordAnalyzer';
 
 // ---------------------------------------------------------
 // 四维提取引擎 (Extractors)
@@ -298,7 +299,7 @@ export class EngineExtractor {
       }
     }
 
-    // --- 2. 提取和弦 (同时发声的音符组) ---
+    // --- 2. 提取和弦 (同时发声的音符组)，存入 patterns 模块 ---
     let chordGroup: { name: string; midi: number }[] = [];
     notes.forEach((note, idx) => {
       if (note.querySelector('rest')) return;
@@ -312,16 +313,24 @@ export class EngineExtractor {
         // 前一个和弦组结束，分析它
         if (chordGroup.length >= 2) {
           const sorted = [...chordGroup].sort((a, b) => a.midi - b.midi);
-          const chordDisplay = sorted.map(p => p.name).join(' + ');
+          const noteNames = sorted.map(p => p.name);
+          const analysis = analyzeChord(noteNames);
+          const chordName = analysis?.name ?? noteNames.join('+');
           slices.push({
-            id: `C_chord_${idx}_${chordDisplay}`,
-            module: 'theory',
+            id: `chord_${idx}_${noteNames.join('_')}`,
+            module: 'patterns',
             content: {
-              theory: `和弦: ${chordDisplay}`,
-              raw: chordDisplay,
-              notes: sorted.map(p => p.name)
+              pattern: '',
+              raw: `${chordName} (${noteNames.join(',')})`,
+              notes: noteNames,
+              chordType: 'chord',
+              chordName,
+              inversion: analysis?.inversion ?? 'root',
+              displayMode: 'block',
             },
-            difficulty: Math.min(10, chordGroup.length + 2)
+            difficulty: analysis
+              ? Math.min(10, chordGroup.length)
+              : Math.min(10, chordGroup.length + 2)
           });
         }
         chordGroup = [pitch]; // 开始新的一组
@@ -330,16 +339,24 @@ export class EngineExtractor {
     // 处理最后一组
     if (chordGroup.length >= 2) {
       const sorted = [...chordGroup].sort((a, b) => a.midi - b.midi);
-      const chordDisplay = sorted.map(p => p.name).join(' + ');
+      const noteNames = sorted.map(p => p.name);
+      const analysis = analyzeChord(noteNames);
+      const chordName = analysis?.name ?? noteNames.join('+');
       slices.push({
-        id: `C_chord_last_${chordDisplay}`,
-        module: 'theory',
+        id: `chord_last_${noteNames.join('_')}`,
+        module: 'patterns',
         content: {
-          theory: `和弦: ${chordDisplay}`,
-          raw: chordDisplay,
-          notes: sorted.map(p => p.name)
+          pattern: '',
+          raw: `${chordName} (${noteNames.join(',')})`,
+          notes: noteNames,
+          chordType: 'chord',
+          chordName,
+          inversion: analysis?.inversion ?? 'root',
+          displayMode: 'block',
         },
-        difficulty: Math.min(10, chordGroup.length + 2)
+        difficulty: analysis
+          ? Math.min(10, chordGroup.length)
+          : Math.min(10, chordGroup.length + 2)
       });
     }
 

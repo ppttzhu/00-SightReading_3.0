@@ -13,6 +13,7 @@ import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engin
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
+import { getAllChordNames } from '../../core/engine/chordAnalyzer';
 
 // ============================================================
 // 辅助函数：将音高字符串 (如 C#5) 转换为 VexFlow 的 key 和 accidental
@@ -151,10 +152,17 @@ function generateOptions(slice: Slice): string[] {
            'Am Chord', 'Em Chord', 'Dm Chord'];
       break;
     }
-    case 'patterns':
-      correct = (content.raw as string) || (content.pattern as string) || '';
-      pool = ALL_PATTERNS;
+    case 'patterns': {
+      const chordType = content.chordType as string | undefined;
+      if (chordType === 'chord') {
+        correct = (content.chordName as string) || (content.raw as string) || '';
+        pool = getAllChordNames();
+      } else {
+        correct = (content.raw as string) || (content.pattern as string) || '';
+        pool = ALL_PATTERNS;
+      }
       break;
+    }
   }
 
   if (!correct) return ['—', '—', '—', '—'];
@@ -317,6 +325,9 @@ export default function InteractiveQuiz() {
     typeof window !== 'undefined' &&
     window.matchMedia('(hover: hover) and (pointer: fine)').matches
   );
+  const quizCardRef = useRef<HTMLDivElement>(null);
+  const feedbackRef = useRef(feedback);
+  feedbackRef.current = feedback;
 
   // 记录每道题的开始时间，用于 practice_records 的 time_spent_ms
   const questionStartedRef = useRef(Date.now());
@@ -337,6 +348,28 @@ export default function InteractiveQuiz() {
     stage?.noteHiddenMs ?? 6000,
     blinkResetKey,
   );
+
+  // 题目出现时自动播放音频（单音或音程）— 等待采样器就绪后播放
+  useEffect(() => {
+    if (!audioEnabled || !currentSlice) return;
+    let cancelled = false;
+    (async () => {
+      while (!audioEngine.isReady && !cancelled) {
+        await new Promise<void>(r => setTimeout(r, 100));
+      }
+      if (cancelled) return;
+      if (currentSlice.module === 'notes') {
+        const pitch = (currentSlice.content as unknown as Record<string, unknown>).pitch as string | undefined;
+        if (pitch) void audioEngine.playNote(pitch);
+      } else if (currentSlice.module === 'theory') {
+        const content = currentSlice.content as unknown as Record<string, unknown>;
+        const noteA = content.noteA as string | undefined;
+        const noteB = content.noteB as string | undefined;
+        if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentSliceIndex, audioEnabled]);
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -449,49 +482,61 @@ export default function InteractiveQuiz() {
         }
 
       } else if (currentSlice.module === 'patterns') {
-        // ---- D: 音型 → 画四分音符序列 ----
+        // ---- D: 音型 — 和弦识别 or 传统音型 ----
         const content = currentSlice.content as unknown as Record<string, unknown>;
-        const rawStr: string = (content.raw as string) || (content.pattern as string) || '';
-        console.log('[Pattern] raw:', rawStr, 'content:', JSON.stringify(currentSlice.content));
+        const isChord = (content.chordType as string) === 'chord';
+        const displayMode = (content.displayMode as string) || 'arpeggio';
 
-        let noteNames: string[] = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
-        console.log('[Pattern] step1 fromRaw:', noteNames);
+        if (isChord && displayMode === 'block') {
+          // ── 和弦柱式渲染 ──
+          const notes = (content.notes as string[]) || [];
+          if (notes.length >= 2) {
+            const vfKeys = notes.map(n => {
+              const parsed = parsePitchForVexflow(n);
+              return parsed.key;
+            });
+            const chordBlockNote = new StaveNote({ keys: vfKeys, duration: 'w', clef });
+            notes.forEach((n, i) => {
+              const parsed = parsePitchForVexflow(n);
+              if (parsed.accidental) chordBlockNote.addModifier(new Accidental(parsed.accidental), i);
+            });
+            const voice = new Voice({ numBeats: 4, beatValue: 4 });
+            voice.setMode(2);
+            voice.addTickables([chordBlockNote]);
+            new Formatter().joinVoices([voice]).format([voice], 280);
+            voice.draw(context, stave);
+          }
+        } else {
+          // ── 传统音型 / 和弦分解渲染：四分音符序列 ----
+          const rawStr: string = (content.raw as string) || (content.pattern as string) || '';
 
-        if (noteNames.length < 2 && Array.isArray(content.notes) && content.notes.length >= 2) {
-          noteNames = content.notes as string[];
-          console.log('[Pattern] step2 fromNotes:', noteNames);
-        }
-
-        if (noteNames.length < 2) {
-          for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
-            if (rawStr.includes(key)) {
-              noteNames = notes;
-              console.log('[Pattern] step3 fromDefault key:', key, noteNames);
-              break;
+          let noteNames: string[] = (content.notes as string[]) || [];
+          if (noteNames.length < 2) {
+            noteNames = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
+          }
+          if (noteNames.length < 2) {
+            for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
+              if (rawStr.includes(key)) { noteNames = notes; break; }
             }
           }
+          if (noteNames.length < 2) {
+            noteNames = ['C4', 'D4', 'E4', 'F4', 'G4'];
+          }
+
+          const vfNotes = noteNames.map(n => {
+            const { key, accidental } = parsePitchForVexflow(n);
+            const note = new StaveNote({ keys: [key], duration: 'q', clef });
+            if (accidental) note.addModifier(new Accidental(accidental));
+            return note;
+          });
+
+          const totalBeats = vfNotes.length;
+          const voice = new Voice({ numBeats: totalBeats, beatValue: 4 });
+          voice.setMode(2);
+          voice.addTickables(vfNotes);
+          new Formatter().joinVoices([voice]).format([voice], Math.min(360, totalBeats * 60));
+          voice.draw(context, stave);
         }
-
-        if (noteNames.length < 2) {
-          noteNames = ['C4', 'D4', 'E4', 'F4', 'G4'];
-          console.log('[Pattern] step4 ultimateFallback:', noteNames);
-        }
-
-        console.log('[Pattern] final noteNames:', noteNames);
-
-        const vfNotes = noteNames.map(n => {
-          const { key, accidental } = parsePitchForVexflow(n);
-          const note = new StaveNote({ keys: [key], duration: 'q', clef });
-          if (accidental) note.addModifier(new Accidental(accidental));
-          return note;
-        });
-
-        const totalBeats = vfNotes.length;
-        const voice = new Voice({ numBeats: totalBeats, beatValue: 4 });
-        voice.setMode(2);
-        voice.addTickables(vfNotes);
-        new Formatter().joinVoices([voice]).format([voice], Math.min(360, totalBeats * 60));
-        voice.draw(context, stave);
       }
     } catch (e) {
       console.error("VexFlow Draw Error:", e);
@@ -524,6 +569,15 @@ export default function InteractiveQuiz() {
       const isLetter = mapKeyToNote(e.key) !== null;
       const isAccidental = isSharpKey(e.key) || isFlatKey(e.key);
       if (!isLetter && !isAccidental) return;
+      e.preventDefault();
+      // 反馈期间按键：即时视觉提示，告知用户输入已收到但须等待反馈结束
+      if (feedbackRef.current !== 'none') {
+        quizCardRef.current?.animate(
+          [{ filter: 'brightness(0.92)' }, { filter: 'brightness(1)' }],
+          { duration: 200, easing: 'ease-out' }
+        );
+        return;
+      }
       buffer.push(e.key);
       if (timer) clearTimeout(timer);
       timer = setTimeout(flush, WINDOW_MS);
@@ -611,7 +665,7 @@ export default function InteractiveQuiz() {
   };
 
   const handleAnswer = (answer: string) => {
-    if (feedback !== 'none' || !currentSlice) return;
+    if (feedback !== 'none' || revealed || !currentSlice) return;
     resetBlink();
     const correct = getCorrectAnswer();
     const isPianoTypeA = usePiano && currentSlice.module === 'notes';
@@ -1096,6 +1150,7 @@ export default function InteractiveQuiz() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         {/* 题目展示区 */}
         <div
+          ref={quizCardRef}
           className="quiz-card"
           style={{
             background: 'white',
@@ -1151,11 +1206,6 @@ export default function InteractiveQuiz() {
                   if (audioEnabled && currentSlice) {
                     if (currentSlice.module === 'notes') {
                       void audioEngine.playNote(pitchForAnswerLetter(opt, referencePitch));
-                    } else if (currentSlice.module === 'theory') {
-                      const content = currentSlice.content as unknown as Record<string, unknown>;
-                      const noteA = content.noteA as string | undefined;
-                      const noteB = content.noteB as string | undefined;
-                      if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
                     }
                   }
                   handleAnswer(opt);

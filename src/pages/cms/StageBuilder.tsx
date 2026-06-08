@@ -270,6 +270,11 @@ export default function StageBuilder() {
                             {(c.placement as string) === 'treble' ? '高音' : (c.placement as string) === 'bass' ? '低音' : '自动'}
                           </span>
                         )}
+                        {slice.module === 'patterns' && (c.chordType as string) === 'chord' && (
+                          <span style={{ padding: '1px 6px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontSize: '0.75rem', fontWeight: 'bold', flexShrink: 0 }}>
+                            和弦
+                          </span>
+                        )}
                         {isNew && (
                           <span style={{ padding: '1px 6px', borderRadius: '4px', background: '#fee2e2', color: '#ef4444', fontSize: '0.7rem', fontWeight: 'bold', flexShrink: 0 }}>新</span>
                         )}
