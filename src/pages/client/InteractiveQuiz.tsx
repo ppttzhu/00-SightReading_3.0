@@ -360,8 +360,8 @@ export default function InteractiveQuiz() {
       if (cancelled) return;
       if (currentSlice.module === 'theory') {
         const content = currentSlice.content as unknown as Record<string, unknown>;
-        const noteA = content.noteA as string | undefined;
-        const noteB = content.noteB as string | undefined;
+        const noteA = (content.noteA as string | undefined) || (content.notes as string[] | undefined)?.[0];
+        const noteB = (content.noteB as string | undefined) || (content.notes as string[] | undefined)?.[1];
         if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
       }
     })();
