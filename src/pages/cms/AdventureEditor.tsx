@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ArrowDown, ArrowUp, Pencil, Plus, Route, Search, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Route, Search, Trash2, X } from 'lucide-react';
 import {
   useAppStore,
   type AdventureStage,
@@ -294,6 +294,7 @@ export default function AdventureEditor() {
   const addAdventureStage = useAppStore(s => s.addAdventureStage);
   const removeAdventureStage = useAppStore(s => s.removeAdventureStage);
   const moveAdventureStage = useAppStore(s => s.moveAdventureStage);
+  const reorderAdventureStage = useAppStore(s => s.reorderAdventureStage);
   const updateAdventureStage = useAppStore(s => s.updateAdventureStage);
 
   const [moduleFilter, setModuleFilter] = useState<'all' | QuizModuleId>('all');
@@ -301,6 +302,8 @@ export default function AdventureEditor() {
   const [message, setMessage] = useState('');
   const [modalStage, setModalStage] = useState<AdventureStage | null>(null);
   const [publishMsg, setPublishMsg] = useState('');
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const draggedIdRef = useRef<string | null>(null);
 
   const orderedRoute = useMemo(() => sortByLevel(adventureStages), [adventureStages]);
   const sliceMap = useMemo(() => new Map(slicesPool.map(s => [s.id, s])), [slicesPool]);
@@ -460,9 +463,47 @@ export default function AdventureEditor() {
                 const info = describeStage(stage, customStages, sliceMap);
                 const sourceStage = customStages.find(cs => cs.id === stage.sourceStageId);
                 const sourceModule = sourceStage?.module || stage.sourceModule || 'notes';
+                const isDragOver = dragOverIndex === index;
+
+                const handleDragStart = (e: React.DragEvent) => {
+                  draggedIdRef.current = stage.id;
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', stage.id);
+                };
+
+                const handleDragOver = (e: React.DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDragOverIndex(index);
+                };
+
+                const handleDrop = (e: React.DragEvent) => {
+                  e.preventDefault();
+                  const fromId = draggedIdRef.current;
+                  if (fromId && fromId !== stage.id) {
+                    reorderAdventureStage(fromId, index);
+                  }
+                  setDragOverIndex(null);
+                  draggedIdRef.current = null;
+                };
+
+                const handleDragEnd = () => {
+                  setDragOverIndex(null);
+                  draggedIdRef.current = null;
+                };
 
                 return (
-                  <article key={stage.id} className="official-stage-row">
+                  <article
+                    key={stage.id}
+                    className={`official-stage-row${isDragOver ? ' drag-over' : ''}`}
+                    draggable
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragLeave={() => setDragOverIndex(null)}
+                    onDrop={handleDrop}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <span className="drag-handle"><GripVertical size={14} /></span>
                     <div className="stage-order-badge">Lv.{stage.levelNum}</div>
                     <div className="stage-main">
                       <div className="stage-title-line">

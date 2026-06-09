@@ -1304,13 +1304,41 @@ button {
 
 .official-stage-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: 20px auto minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
+  cursor: default;
+  user-select: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.official-stage-row.drag-over {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+  background: #fffbeb;
+}
+
+.official-stage-row:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: #cbd5e1;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+
+.drag-handle:hover {
+  color: #f59e0b;
 }
 
 .stage-order-badge {

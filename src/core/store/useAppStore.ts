@@ -213,6 +213,7 @@ interface AppState {
   updateAdventureStage: (id: string, patch: Partial<Omit<AdventureStage, 'id'>>) => void;
   removeAdventureStage: (id: string) => void;
   moveAdventureStage: (id: string, direction: 'up' | 'down') => void;
+  reorderAdventureStage: (id: string, targetIndex: number) => void;
   completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number; passed?: boolean; stageVersion?: number }) => void;
 
   addCustomStage: (stage: CustomStage) => void;
@@ -513,6 +514,20 @@ export const useAppStore = create<AppState>()(
           if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return state;
           const next = [...ordered];
           const [moved] = next.splice(index, 1);
+          next.splice(targetIndex, 0, moved);
+          return {
+            adventureStages: next.map((stage, i) => ({ ...stage, levelNum: i + 1 })),
+          };
+        });
+      },
+
+      reorderAdventureStage: (id, targetIndex) => {
+        set((state) => {
+          const ordered = orderAdventureStages(state.adventureStages);
+          const fromIndex = ordered.findIndex(stage => stage.id === id);
+          if (fromIndex < 0 || targetIndex < 0 || targetIndex >= ordered.length) return state;
+          const next = [...ordered];
+          const [moved] = next.splice(fromIndex, 1);
           next.splice(targetIndex, 0, moved);
           return {
             adventureStages: next.map((stage, i) => ({ ...stage, levelNum: i + 1 })),
