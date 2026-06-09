@@ -119,6 +119,7 @@ export interface AutoStage {
     enabled: boolean;
     minAccuracy: number;
   };
+  stageVersion?: number;           // 内容版本号；与完成记录比对判断"已更新"
 }
 
 // ============================================================
@@ -151,6 +152,7 @@ export interface AdventureStage {
   };
   unlockRule: 'previous_clear';
   source?: 'manual' | 'assistant';
+  stageVersion?: number;            // 内容版本号；学生端与完成记录比对，判断"已更新"
   createdAt?: number;
   updatedAt?: number;
 }
@@ -211,7 +213,8 @@ interface AppState {
   updateAdventureStage: (id: string, patch: Partial<Omit<AdventureStage, 'id'>>) => void;
   removeAdventureStage: (id: string) => void;
   moveAdventureStage: (id: string, direction: 'up' | 'down') => void;
-  completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number; passed?: boolean }) => void;
+  reorderAdventureStage: (id: string, targetIndex: number) => void;
+  completeAdventureStage: (stageId: string, stats?: { correctCount: number; wrongCount: number; timeSpentSec: number; passed?: boolean; stageVersion?: number }) => void;
 
   addCustomStage: (stage: CustomStage) => void;
   updateCustomStage: (id: string, patch: Partial<CustomStage>) => void;
@@ -333,6 +336,7 @@ export const useAppStore = create<AppState>()(
               noteDisplayMs: stage.noteDisplayMs ?? 3000,
               noteHiddenMs: stage.noteHiddenMs ?? 6000,
               passCriteria: stage.passCriteria,
+              stageVersion: stage.stageVersion,
             };
           }
           const slices = sourceStage.sliceIds
@@ -352,6 +356,7 @@ export const useAppStore = create<AppState>()(
             noteDisplayMs: stage.noteDisplayMs ?? 3000,
             noteHiddenMs: stage.noteHiddenMs ?? 6000,
             passCriteria: stage.passCriteria,
+            stageVersion: stage.stageVersion,
           };
         });
       },
@@ -516,6 +521,20 @@ export const useAppStore = create<AppState>()(
         });
       },
 
+      reorderAdventureStage: (id, targetIndex) => {
+        set((state) => {
+          const ordered = orderAdventureStages(state.adventureStages);
+          const fromIndex = ordered.findIndex(stage => stage.id === id);
+          if (fromIndex < 0 || targetIndex < 0 || targetIndex >= ordered.length) return state;
+          const next = [...ordered];
+          const [moved] = next.splice(fromIndex, 1);
+          next.splice(targetIndex, 0, moved);
+          return {
+            adventureStages: next.map((stage, i) => ({ ...stage, levelNum: i + 1 })),
+          };
+        });
+      },
+
       completeAdventureStage: (stageId, stats) => {
         const passed = stats?.passed ?? true;
         set((state) => {
@@ -530,6 +549,7 @@ export const useAppStore = create<AppState>()(
           wrongCount: stats?.wrongCount ?? 0,
           timeSpentSec: stats?.timeSpentSec ?? 0,
           passed,
+          stageVersion: stats?.stageVersion,
         });
       },
 

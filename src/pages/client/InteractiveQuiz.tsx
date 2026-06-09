@@ -9,7 +9,7 @@ import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
-import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
+import { playIntervalPairAudio, playSequentialNotes, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
@@ -358,14 +358,26 @@ export default function InteractiveQuiz() {
         await new Promise<void>(r => setTimeout(r, 100));
       }
       if (cancelled) return;
-      if (currentSlice.module === 'notes') {
-        const pitch = (currentSlice.content as unknown as Record<string, unknown>).pitch as string | undefined;
-        if (pitch) void audioEngine.playNote(pitch);
-      } else if (currentSlice.module === 'theory') {
+      if (currentSlice.module === 'theory') {
         const content = currentSlice.content as unknown as Record<string, unknown>;
-        const noteA = content.noteA as string | undefined;
-        const noteB = content.noteB as string | undefined;
+        const noteA = (content.noteA as string | undefined) || (content.notes as string[] | undefined)?.[0];
+        const noteB = (content.noteB as string | undefined) || (content.notes as string[] | undefined)?.[1];
         if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
+      } else if (currentSlice.module === 'patterns') {
+        const content = currentSlice.content as unknown as Record<string, unknown>;
+        const rawStr: string = (content.raw as string) || (content.pattern as string) || '';
+        let patternNotes: string[] = (content.notes as string[]) || [];
+        if (patternNotes.length < 2) {
+          patternNotes = rawStr.match(/[A-Ga-g][#b]?\d/g) || [];
+        }
+        if (patternNotes.length < 2) {
+          for (const [key, notes] of Object.entries(PATTERN_DEFAULT_NOTES)) {
+            if (rawStr.includes(key)) { patternNotes = notes; break; }
+          }
+        }
+        if (patternNotes.length >= 2) {
+          playSequentialNotes(patternNotes);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -759,6 +771,7 @@ export default function InteractiveQuiz() {
         wrongCount: wrongCountRef.current,
         timeSpentSec: timeSec,
         passed,
+        stageVersion: stage.stageVersion,
       });
 
       if (passed) {

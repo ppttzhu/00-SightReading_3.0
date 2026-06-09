@@ -11,6 +11,7 @@ interface CompletionInfo {
   attemptCount: number;
   bestScore: number;
   passed: boolean;
+  stageVersion?: number;
 }
 
 export default function AdventureMap() {
@@ -35,7 +36,7 @@ export default function AdventureMap() {
         if (sessionData.session && !cancelled) {
           const { data } = await supabase
             .from('adventure_stage_completions')
-            .select('stage_id, score, attempt_count, passed');
+            .select('stage_id, score, attempt_count, passed, stage_version');
           if (data && !cancelled) {
             const map = new Map<string, CompletionInfo>();
             for (const row of data as any[]) {
@@ -45,6 +46,7 @@ export default function AdventureMap() {
                   attemptCount: row.attempt_count ?? 1,
                   bestScore: row.score ?? 0,
                   passed: row.passed ?? true,
+                  stageVersion: row.stage_version ?? undefined,
                 });
               }
             }
@@ -168,9 +170,12 @@ export default function AdventureMap() {
             const canPlay = isUnlocked && stage.slices.length > 0;
             const hasAttempts = completions.has(stageId);
             const status = isCompleted ? 'complete' : canPlay ? 'ready' : 'locked';
+            const completionInfo = completions.get(stageId);
+            const isUpdated = isCompleted && stage.stageVersion != null
+              && (completionInfo?.stageVersion ?? 0) < stage.stageVersion;
             const tone = pathColors[index % pathColors.length];
 
-            const actionLabel = isCompleted ? '复习' : hasAttempts ? '继续挑战' : canPlay ? '闯关' : '锁定';
+            const actionLabel = canPlay ? (isCompleted ? '复习' : hasAttempts ? '继续挑战' : '闯关') : '锁定';
 
             return (
               <button
@@ -189,9 +194,14 @@ export default function AdventureMap() {
                   <strong>
                     {stage.title}
                     {!isCompleted && renderPassCriteria(stage)}
+                    {isUpdated && (
+                      <span style={{ fontSize: '0.7rem', padding: '1px 7px', borderRadius: '4px', background: '#fff7ed', color: '#ea580c', fontWeight: 700, marginLeft: '6px', verticalAlign: 'middle' }}>
+                        已更新
+                      </span>
+                    )}
                   </strong>
                   <small className={stage.description ? 'quest-desc' : 'quest-placeholder'}>
-                    {stage.description || '等待解锁'}
+                    {stage.description || '暂无描述'}
                   </small>
                   {renderCompletionStats(stageId, isCompleted)}
                   {isCompleted && stage.passCriteria?.enabled && (

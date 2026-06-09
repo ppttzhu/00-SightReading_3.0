@@ -332,7 +332,7 @@ export async function migrateLocalProgressToSupabase(): Promise<void> {
  */
 export async function syncRecordAdventureCompletion(
   stageId: string,
-  stats: { correctCount: number; wrongCount: number; timeSpentSec: number; passed: boolean },
+  stats: { correctCount: number; wrongCount: number; timeSpentSec: number; passed: boolean; stageVersion?: number },
 ): Promise<void> {
   if (!supabase) return;
   const { data } = await supabase.auth.getSession();
@@ -345,13 +345,13 @@ export async function syncRecordAdventureCompletion(
   // 检查是否已有记录
   const { data: existing } = await supabase
     .from('adventure_stage_completions')
-    .select('attempt_count')
+    .select('attempt_count, stage_version')
     .eq('user_id', userId)
     .eq('stage_id', stageId)
     .single();
 
   if (existing) {
-    // 更新：attempt_count +1，刷新分数和时间
+    // 更新：attempt_count +1，刷新分数、时间和版本
     const { error } = await supabase
       .from('adventure_stage_completions')
       .update({
@@ -360,6 +360,7 @@ export async function syncRecordAdventureCompletion(
         time_spent_sec: stats.timeSpentSec,
         score,
         passed: stats.passed,
+        stage_version: stats.stageVersion ?? existing.stage_version ?? 1,
         attempt_count: existing.attempt_count + 1,
         completed_at: new Date().toISOString(),
       } as never)
@@ -378,6 +379,7 @@ export async function syncRecordAdventureCompletion(
         time_spent_sec: stats.timeSpentSec,
         score,
         attempt_count: 1,
+        stage_version: stats.stageVersion ?? 1,
         completed_at: new Date().toISOString(),
       } as never);
     if (error) return reportSyncError('insert adventure completion', error);
