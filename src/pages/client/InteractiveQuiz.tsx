@@ -358,10 +358,7 @@ export default function InteractiveQuiz() {
         await new Promise<void>(r => setTimeout(r, 100));
       }
       if (cancelled) return;
-      if (currentSlice.module === 'notes') {
-        const pitch = (currentSlice.content as unknown as Record<string, unknown>).pitch as string | undefined;
-        if (pitch) void audioEngine.playNote(pitch);
-      } else if (currentSlice.module === 'theory') {
+      if (currentSlice.module === 'theory') {
         const content = currentSlice.content as unknown as Record<string, unknown>;
         const noteA = content.noteA as string | undefined;
         const noteB = content.noteB as string | undefined;
@@ -759,6 +756,7 @@ export default function InteractiveQuiz() {
         wrongCount: wrongCountRef.current,
         timeSpentSec: timeSec,
         passed,
+        stageVersion: stage.stageVersion,
       });
 
       if (passed) {

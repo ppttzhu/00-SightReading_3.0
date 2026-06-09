@@ -46,6 +46,22 @@ type StageSliceRow = {
   del_status: boolean;
 };
 
+/**
+ * 计算冒险关卡的"答题内容指纹"。
+ * 只有真正影响答题体验的字段算在内，cosmetic 字段（title/description/guidance）不算。
+ * 哈希值变化 → 内容变了 → stage_version +1。
+ */
+function computeContentHash(stage: AdventureStage): string {
+  return [
+    stage.sourceStageId,
+    stage.questionCount,
+    stage.passCriteria?.enabled ?? false,
+    stage.passCriteria?.minAccuracy ?? 80,
+    stage.noteDisplayMs ?? 3000,
+    stage.noteHiddenMs ?? 6000,
+  ].join('|');
+}
+
 function ensureClient() {
   if (!supabase) {
     throw new Error('Supabase 未配置：请检查 VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY。');
@@ -224,6 +240,23 @@ export class SupabaseStorageProvider implements StorageProvider {
 
     // --- adventure_routes (全量替换：删旧写新) ---
     {
+      // 先读取现有数据，用于版本比对
+      const { data: existingRoutes, error: fetchErr } = await client
+        .from('adventure_routes')
+        .select('stage_uuid, content_hash, stage_version')
+        .eq('route_name', 'main');
+      if (fetchErr) throw new Error(`[Supabase] 读取现有 adventure_routes 失败：${fetchErr.message}`);
+
+      const existingVersionMap = new Map<string, { hash: string | null; version: number }>();
+      for (const r of (existingRoutes ?? []) as any[]) {
+        if (r.stage_uuid) {
+          existingVersionMap.set(r.stage_uuid, {
+            hash: r.content_hash as string | null,
+            version: (r.stage_version as number) || 1,
+          });
+        }
+      }
+
       const { error: delErr } = await client
         .from('adventure_routes')
         .delete()
@@ -232,24 +265,35 @@ export class SupabaseStorageProvider implements StorageProvider {
 
       const stages = data.adventureStages || [];
       if (stages.length > 0) {
-        const rows = stages.map((s) => ({
-          route_name: 'main',
-          stage_order: s.levelNum,
-          title: s.title,
-          description: s.description || null,
-          guidance: s.guidance || null,
-          guidance_images: s.guidanceImages || [],
-          source_stage_id: s.sourceStageId,
-          source_module: s.sourceModule,
-          question_count: s.questionCount,
-          note_display_ms: s.noteDisplayMs ?? 3000,
-          note_hidden_ms: s.noteHiddenMs ?? 6000,
-          pass_enabled: s.passCriteria?.enabled ?? false,
-          pass_min_accuracy: s.passCriteria?.minAccuracy ?? 80,
-          unlock_rule: s.unlockRule,
-          source: s.source || 'manual',
-          updated_at: new Date().toISOString(),
-        }));
+        const rows = stages.map((s) => {
+          const hash = computeContentHash(s);
+          const existing = existingVersionMap.get(s.id);
+          // 内容变了（或无旧记录）→ 版本 +1；没变 → 沿用旧版本
+          const stageVersion = existing
+            ? (existing.hash === hash ? existing.version : existing.version + 1)
+            : 1;
+          return {
+            route_name: 'main',
+            stage_order: s.levelNum,
+            title: s.title,
+            description: s.description || null,
+            guidance: s.guidance || null,
+            guidance_images: s.guidanceImages || [],
+            source_stage_id: s.sourceStageId,
+            source_module: s.sourceModule,
+            question_count: s.questionCount,
+            note_display_ms: s.noteDisplayMs ?? 3000,
+            note_hidden_ms: s.noteHiddenMs ?? 6000,
+            pass_enabled: s.passCriteria?.enabled ?? false,
+            pass_min_accuracy: s.passCriteria?.minAccuracy ?? 80,
+            unlock_rule: s.unlockRule,
+            source: s.source || 'manual',
+            stage_uuid: s.id,
+            content_hash: hash,
+            stage_version: stageVersion,
+            updated_at: new Date().toISOString(),
+          };
+        });
         const { error: insErr } = await client
           .from('adventure_routes')
           .insert(rows as never);
@@ -319,9 +363,11 @@ export class SupabaseStorageProvider implements StorageProvider {
     }
     if (routeRows) {
       adventureStages = (routeRows as any[]).map((r) => ({
-        id: r.source_stage_id
-          ? `adventure_route_${r.source_stage_id}_${(r.id as string).slice(0, 8)}`
-          : `adventure_route_unknown_${(r.id as string).slice(0, 8)}`,
+        id: r.stage_uuid
+          // 新数据：直接使用教师端持久化的稳定 ID
+          ?? (r.source_stage_id
+            ? `adventure_route_${r.source_stage_id}_${(r.id as string).slice(0, 8)}`
+            : `adventure_route_unknown_${(r.id as string).slice(0, 8)}`),
         title: r.title,
         description: r.description || undefined,
         guidance: r.guidance || undefined,
@@ -335,6 +381,7 @@ export class SupabaseStorageProvider implements StorageProvider {
         passCriteria: r.pass_enabled != null ? { enabled: r.pass_enabled, minAccuracy: r.pass_min_accuracy ?? 80 } : undefined,
         unlockRule: 'previous_clear' as const,
         source: (r.source || 'manual') as 'manual' | 'assistant',
+        stageVersion: r.stage_version,   // 内容版本号，学生端用于比对"已更新"
         createdAt: r.created_at ? new Date(r.created_at).getTime() : undefined,
         updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
       }));
