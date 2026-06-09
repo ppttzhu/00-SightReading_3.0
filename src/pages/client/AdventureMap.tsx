@@ -175,7 +175,7 @@ export default function AdventureMap() {
               && (completionInfo?.stageVersion ?? 0) < stage.stageVersion;
             const tone = pathColors[index % pathColors.length];
 
-            const actionLabel = isCompleted ? '复习' : hasAttempts ? '继续挑战' : canPlay ? '闯关' : '锁定';
+            const actionLabel = canPlay ? (isCompleted ? '复习' : hasAttempts ? '继续挑战' : '闯关') : '锁定';
 
             return (
               <button
@@ -201,7 +201,7 @@ export default function AdventureMap() {
                     )}
                   </strong>
                   <small className={stage.description ? 'quest-desc' : 'quest-placeholder'}>
-                    {stage.description || '等待解锁'}
+                    {stage.description || '暂无描述'}
                   </small>
                   {renderCompletionStats(stageId, isCompleted)}
                   {isCompleted && stage.passCriteria?.enabled && (
