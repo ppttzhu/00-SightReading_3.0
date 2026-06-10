@@ -9,7 +9,7 @@ import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
-import { playIntervalPairAudio, playSequentialNotes, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
+import { playIntervalPairAudio, playSequentialNotes, STAGGER_DELAY_MS, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { extractNoteAnswer } from './noteAnswer';
 import { interactiveAOptions } from './noteOptions';
@@ -175,6 +175,9 @@ function generateOptions(slice: Slice): string[] {
   return [correct, ...distractors].sort(() => Math.random() - 0.5);
 }
 
+/** 答对后自动切题的延时 */
+const AUTO_ADVANCE_DELAY_MS = 800;
+
 // ============================================================
 // 组件
 // ============================================================
@@ -308,6 +311,8 @@ export default function InteractiveQuiz() {
   const [introDismissed, setIntroDismissed] = useState(() => !guidance);
 
   const [currentSliceIndex, setCurrentSliceIndex] = useState(0);
+  const currentSliceIndexRef = useRef(currentSliceIndex);
+  currentSliceIndexRef.current = currentSliceIndex;
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
@@ -347,9 +352,10 @@ export default function InteractiveQuiz() {
     stage?.noteDisplayMs ?? 3000,
     stage?.noteHiddenMs ?? 6000,
     blinkResetKey,
+    !introDismissed,  // 引导未确认前不启动闪烁，确认后才开始计时
   );
 
-  // 题目出现时自动播放音频（单音或音程）— 等待采样器就绪后播放
+  // 题目出现时自动播放音频（音型/模式）— 等待采样器就绪后播放
   useEffect(() => {
     if (!audioEnabled || !currentSlice) return;
     let cancelled = false;
@@ -358,12 +364,7 @@ export default function InteractiveQuiz() {
         await new Promise<void>(r => setTimeout(r, 100));
       }
       if (cancelled) return;
-      if (currentSlice.module === 'theory') {
-        const content = currentSlice.content as unknown as Record<string, unknown>;
-        const noteA = (content.noteA as string | undefined) || (content.notes as string[] | undefined)?.[0];
-        const noteB = (content.noteB as string | undefined) || (content.notes as string[] | undefined)?.[1];
-        if (noteA && noteB) playIntervalPairAudio(noteA, noteB);
-      } else if (currentSlice.module === 'patterns') {
+      if (currentSlice.module === 'patterns') {
         const content = currentSlice.content as unknown as Record<string, unknown>;
         const rawStr: string = (content.raw as string) || (content.pattern as string) || '';
         let patternNotes: string[] = (content.notes as string[]) || [];
@@ -382,6 +383,30 @@ export default function InteractiveQuiz() {
     })();
     return () => { cancelled = true; };
   }, [currentSliceIndex, audioEnabled]);
+
+  /** 播放当前双音/音程题的音频（等待采样就绪 + Tone 预热后再播）
+   *  通过 currentSliceIndexRef 检测题目是否已切换，防止回调污染下一题音频 */
+  const playCurrentInterval = async () => {
+    if (!currentSlice || currentSlice.module !== 'theory') return;
+    const questionId = currentSliceIndexRef.current;
+    while (!audioEngine.isReady) {
+      await new Promise<void>(r => setTimeout(r, 100));
+      if (questionId !== currentSliceIndexRef.current) return; // 题目已切换
+    }
+    // 预热 Tone.js AudioContext，消除首次播放的异步延迟
+    await audioEngine.ensureReady();
+    if (questionId !== currentSliceIndexRef.current) return; // 预热期间题目已切换
+    const content = currentSlice.content as unknown as Record<string, unknown>;
+    const noteA = (content.noteA as string | undefined) || (content.notes as string[] | undefined)?.[0];
+    const noteB = (content.noteB as string | undefined) || (content.notes as string[] | undefined)?.[1];
+    if (noteA && noteB) {
+      playIntervalPairAudio(noteA, noteB);
+      // 第二个音响 STAGGER_DELAY_MS 后 stop（以实际播放为基准）
+      setTimeout(() => {
+        if (questionId === currentSliceIndexRef.current) audioEngine.stop();
+      }, STAGGER_DELAY_MS + 1000);
+    }
+  };
 
   // ============================================================
   // VexFlow 渲染 (根据题目类型绘制不同内容)
@@ -713,15 +738,18 @@ export default function InteractiveQuiz() {
 
       setFeedback('correct');
       correctCountRef.current += 1;  // 跟踪冒险闯关统计
+      void playCurrentInterval();
+
+      const isTheoryModule = currentSlice.module === 'theory';
       setTimeout(() => {
-        audioEngine.stop();
+        if (!isTheoryModule) audioEngine.stop();
         setFeedback('none');
         if (currentSliceIndex < stage.slices.length - 1) {
           setCurrentSliceIndex(prev => prev + 1);
         } else {
           showReviewScreen();
         }
-      }, 800);
+      }, AUTO_ADVANCE_DELAY_MS);
     } else {
       wrongCountRef.current += 1;  // 跟踪冒险闯关统计
       wrongAttemptsRef.current += 1;
@@ -739,6 +767,7 @@ export default function InteractiveQuiz() {
         });
         setFeedback('none');
         setRevealed(true);
+        void playCurrentInterval();
       } else {
         // 第一次错：红闪，可重试
         setFeedback('wrong');
@@ -749,6 +778,7 @@ export default function InteractiveQuiz() {
   handleAnswerRef.current = handleAnswer;
 
   const handleRevealNext = () => {
+    audioEngine.stop();
     if (!stage) return;
     if (currentSliceIndex < stage.slices.length - 1) {
       setCurrentSliceIndex(prev => prev + 1);
