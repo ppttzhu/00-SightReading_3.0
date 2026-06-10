@@ -267,6 +267,11 @@ class AudioEngine {
     this.clearFadeTimer();
   }
 
+  /** 预热：确保 Tone.js AudioContext 已就绪（prime() 已处理 Tone.start()），消除首次播放的异步延迟 */
+  public async ensureReady() {
+    await this.prime();
+  }
+
   public async prime() {
     const unlockPromise = this.primeIOSMediaChannel();
     const toneStartPromise = Tone.context.state !== 'running' ? Tone.start() : Promise.resolve();
