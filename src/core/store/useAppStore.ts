@@ -87,7 +87,9 @@ export function areSlicesDuplicate(a: Slice, b: Slice): boolean {
     const aNoteB = aContent.noteB as string || aNotes?.[1];
     const bNoteA = bContent.noteA as string || bNotes?.[0];
     const bNoteB = bContent.noteB as string || bNotes?.[1];
-    return aNoteA === bNoteA && aNoteB === bNoteB;
+    const aPlacement = aContent.placement as string | undefined;
+    const bPlacement = bContent.placement as string | undefined;
+    return aNoteA === bNoteA && aNoteB === bNoteB && aPlacement === bPlacement;
   }
   if (a.module === 'patterns') {
     const aChordType = aContent.chordType as string | undefined;

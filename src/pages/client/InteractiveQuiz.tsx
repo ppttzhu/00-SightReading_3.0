@@ -446,7 +446,10 @@ export default function InteractiveQuiz() {
 
     let clef = 'treble';
     if (currentSlice.module === 'theory') {
-      if (noteA && noteB) {
+      const explicitPlacement = content.placement as string | undefined;
+      if (explicitPlacement === 'treble' || explicitPlacement === 'bass') {
+        clef = explicitPlacement;
+      } else if (noteA && noteB) {
         clef = getClefForPitches([noteA, noteB]);
       }
     }
