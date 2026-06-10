@@ -70,7 +70,14 @@
       "Bash(cat node_modules/.bin/tsx)",
       "Bash(npx --yes tsx -e ' *)",
       "mcp__pencil__get_editor_state",
-      "mcp__pencil__open_document"
+      "mcp__pencil__open_document",
+      "Bash(tsc -b --noEmit)",
+      "Bash(git show *)",
+      "Bash(gh pr create --title 'fix: 冒险闯关理论题\\(C类\\)使用notes[]时音频未自动播放' --body ' *)",
+      "Bash(xxd)",
+      "Bash(git -c http.proxy=\"\" -c https.proxy=\"\" push)",
+      "Bash(git config *)",
+      "Bash(ALL_PROXY=\"\" git push)"
     ]
   },
   "hooks": {
