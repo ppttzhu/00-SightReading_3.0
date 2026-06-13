@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector, Stem } from 'vexflow';
 import { useAppStore, type Slice } from '../../core/store/useAppStore';
+import { useAuth } from '../../core/auth/AuthProvider';
+import { FREE_TRIAL_LIMIT } from './constants';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import NotesInputModeToggle from '../../components/NotesInputModeToggle';
@@ -185,6 +187,8 @@ const AUTO_ADVANCE_DELAY_MS = 800;
 export default function InteractiveQuiz() {
   const { stageId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAnonymous = !user;
   const containerRef = useRef<HTMLDivElement>(null);
 
   const slicesPool = useAppStore(state => state.slicesPool);
@@ -885,7 +889,11 @@ export default function InteractiveQuiz() {
       const allAdventureStages = getAdventureStages();
       const currentIdx = allAdventureStages.findIndex(s => s.id === stage.id);
       if (currentIdx >= 0 && currentIdx < allAdventureStages.length - 1) {
-        nextStage = allAdventureStages[currentIdx + 1];
+        const nextIdx = currentIdx + 1;
+        // Anonymous users cannot continue beyond the free trial limit
+        if (!(isAnonymous && nextIdx >= FREE_TRIAL_LIMIT)) {
+          nextStage = allAdventureStages[nextIdx];
+        }
       }
     }
 

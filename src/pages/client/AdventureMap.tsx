@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
 import { Check, Loader2, Lock, Music2, Play, RefreshCw, Route, Trophy } from 'lucide-react';
 import { useAppStore } from '../../core/store/useAppStore';
+import { useAuth } from '../../core/auth/AuthProvider';
 import { supabase } from '../../core/auth/supabaseClient';
+import { FREE_TRIAL_LIMIT } from './constants';
 
 const pathColors = ['#2563eb', '#0891b2', '#7c3aed', '#16a34a', '#ea580c', '#d946ef', '#f59e0b', '#06b6d4', '#84cc16', '#6366f1'];
 
@@ -16,6 +18,8 @@ interface CompletionInfo {
 
 export default function AdventureMap() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAnonymous = !user;
   const slicesPool = useAppStore(s => s.slicesPool);
   const customStages = useAppStore(s => s.customStages);
   const adventureStages = useAppStore(s => s.adventureStages);
@@ -148,6 +152,16 @@ export default function AdventureMap() {
         </div>
       </div>
 
+      {/* ── 未注册提示 ── */}
+      {isAnonymous && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '10px', background: '#fef3c7', border: '1px solid #fde68a', margin: '0 0 16px' }}>
+          <Lock size={16} style={{ color: '#d97706', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.875rem', color: '#92400e' }}>
+            未注册用户仅可体验前 {FREE_TRIAL_LIMIT} 关。<button onClick={() => navigate('/auth')} style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 600, cursor: 'pointer', padding: 0 }}>注册</button> 后解锁全部关卡。
+          </span>
+        </div>
+      )}
+
       {/* ── 空状态 ── */}
       {stages.length === 0 && (
         <div className="adventure-empty">
@@ -167,15 +181,16 @@ export default function AdventureMap() {
             const isCompleted = completedIds.includes(stageId);
             const prevId = index > 0 ? stages[index - 1].id : null;
             const isUnlocked = index === 0 || (prevId ? completedIds.includes(prevId) : false);
-            const canPlay = isUnlocked && stage.slices.length > 0;
+            const isTrialLocked = isAnonymous && index >= FREE_TRIAL_LIMIT;
+            const canPlay = isUnlocked && stage.slices.length > 0 && !isTrialLocked;
             const hasAttempts = completions.has(stageId);
-            const status = isCompleted ? 'complete' : canPlay ? 'ready' : 'locked';
+            const status = isTrialLocked ? 'locked' : isCompleted ? 'complete' : canPlay ? 'ready' : 'locked';
             const completionInfo = completions.get(stageId);
             const isUpdated = isCompleted && stage.stageVersion != null
               && (completionInfo?.stageVersion ?? 0) < stage.stageVersion;
             const tone = pathColors[index % pathColors.length];
 
-            const actionLabel = canPlay ? (isCompleted ? '复习' : hasAttempts ? '继续挑战' : '闯关') : '锁定';
+            const actionLabel = isTrialLocked ? '需注册' : canPlay ? (isCompleted ? '复习' : hasAttempts ? '继续挑战' : '闯关') : '锁定';
 
             return (
               <button
