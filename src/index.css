@@ -1201,6 +1201,120 @@ button {
   margin-bottom: 0;
 }
 
+.cms-btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #3b82f6;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cms-btn:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
+}
+
+.cms-btn-secondary {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #374151;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cms-btn-danger {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cms-btn-secondary:disabled {
+  color: #d1d5db;
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.cms-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.cms-card-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.cms-input {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+  outline: none;
+  width: 100%;
+  color: #374151;
+}
+
+.cms-input:focus {
+  outline: 3px solid #dbeafe;
+  border-color: #2563eb;
+}
+
+.cms-error-banner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+.cms-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  animation: spin 0.8s linear infinite;
+}
+
+.cms-allowlist-entry {
+  padding: 12px 16px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.cms-allowlist-entry--registered {
+  border-left: 4px solid #10b981;
+}
+
+.cms-allowlist-entry--pending {
+  border-left: 4px solid #d1d5db;
+}
+
 .source-stage-list {
   display: flex;
   flex-direction: column;
