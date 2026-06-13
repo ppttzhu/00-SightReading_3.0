@@ -9,6 +9,7 @@ import CustomStageEditor from './pages/cms/CustomStageEditor';
 import FeedbackManager from './pages/cms/FeedbackManager';
 import AdventureEditor from './pages/cms/AdventureEditor';
 import Stats from './pages/cms/Stats';
+import AllowlistPage from './pages/cms/AllowlistPage';
 import MainMenu from './pages/client/MainMenu';
 import StageSelector from './pages/client/StageSelector';
 import InteractiveQuiz from './pages/client/InteractiveQuiz';
@@ -56,6 +57,7 @@ function App() {
           <Route path="adventure" element={<AdventureEditor />} />
           <Route path="feedback" element={<FeedbackManager />} />
           <Route path="stats" element={<Stats />} />
+          <Route path="allowlist" element={<AllowlistPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

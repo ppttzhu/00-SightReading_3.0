@@ -61,6 +61,28 @@ async function upsertStudentProfile(userId: string, nickname: string) {
   if (error) throw new Error(getChineseAuthError(error.message));
 }
 
+async function validateAllowlist(nickname: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase 尚未配置。');
+
+  const { data, error } = await supabase
+    .from('allowlist')
+    .select('id, nickname, profile_id')
+    .eq('nickname', nickname)
+    .maybeSingle();
+
+  if (error) throw new Error('允许列表查询失败，请稍后再试。');
+  if (!data) throw new Error('您还不是学员，请联系睿涵老师。');
+  if (data.profile_id) throw new Error('该昵称已被注册，请联系睿涵老师。');
+}
+
+async function linkProfileToAllowlist(profileId: string, nickname: string, email: string): Promise<void> {
+  if (!supabase) return;
+  await supabase
+    .from('allowlist')
+    .update({ profile_id: profileId, email, registered_at: new Date().toISOString() })
+    .eq('nickname', nickname);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -122,6 +144,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) throw new Error('Supabase 尚未配置，请先设置环境变量。');
     const trimmedEmail = email.trim();
     const trimmedNickname = nickname.trim();
+
+    // Validate against allowlist BEFORE auth
+    await validateAllowlist(trimmedNickname);
+
     const options = { data: { nickname: trimmedNickname, role: 'student' } };
 
     const { data, error } = await supabase.auth.signUp({ email: trimmedEmail, password, options });
@@ -129,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (data.user && data.session) {
       await upsertStudentProfile(data.user.id, trimmedNickname);
+      await linkProfileToAllowlist(data.user.id, trimmedNickname, trimmedEmail);
       setProfile(await fetchProfile(data.user.id));
     }
 

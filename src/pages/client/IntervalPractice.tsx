@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
+import { useOptionsFontSize } from '../../hooks/useOptionsFontSize';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 
@@ -476,6 +477,9 @@ export default function IntervalPractice() {
     return generateOptions(currentQuestion, type);
   }, [currentQuestion, type]);
 
+  // Use a uniform font size based on the longest option text
+  const optionsFontSize = useOptionsFontSize(options);
+
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
     resetBlink();
@@ -609,7 +613,7 @@ export default function IntervalPractice() {
                     borderRadius: '20px',
                     border: '1px solid #f3f4f6',
                     background: 'white',
-                    fontSize: opt.length > 20 ? '0.85rem' : opt.length > 10 ? '1rem' : '1.3rem',
+                    fontSize: optionsFontSize,
                     fontWeight: '700',
                     color: '#374151',
                     cursor: 'pointer',

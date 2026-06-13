@@ -33,6 +33,7 @@ dist-ssr
 # Local dev config
 .claude/settings.local.json
 .superpowers/
+.config*
 
 # Secrets
 docs/YuToken
