@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useFetchRemote } from '../../core/storage/useRemoteSync';
 import { useAppStore } from '../../core/store/useAppStore';
 import FeedbackDrawer from '../../components/FeedbackDrawer';
 import AccountMenu from '../../components/auth/AccountMenu';
 
 export default function ClientLayout() {
-  const { fetchRemote } = useFetchRemote();
-  const loadAdventureProgress = useAppStore(s => s.loadAdventureProgressFromRemote);
+  const loadInitialData = useAppStore(s => s.loadInitialData);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
   const isProfilePage = location.pathname.startsWith('/client/profile');
 
   useEffect(() => {
-    fetchRemote();
-    loadAdventureProgress();
-  }, [fetchRemote, loadAdventureProgress]);
+    loadInitialData();
+  }, [loadInitialData]);
 
   return (
     <div className="client-layout">

@@ -260,6 +260,9 @@ interface AppState {
 
   /** 从 Supabase 拉取冒险进度，与本地合并（取并集）。 */
   loadAdventureProgressFromRemote: () => Promise<void>;
+
+  /** 初始化加载：拉取远端全量数据 + 冒险进度。 */
+  loadInitialData: () => Promise<void>;
 }
 
 /** 计算指定 stage 在其 module 内的 sort_index（按 customStages 出现顺序）。 */
@@ -761,6 +764,11 @@ export const useAppStore = create<AppState>()(
           const message = e instanceof Error ? e.message : String(e);
           console.warn('[loadAdventureProgress]', message);
         }
+      },
+
+      loadInitialData: async () => {
+        await get().loadFromRemote();
+        await get().loadAdventureProgressFromRemote();
       },
     }),
     { name: 'sight-reading-v2-store' }

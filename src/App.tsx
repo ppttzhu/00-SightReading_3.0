@@ -17,6 +17,7 @@ import PracticeQuiz from './pages/client/PracticeQuiz';
 import IntervalPractice from './pages/client/IntervalPractice';
 import ProfilePage from './pages/client/ProfilePage';
 import AdventureMap from './pages/client/AdventureMap';
+import StageDetail from './pages/client/StageDetail';
 import FreePracticeHub from './pages/client/FreePracticeHub';
 import CMSAuthGate from './components/auth/CMSAuthGate';
 import AuthPage from './pages/auth/AuthPage';
@@ -35,6 +36,7 @@ function App() {
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<MainMenu />} />
           <Route path="adventure" element={<AdventureMap />} />
+          <Route path="adventure/stage/:stageId" element={<StageDetail />} />
           <Route path="adventure/quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="free" element={<FreePracticeHub />} />
           <Route path="free/:moduleId" element={<StageSelector />} />

@@ -9,6 +9,7 @@ import FullPianoKeyboard from '../../components/FullPianoKeyboard';
 import NotesInputModeToggle from '../../components/NotesInputModeToggle';
 import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import GuidanceModal from '../../components/GuidanceModal';
+import ReviewPanel from '../../components/ReviewPanel';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
 import { playIntervalPairAudio, playSequentialNotes, STAGGER_DELAY_MS, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
@@ -858,7 +859,7 @@ export default function InteractiveQuiz() {
   const handleBackToMap = () => navigate('/client/adventure');
 
   const handleContinueAdventure = (nextStageId: string) => {
-    navigate(`/client/quiz/${nextStageId}`);
+    navigate(`/client/quiz/${nextStageId}`, { replace: true });
   };
 
   const progressPercent = ((currentSliceIndex) / stage.slices.length) * 100;
@@ -869,7 +870,6 @@ export default function InteractiveQuiz() {
   // ── 题末回顾 ──
   if (showReview) {
     const results = questionResultsRef.current;
-    // 错题在前，正确题在后
     const sortedResults = [...results].sort((a, b) => {
       if (a.isCorrect === b.isCorrect) return 0;
       return a.isCorrect ? 1 : -1;
@@ -883,7 +883,6 @@ export default function InteractiveQuiz() {
     const reviewPc = stage?.passCriteria;
     const reviewPassed = !reviewPc?.enabled || reviewAccuracy >= reviewPc.minAccuracy;
 
-    // 找到下一个冒险关卡
     let nextStage: typeof stage | null = null;
     if (stage?.module === 'adventure' && reviewPassed) {
       const allAdventureStages = getAdventureStages();
@@ -898,118 +897,24 @@ export default function InteractiveQuiz() {
     }
 
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
-        {/* 可滚动内容区域 */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', paddingBottom: '100px' }}>
-          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-          {/* 结果摘要 */}
-          {stage?.module === 'adventure' && !reviewPassed && (
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '4px' }}>😅</div>
-              <h2 style={{ margin: '0 0 2px', fontSize: '1.2rem', fontWeight: 700, color: '#1f2937' }}>差一点就过关了！</h2>
-              <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: '#6b7280' }}>{stage?.title}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#6b7280' }}>正确率</span>
-                  <span style={{ fontWeight: 700, color: '#dc2626' }}>{reviewAccuracy}% {reviewPc?.enabled && <span style={{ fontWeight: 400, color: '#9ca3af' }}>/ 要求 ≥{reviewPc.minAccuracy}%</span>}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#6b7280' }}>答对/答错</span>
-                  <span style={{ fontWeight: 700, color: '#374151' }}>{correctQ}/{results.length}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: '#f9fafb', borderRadius: '10px', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#6b7280' }}>用时</span>
-                  <span style={{ fontWeight: 700, color: '#374151' }}>{Math.floor(reviewTimeSec / 60)}分{reviewTimeSec % 60}秒</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1f2937', marginBottom: '4px' }}>答题回顾</h2>
-          <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '16px' }}>
-            共 {results.length} 题 · 正确 {correctCount} · 错误 {wrongCount2} · 揭示 {revealedCount}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-            {sortedResults.map((r, i) => {
-              const content = r.slice.content as any;
-              let questionLabel = '';
-              if (r.slice.module === 'theory') {
-                const noteA = content.noteA || content.notes?.[0] || '';
-                const noteB = content.noteB || content.notes?.[1] || '';
-                questionLabel = noteA && noteB ? `${noteA} → ${noteB}` : r.slice.id;
-              } else if (r.slice.module === 'notes') {
-                questionLabel = content.pitch || content.raw || '';
-              } else if (r.slice.module === 'symbols') {
-                questionLabel = content.symbol || content.raw || '';
-              } else {
-                questionLabel = content.raw || content.pattern || '';
-              }
-
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '12px 16px', borderRadius: '12px',
-                  background: r.isCorrect ? '#f0fdf4' : '#fef2f2',
-                  border: `1px solid ${r.isCorrect ? '#bbf7d0' : '#fecaca'}`,
-                }}>
-                  <span style={{ fontSize: '1.3rem' }}>{r.isCorrect ? '✅' : r.revealed ? '💡' : '❌'}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: '#1f2937', fontSize: '0.9rem' }}>{questionLabel}</div>
-                    <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>
-                      {r.isCorrect ? (
-                        <span style={{ color: '#059669' }}>✓ {r.correctAnswer}</span>
-                      ) : (
-                        <span>
-                          你的答案：<span style={{ color: '#dc2626' }}>{r.userAnswer}</span>
-                          {' · '}正确答案：<span style={{ color: '#059669', fontWeight: 600 }}>{r.correctAnswer}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* 固定在视口底部的操作按钮 */}
-      <div style={{
-        borderTop: '1px solid #e5e7eb',
-        background: 'white',
-        padding: '16px 24px',
-        boxShadow: '0 -4px 12px rgba(0,0,0,0.08)'
-      }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button onClick={handleRetry} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#f59e0b', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-            再来一次
-          </button>
-          {stage?.module === 'adventure' && reviewPassed && nextStage && (
-            <button onClick={() => handleContinueAdventure(nextStage.id)} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#10b981', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-              继续闯关
-            </button>
-          )}
-          {stage?.module === 'adventure' && guidance && (
-            <button onClick={() => setShowGuidance(true)} style={{ padding: '12px 28px', borderRadius: '12px', border: '1px solid #d1d5db', background: 'white', color: '#6b7280', fontWeight: 600, cursor: 'pointer' }}>
-              查看学习指导
-            </button>
-          )}
-          <button onClick={finishQuiz} style={{ padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}>
-            返回闯关地图
-          </button>
-        </div>
-      </div>
-
-      {showGuidance && guidance && (
-        <GuidanceModal
-          title={stageRecord?.title || stage?.title || ''}
-          guidance={guidance}
-          guidanceImages={guidanceImages}
-          onStart={() => setShowGuidance(false)}
-          buttonText="好滴"
-        />
-      )}
-    </div>
+      <ReviewPanel
+        stageId={stageId!}
+        stage={stage}
+        sortedResults={sortedResults}
+        correctCount={correctCount}
+        wrongCount={wrongCount2}
+        revealedCount={revealedCount}
+        timeSpentSec={reviewTimeSec}
+        accuracy={reviewAccuracy}
+        passed={reviewPassed}
+        nextStageId={nextStage?.id}
+        stageTitle={stageRecord?.title || stage?.title || ''}
+        guidance={guidance}
+        guidanceImages={guidanceImages}
+        onRetry={handleRetry}
+        onContinueAdventure={handleContinueAdventure}
+        onFinishQuiz={finishQuiz}
+      />
     );
   }
 
@@ -1156,7 +1061,13 @@ export default function InteractiveQuiz() {
     }}>
       <header className="quiz-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            if (stage?.module === 'adventure') {
+              navigate('/client/adventure');
+            } else {
+              navigate(-1);
+            }
+          }}
           style={{ background: 'white', border: '1px solid #e5e7eb', padding: '8px 16px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: '#6b7280', fontWeight: '600', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
         >
           Quit
