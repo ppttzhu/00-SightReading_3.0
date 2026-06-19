@@ -48,6 +48,9 @@ export default function StageSelector() {
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
   const getAllStages = useAppStore(state => state.getAllStages);
+  // Subscribe to customStages + slicesPool so component re-renders when remote data loads
+  useAppStore(state => state.customStages);
+  useAppStore(state => state.slicesPool);
   const stages = getAllStages(moduleId || '');
 
   const handleStartPractice = () => {
