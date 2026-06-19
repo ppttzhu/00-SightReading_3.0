@@ -38,7 +38,6 @@ function App() {
           <Route path="adventure/quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="free" element={<FreePracticeHub />} />
           <Route path="free/:moduleId" element={<StageSelector />} />
-          <Route path="module/:moduleId" element={<StageSelector />} />
           <Route path="quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="practice/intervals" element={<IntervalPractice />} />
           <Route path="practice/:moduleId" element={<PracticeQuiz />} />
