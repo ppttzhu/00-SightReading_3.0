@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAppStore } from '../../core/store/useAppStore';
 import NotesInputModeToggle from '../../components/NotesInputModeToggle';
 import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 
@@ -29,7 +28,6 @@ export default function StageSelector() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
   const [usePiano, setUsePiano] = useNotesInputMode();
-  const [mode, setMode] = useState<'stages' | 'practice'>('stages');
   const [lowPitch, setLowPitch] = useState('C2');
   const [highPitch, setHighPitch] = useState('C6');
   const [includeSharps, setIncludeSharps] = useState(false);
@@ -41,10 +39,6 @@ export default function StageSelector() {
   const [intervalClef, setIntervalClef] = useState('自动');
   const [intervalMode, setIntervalMode] = useState('随机');
 
-  // 从 Store 自动生成的关卡列表（包含自动+手动关卡）
-  const getAllStages = useAppStore(state => state.getAllStages);
-
-  const stages = getAllStages(moduleId || '');
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
   const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
 
@@ -77,37 +71,15 @@ export default function StageSelector() {
         {moduleLabel} Trials
       </h1>
 
-      {(isNotesModule || isTheoryModule) && (
-        <>
-          {/* Mode toggle: 练习 / 闯关 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '20px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            {([{ key: 'stages', label: '闯关模式' }, { key: 'practice', label: '练习模式' }] as const).map(m => (
-              <button
-                key={m.key}
-                onClick={() => setMode(m.key)}
-                style={{
-                  padding: '8px 22px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '0.95rem',
-                  background: mode === m.key ? moduleColor : 'transparent',
-                  color: mode === m.key ? 'white' : '#6b7280',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Input mode toggle (keyboard vs options) — only for Notes */}
-          {isNotesModule && (
-            <div style={{ marginTop: '12px' }}>
-              <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} accentColor={moduleColor} />
-            </div>
-          )}
-        </>
+      {/* Input mode toggle (keyboard vs options) — only for Notes */}
+      {isNotesModule && (
+        <div style={{ marginTop: '12px' }}>
+          <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} accentColor={moduleColor} />
+        </div>
       )}
 
       {/* Notes practice mode UI */}
-      {isNotesModule && mode === 'practice' && (
+      {isNotesModule && (
         <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px', margin: '0', padding: '2px 0' }}>
             设置音域范围，系统将在该范围内随机生成单音练习题，无限循环。
@@ -188,7 +160,7 @@ export default function StageSelector() {
       )}
 
       {/* Theory practice mode UI */}
-      {isTheoryModule && mode === 'practice' && (
+      {isTheoryModule && (
         <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px' }}>
             系统将按所选规则随机生成音程练习题，无限循环。
@@ -214,7 +186,7 @@ export default function StageSelector() {
                     backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
                   }}
                 >
-                  {options.map(o => <option key={o} value={o}>{o}</option>)}
+                  {options.map((o: string) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
             ))}
@@ -231,69 +203,13 @@ export default function StageSelector() {
           </button>
         </div>
       )}
-
-      {/* Stages mode UI */}
-      {((!isNotesModule && !isTheoryModule) || mode === 'stages') && (
-        <>
-          {stages.length === 0 ? (
-            <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
-              <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.3 }}>📭</div>
-              <h2 style={{ fontWeight: '700', color: '#6b7280' }}>暂无可用关卡</h2>
-              <p>请联系老师为该模块添加题目。</p>
-            </div>
-          ) : (
-            <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
-              {stages.map((stage, index) => {
-                // TODO: revert after testing — restore: const isUnlocked = index < (useAppStore.getState().studentProgress[moduleId || ''] || 1);
-                const isUnlocked = true;
-                const stageNumber = index + 1;
-
-                return (
-                  <div
-                    key={stage.id}
-                    onClick={() => isUnlocked ? navigate(`/client/quiz/${stage.id}`) : null}
-                    title={stage.title}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px',
-                      cursor: isUnlocked ? 'pointer' : 'not-allowed',
-                      transition: 'transform 0.2s ease'
-                    }}
-                    onMouseEnter={e => { if (isUnlocked) e.currentTarget.style.transform = 'scale(1.1)'; }}
-                    onMouseLeave={e => { if (isUnlocked) e.currentTarget.style.transform = 'scale(1)'; }}
-                  >
-                    <div className="stage-circle" style={{
-                      width: '90px',
-                      height: '90px',
-                      borderRadius: '50%',
-                      background: isUnlocked ? 'white' : '#f3f4f6',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: isUnlocked ? '2rem' : '1.5rem',
-                      color: isUnlocked ? moduleColor : '#9ca3af',
-                      fontWeight: '800',
-                      boxShadow: isUnlocked ? `0 8px 24px ${moduleColor}26` : 'inset 0 2px 4px rgba(0,0,0,0.05)',
-                      border: isUnlocked ? `2px solid ${moduleColor}50` : '1px solid #e5e7eb',
-                    }}>
-                      {isUnlocked ? stageNumber : '🔒'}
-                    </div>
-                    <span style={{
-                      fontSize: '0.85rem',
-                      color: isUnlocked ? '#374151' : '#9ca3af',
-                      fontWeight: '600',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {stage.title}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
+      {/* Fallback for modules without practice config (symbols, patterns) */}
+      {!isNotesModule && !isTheoryModule && (
+        <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.3 }}>📭</div>
+          <h2 style={{ fontWeight: '700', color: '#6b7280' }}>暂无可用关卡</h2>
+          <p>请联系老师为该模块添加题目。</p>
+        </div>
       )}
     </div>
   );
