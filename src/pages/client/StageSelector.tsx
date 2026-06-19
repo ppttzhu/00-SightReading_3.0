@@ -206,15 +206,6 @@ export default function StageSelector() {
           </button>
         </div>
       )}
-<<<<<<< HEAD
-      {/* Fallback for modules without practice config (symbols, patterns) */}
-      {!isNotesModule && !isTheoryModule && (
-        <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.3 }}>📭</div>
-          <h2 style={{ fontWeight: '700', color: '#6b7280' }}>暂无可用关卡</h2>
-          <p>请联系老师为该模块添加题目。</p>
-        </div>
-=======
       {/* Stages grid for modules without practice config (symbols, patterns) */}
       {!isNotesModule && !isTheoryModule && (
         <>
@@ -275,7 +266,6 @@ export default function StageSelector() {
             </div>
           )}
         </>
->>>>>>> e7e1324 (chore: bring StageSelector back)
       )}
     </div>
   );
