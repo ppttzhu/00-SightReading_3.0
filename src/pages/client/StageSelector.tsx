@@ -46,6 +46,9 @@ export default function StageSelector() {
   const isTheoryModule = moduleId === 'theory';
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
+  const getAllStages = useAppStore(state => state.getAllStages);
+  const stages = getAllStages(moduleId || '');
+
   const handleStartPractice = () => {
     if (!canStartPractice) return;
     const low = lowPitch.charAt(0).toUpperCase() + lowPitch.charAt(1);
@@ -203,6 +206,7 @@ export default function StageSelector() {
           </button>
         </div>
       )}
+<<<<<<< HEAD
       {/* Fallback for modules without practice config (symbols, patterns) */}
       {!isNotesModule && !isTheoryModule && (
         <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
@@ -210,6 +214,68 @@ export default function StageSelector() {
           <h2 style={{ fontWeight: '700', color: '#6b7280' }}>暂无可用关卡</h2>
           <p>请联系老师为该模块添加题目。</p>
         </div>
+=======
+      {/* Stages grid for modules without practice config (symbols, patterns) */}
+      {!isNotesModule && !isTheoryModule && (
+        <>
+          {stages.length === 0 ? (
+            <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
+              <div style={{ fontSize: '4rem', marginBottom: '20px', opacity: 0.3 }}>📭</div>
+              <h2 style={{ fontWeight: '700', color: '#6b7280' }}>暂无可用关卡</h2>
+              <p>请联系老师为该模块添加题目。</p>
+            </div>
+          ) : (
+            <div className="stage-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginTop: '60px', justifyContent: 'center', maxWidth: '800px' }}>
+              {stages.map((stage, index) => {
+                const isUnlocked = true;
+                const stageNumber = index + 1;
+                return (
+                  <div
+                    key={stage.id}
+                    onClick={() => isUnlocked ? navigate(`/client/quiz/${stage.id}`) : null}
+                    title={stage.title}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                      cursor: isUnlocked ? 'pointer' : 'not-allowed',
+                      transition: 'transform 0.2s ease'
+                    }}
+                    onMouseEnter={e => { if (isUnlocked) e.currentTarget.style.transform = 'scale(1.1)'; }}
+                    onMouseLeave={e => { if (isUnlocked) e.currentTarget.style.transform = 'scale(1)'; }}
+                  >
+                    <div className="stage-circle" style={{
+                      width: '90px',
+                      height: '90px',
+                      borderRadius: '50%',
+                      background: isUnlocked ? 'white' : '#f3f4f6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: isUnlocked ? '2rem' : '1.5rem',
+                      color: isUnlocked ? moduleColor : '#9ca3af',
+                      fontWeight: '800',
+                      boxShadow: isUnlocked ? `0 8px 24px ${moduleColor}26` : 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                      border: isUnlocked ? `2px solid ${moduleColor}50` : '1px solid #e5e7eb',
+                    }}>
+                      {isUnlocked ? stageNumber : '🔒'}
+                    </div>
+                    <span style={{
+                      fontSize: '0.85rem',
+                      color: isUnlocked ? '#374151' : '#9ca3af',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {stage.title}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+>>>>>>> e7e1324 (chore: bring StageSelector back)
       )}
     </div>
   );
