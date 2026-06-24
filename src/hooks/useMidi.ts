@@ -56,7 +56,7 @@ export interface UseMidiReturn {
 function getErrorMessage(status: MidiStatus): string | null {
   switch (status) {
     case 'unsupported':
-      return '当前浏览器不支持 Web MIDI API';
+      return 'MIDI 需要电脑或安卓手机，iOS 浏览器不可用';
     case 'permission-denied':
       return 'MIDI 权限已被拒绝';
     case 'no-device':
