@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   getClefForPitches,
+  midiNoteToPitch,
   pitchEqual,
 } from './pitchUtils';
 
@@ -133,5 +134,50 @@ describe('practice clef selection', () => {
 
   it('uses grand when a pitch group crosses both forced ranges', () => {
     expect(getClefForPitches(['F3', 'G4'], { allowGrand: true })).toBe('grand');
+  });
+});
+
+describe('midiNoteToPitch', () => {
+  it('converts Middle C (60) to C4', () => {
+    expect(midiNoteToPitch(60)).toBe('C4');
+  });
+
+  it('converts 61 to C#4 (sharp preferred)', () => {
+    expect(midiNoteToPitch(61)).toBe('C#4');
+  });
+
+  it('converts 69 (A440) to A4', () => {
+    expect(midiNoteToPitch(69)).toBe('A4');
+  });
+
+  it('converts lowest MIDI note 0 to C-1', () => {
+    expect(midiNoteToPitch(0)).toBe('C-1');
+  });
+
+  it('converts highest MIDI note 127 to G9', () => {
+    expect(midiNoteToPitch(127)).toBe('G9');
+  });
+
+  it('converts all chromatic notes in octave 4 correctly', () => {
+    const expected = ['C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4'];
+    for (let i = 0; i < 12; i++) {
+      expect(midiNoteToPitch(60 + i)).toBe(expected[i]);
+    }
+  });
+
+  it('uses sharps not flats for black keys', () => {
+    // Db4 = MIDI 61, should be C#4 not Db4
+    expect(midiNoteToPitch(61)).not.toContain('b');
+    // Eb4 = MIDI 63, should be D#4 not Eb4
+    expect(midiNoteToPitch(63)).toBe('D#4');
+    // Gb4 = MIDI 66, should be F#4 not Gb4
+    expect(midiNoteToPitch(66)).toBe('F#4');
+  });
+
+  it('output is compatible with pitchEqual (same format as FullPianoKeyboard)', () => {
+    // midiNoteToPitch output should be directly comparable via pitchEqual
+    expect(pitchEqual(midiNoteToPitch(60), 'C4')).toBe(true);
+    expect(pitchEqual(midiNoteToPitch(61), 'Db4')).toBe(true); // enharmonic
+    expect(pitchEqual(midiNoteToPitch(69), 'A4')).toBe(true);
   });
 });

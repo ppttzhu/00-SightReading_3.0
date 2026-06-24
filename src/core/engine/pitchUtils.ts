@@ -32,6 +32,15 @@ function pitchToMidi(pitch: string): number {
   return (parseInt(match[3], 10) + 1) * 12 + noteVal[match[1].toUpperCase()] + accidentalOffset;
 }
 
+const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+/** 将 MIDI 音符编号（0-127）转换为应用 Pitch String。升号优先。 */
+export function midiNoteToPitch(midiNumber: number): string {
+  const octave = Math.floor(midiNumber / 12) - 1;
+  const noteIndex = midiNumber % 12;
+  return `${SHARP_NAMES[noteIndex]}${octave}`;
+}
+
 export type ClefType = 'treble' | 'bass' | 'grand';
 export type StaffPlacement = 'auto' | 'treble' | 'bass';
 

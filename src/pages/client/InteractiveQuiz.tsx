@@ -6,8 +6,10 @@ import { useAuth } from '../../core/auth/AuthProvider';
 import { FREE_TRIAL_LIMIT } from './constants';
 import { mapKeyToNote, isSharpKey, isFlatKey, parseNoteKeys } from './keyboardInput';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import MidiStatus from '../../components/MidiStatus';
 import NotesInputModeToggle from '../../components/NotesInputModeToggle';
 import { useNotesInputMode } from '../../hooks/useNotesInputMode';
+import { useMidi } from '../../hooks/useMidi';
 import GuidanceModal from '../../components/GuidanceModal';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, resolvePlacement, pitchEqual, pitchForAnswerLetter } from '../../core/engine/pitchUtils';
@@ -328,7 +330,7 @@ export default function InteractiveQuiz() {
     const t2 = setTimeout(() => setShowAudioTip(false), 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [showAudioTip]);
-  const [usePiano, setUsePiano] = useNotesInputMode();
+  const [mode, setMode] = useNotesInputMode();
   // Show the physical-keyboard hint only on devices that report a fine pointer + hover,
   // which excludes phones and most touch-only tablets.
   const [hasFinePointer] = useState(() =>
@@ -595,8 +597,14 @@ export default function InteractiveQuiz() {
   const handleAnswerRef = useRef<(answer: string) => void>(() => {});
   const sliceModule = currentSlice?.module;
   const referencePitch = currentSlice?.module === 'notes' ? ((currentSlice.content as unknown as Record<string, unknown>).pitch as string) || 'C4' : '';
+
+  // MIDI input hook — only active when notes module + midi mode
+  const midi = useMidi({
+    enabled: currentSlice?.module === 'notes' && mode === 'midi',
+    onNoteOn: (pitch: string) => handleAnswerRef.current(pitch),
+  });
   useEffect(() => {
-    if (sliceModule !== 'notes' || usePiano) return;
+    if (sliceModule !== 'notes' || mode !== 'options') return;
     // 300ms buffer so sequences like "C" + "#" resolve to a single "C#" answer.
     const WINDOW_MS = 300;
     let buffer: string[] = [];
@@ -632,7 +640,7 @@ export default function InteractiveQuiz() {
       window.removeEventListener('keydown', onKeydown);
       if (timer) clearTimeout(timer);
     };
-  }, [sliceModule, usePiano, referencePitch]);
+  }, [sliceModule, mode, referencePitch]);
 
   if (!stage) {
     return (
@@ -696,7 +704,7 @@ export default function InteractiveQuiz() {
     switch (currentSlice.module) {
       case 'notes': {
         const pitch = (content.pitch as string) || '';
-        if (usePiano) return pitch;
+        if (mode !== 'options') return pitch;
         return extractNoteAnswer(pitch);
       }
       case 'symbols': {
@@ -716,8 +724,8 @@ export default function InteractiveQuiz() {
     if (feedback !== 'none' || revealed || !currentSlice) return;
     resetBlink();
     const correct = getCorrectAnswer();
-    const isPianoTypeA = usePiano && currentSlice.module === 'notes';
-    const isCorrect = isPianoTypeA
+    const isNonOptionsTypeA = mode !== 'options' && currentSlice.module === 'notes';
+    const isCorrect = isNonOptionsTypeA
       ? pitchEqual(answer, correct)
       : answer === correct;
 
@@ -1166,7 +1174,7 @@ export default function InteractiveQuiz() {
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {currentSlice?.module === 'notes' && (
-            <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} />
+            <NotesInputModeToggle mode={mode} onChange={setMode} />
           )}
           <div style={{ width: '150px', height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
             <div style={{ width: `${progressPercent}%`, height: '100%', background: '#3b82f6', borderRadius: '4px', transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
@@ -1242,8 +1250,10 @@ export default function InteractiveQuiz() {
         </div>
 
         {/* 选项区 */}
-        {currentSlice?.module === 'notes' && usePiano ? (
+        {currentSlice?.module === 'notes' && mode === 'piano' ? (
           <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={referencePitch} />
+        ) : currentSlice?.module === 'notes' && mode === 'midi' ? (
+          <MidiStatus status={midi.status} deviceName={midi.deviceName} error={midi.error} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             {currentSlice?.module === 'notes' && hasFinePointer && (
