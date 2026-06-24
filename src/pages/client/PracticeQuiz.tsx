@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, StaveConnector } from 'vexflow';
 import FullPianoKeyboard from '../../components/FullPianoKeyboard';
+import MidiStatus from '../../components/MidiStatus';
 import NotesInputModeToggle from '../../components/NotesInputModeToggle';
 import { useNotesInputMode } from '../../hooks/useNotesInputMode';
+import { useMidi } from '../../hooks/useMidi';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { getClefForPitches, getGrandStaffPlacement, pitchEqual, pitchForAnswerLetter, pitchToStaffNum } from '../../core/engine/pitchUtils';
 import type { ClefType } from '../../core/engine/pitchUtils';
@@ -78,7 +80,7 @@ export default function PracticeQuiz() {
   const includeSharps = searchParams.get('sharp') === '1';
   const includeFlats = searchParams.get('flat') === '1';
 
-  const [usePiano, setUsePiano] = useNotesInputMode();
+  const [mode, setMode] = useNotesInputMode();
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
 
@@ -195,10 +197,10 @@ export default function PracticeQuiz() {
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none') return;
     resetBlink();
-    // Piano mode submits the full pitch (e.g. "C#4") — pitchEqual checks
+    // Piano and MIDI modes submit the full pitch (e.g. "C#4") — pitchEqual checks
     // letter, accidental, and octave together. Options mode submits the
     // letter+accidental (e.g. "C#") so a C#4 question needs "C#", not bare "C".
-    const isCorrect = usePiano
+    const isCorrect = mode !== 'options'
       ? pitchEqual(answer, currentPitch)
       : answer === extractNoteAnswer(currentPitch);
 
@@ -231,6 +233,11 @@ export default function PracticeQuiz() {
   const handleAnswerRef = useRef<(a: string) => void>(() => {});
   handleAnswerRef.current = handleAnswer;
 
+  const midi = useMidi({
+    enabled: mode === 'midi',
+    onNoteOn: (pitch: string) => handleAnswerRef.current(pitch),
+  });
+
   // Options match the question's accidental class: sharp pitch → 7 sharps,
   // flat → 7 flats, natural → 7 naturals. Always 7, in fixed C…B order.
   const options = useMemo(
@@ -241,7 +248,7 @@ export default function PracticeQuiz() {
   // Physical keyboard input for options mode. 300ms buffer lets "C" + "#"
   // resolve to a single "C#" answer.
   useEffect(() => {
-    if (usePiano) return;
+    if (mode !== 'options') return;
     const WINDOW_MS = 300;
     let buffer: string[] = [];
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -268,7 +275,7 @@ export default function PracticeQuiz() {
       window.removeEventListener('keydown', onKeydown);
       if (timer) clearTimeout(timer);
     };
-  }, [usePiano, currentPitch]);
+  }, [mode, currentPitch]);
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
@@ -293,7 +300,7 @@ export default function PracticeQuiz() {
           退出练习
         </button>
         <div className="practice-notes-quiz__toolbar">
-          <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} />
+          <NotesInputModeToggle mode={mode} onChange={setMode} />
           <div className="practice-notes-quiz__toolbar-end">
             <span className="practice-notes-quiz__range">
               音域: {low} — {high}
@@ -364,9 +371,10 @@ export default function PracticeQuiz() {
           />
         </div>
 
-        {usePiano ? (
+        {mode === 'piano' && (
           <FullPianoKeyboard onAnswer={handleAnswer} feedback={feedback} referencePitch={currentPitch} previewAudio />
-        ) : (
+        )}
+        {mode === 'options' && (
           <div className="practice-notes-quiz__options">
             {[options.slice(0, 4), options.slice(4)].map((row, rowIdx) => (
               <div
@@ -392,6 +400,9 @@ export default function PracticeQuiz() {
               </div>
             ))}
           </div>
+        )}
+        {mode === 'midi' && (
+          <MidiStatus status={midi.status} deviceName={midi.deviceName} error={midi.error} />
         )}
       </div>
     </div>

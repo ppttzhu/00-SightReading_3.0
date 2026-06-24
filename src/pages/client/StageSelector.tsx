@@ -28,7 +28,7 @@ function isValidPitch(value: string): boolean {
 export default function StageSelector() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
-  const [usePiano, setUsePiano] = useNotesInputMode();
+  const [mode, setMode] = useNotesInputMode();
   const [lowPitch, setLowPitch] = useState('C2');
   const [highPitch, setHighPitch] = useState('C6');
   const [includeSharps, setIncludeSharps] = useState(false);
@@ -81,7 +81,7 @@ export default function StageSelector() {
       {/* Input mode toggle (keyboard vs options) — only for Notes */}
       {isNotesModule && (
         <div style={{ marginTop: '12px' }}>
-          <NotesInputModeToggle usePiano={usePiano} onChange={setUsePiano} accentColor={moduleColor} />
+          <NotesInputModeToggle mode={mode} onChange={setMode} accentColor={moduleColor} />
         </div>
       )}
 

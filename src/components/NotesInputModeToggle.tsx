@@ -1,57 +1,74 @@
-import { NOTES_INPUT_MODE_KEY } from '../pages/client/StageSelector';
+import type { InputMode } from '../hooks/useNotesInputMode';
 
 type Props = {
-  usePiano: boolean;
-  onChange: (usePiano: boolean) => void;
+  mode: InputMode;
+  onChange: (mode: InputMode) => void;
   accentColor?: string;
 };
 
-/** 单音答题方式：选项按钮 / 钢琴键盘 */
+const BUTTONS: { mode: InputMode; label: string }[] = [
+  { mode: 'options', label: '选项' },
+  { mode: 'piano', label: '键盘' },
+  { mode: 'midi', label: 'MIDI' },
+];
+
+/** 单音答题方式：选项按钮 / 钢琴键盘 / MIDI */
 export default function NotesInputModeToggle({
-  usePiano,
+  mode,
   onChange,
   accentColor = '#3b82f6',
 }: Props) {
+  const midiSupported =
+    typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator;
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        background: 'white',
-        border: '1px solid #e5e7eb',
-        borderRadius: '20px',
-        padding: '4px 6px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-      }}
-    >
-      {(['options', 'piano'] as const).map((inputMode) => {
-        const isPiano = inputMode === 'piano';
-        const active = isPiano === usePiano;
-        return (
-          <button
-            key={inputMode}
-            type="button"
-            onClick={() => {
-              onChange(isPiano);
-              localStorage.setItem(NOTES_INPUT_MODE_KEY, isPiano ? 'piano' : 'options');
-            }}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '14px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '0.85rem',
-              background: active ? accentColor : 'transparent',
-              color: active ? 'white' : '#6b7280',
-              transition: 'all 0.2s',
-            }}
-          >
-            {isPiano ? '键盘' : '选项'}
-          </button>
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          background: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: '20px',
+          padding: '4px 6px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        }}
+      >
+        {BUTTONS.map((btn) => {
+          const active = btn.mode === mode;
+          const disabled = btn.mode === 'midi' && !midiSupported;
+          return (
+            <button
+              key={btn.mode}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                if (!disabled) onChange(btn.mode);
+              }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '14px',
+                border: 'none',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                fontSize: '0.85rem',
+                background: active ? accentColor : 'transparent',
+                color: disabled ? '#d1d5db' : active ? 'white' : '#6b7280',
+                opacity: disabled ? 0.5 : 1,
+                transition: 'all 0.2s',
+              }}
+            >
+              {btn.label}
+            </button>
+          );
+        })}
+      </div>
+      {!midiSupported && (
+        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+          MIDI 需要电脑或安卓手机，iOS 不可用
+        </span>
+      )}
     </div>
   );
 }
