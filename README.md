@@ -51,8 +51,6 @@ VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-项目 `.env` 所需信息请在微信群通知栏中查找。
-
 Get Supabase values from **Supabase Dashboard → Project Settings → API Keys**:
 
 - Project URL → `VITE_SUPABASE_URL`
