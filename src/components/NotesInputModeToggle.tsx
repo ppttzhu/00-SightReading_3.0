@@ -66,7 +66,7 @@ export default function NotesInputModeToggle({
       </div>
       {!midiSupported && (
         <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-          MIDI 需要电脑或安卓手机，iOS 不可用
+          MIDI 需要电脑或安卓手机，iOS浏览器不可用
         </span>
       )}
     </div>
