@@ -18,8 +18,22 @@ export default function NotesInputModeToggle({
   onChange,
   accentColor = '#3b82f6',
 }: Props) {
-  const midiSupported =
-    typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator;
+  const midiSupported = (() => {
+    if (typeof window === 'undefined') return false;
+    // Check for Capacitor native MIDI plugin (iOS/Android app)
+    const win = window as unknown as Record<string, unknown>;
+    if (win.Capacitor && typeof win.Capacitor === 'object') {
+      const cap = win.Capacitor as Record<string, unknown>;
+      if (cap.Plugins && typeof cap.Plugins === 'object') {
+        const plugins = cap.Plugins as Record<string, unknown>;
+        if (plugins.Midi) return true;
+      }
+      // Inside Capacitor but plugin not yet loaded — still allow MIDI mode
+      return true;
+    }
+    // Fallback: check Web MIDI API (desktop browsers)
+    return typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator;
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -66,7 +80,7 @@ export default function NotesInputModeToggle({
       </div>
       {!midiSupported && (
         <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-          MIDI 需要电脑或安卓手机，iOS 不可用
+          MIDI 需要电脑或安卓手机，iOS 浏览器不可用
         </span>
       )}
     </div>
