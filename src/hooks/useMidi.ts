@@ -55,16 +55,61 @@ interface CapacitorMidiPlugin {
 
 function getCapacitorMidi(): CapacitorMidiPlugin | null {
   const win = window as unknown as Record<string, unknown>;
-  if (win.Capacitor && typeof win.Capacitor === 'object') {
-    const cap = win.Capacitor as Record<string, unknown>;
-    if (cap.Plugins && typeof cap.Plugins === 'object') {
-      const plugins = cap.Plugins as Record<string, unknown>;
-      if (plugins.Midi) {
-        return plugins.Midi as CapacitorMidiPlugin;
-      }
-    }
+
+  // Show debug info on screen (temporary — remove after testing)
+  const debugInfo: string[] = [];
+
+  if (!win.Capacitor || typeof win.Capacitor !== 'object') {
+    debugInfo.push('No window.Capacitor found');
+    showMidiDebug(debugInfo);
+    return null;
   }
+
+  const cap = win.Capacitor as Record<string, unknown>;
+  debugInfo.push('Capacitor detected');
+  debugInfo.push('Keys: ' + Object.keys(cap).join(', '));
+
+  if (typeof cap.isNativePlatform === 'function') {
+    debugInfo.push('isNative: ' + (cap as { isNativePlatform: () => boolean }).isNativePlatform());
+  }
+
+  if (cap.Plugins && typeof cap.Plugins === 'object') {
+    const plugins = cap.Plugins as Record<string, unknown>;
+    debugInfo.push('Plugins: ' + Object.keys(plugins).join(', '));
+
+    if (plugins.Midi) {
+      debugInfo.push('✅ Midi plugin found!');
+      showMidiDebug(debugInfo);
+      return plugins.Midi as CapacitorMidiPlugin;
+    } else {
+      debugInfo.push('❌ Midi NOT in Plugins');
+    }
+  } else {
+    debugInfo.push('❌ No Plugins object');
+  }
+
+  showMidiDebug(debugInfo);
   return null;
+}
+
+/** Temporary on-screen debug overlay */
+function showMidiDebug(lines: string[]) {
+  if (typeof document === 'undefined') return;
+  let el = document.getElementById('__midi_debug');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '__midi_debug';
+    el.style.cssText = `
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.85); color: #0f0;
+      font-family: monospace; font-size: 11px;
+      padding: 8px 12px; z-index: 999999;
+      max-height: 30vh; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-all;
+    `;
+    document.body.appendChild(el);
+  }
+  el.textContent = '[MIDI Debug]\n' + lines.join('\n');
 }
 
 function isRunningInCapacitor(): boolean {
