@@ -48,7 +48,7 @@ export default function MidiStatus({ status, deviceName }: Props) {
         )}
         {status === 'disconnected' && <WarningContent message="设备已断开，请重新连接" />}
         {status === 'unsupported' && (
-          <WarningContent message="MIDI 需要连接 MIDI 键盘设备" />
+          <WarningContent message="MIDI 需要电脑或安卓手机，iOS 浏览器不可用" />
         )}
       </div>
     </div>
