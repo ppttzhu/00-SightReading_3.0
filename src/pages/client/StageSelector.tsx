@@ -3,6 +3,44 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../core/store/useAppStore';
 import NotesInputModeToggle from '../../components/NotesInputModeToggle';
 import { useNotesInputMode } from '../../hooks/useNotesInputMode';
+import {
+  INTERVAL_CATALOG,
+  QUALITY_LABELS,
+  NUMBER_LABELS,
+  type CatalogInterval,
+  type IntervalNumber,
+  type IntervalQuality,
+} from '../../core/theory/intervalCatalog';
+import {
+  type Subset,
+  DEFAULT_SUBSET,
+  toggleInterval,
+  isNonEmpty,
+} from '../../core/theory/intervalSelection';
+import { SCOPE_PARAM, encodeScope } from '../../core/theory/scopeSerializer';
+
+// Catalog interval numbers (1..8) — table rows.
+const INTERVAL_NUMBERS: IntervalNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
+// Catalog qualities in table-column order: 减 小 纯 大 增.
+const INTERVAL_QUALITIES: IntervalQuality[] = [
+  'diminished',
+  'minor',
+  'perfect',
+  'major',
+  'augmented',
+];
+// Lookup for a catalog entry by (number, quality); absent pairs (e.g. perfect 6th) are empty cells.
+const CATALOG_CELL = new Map<string, CatalogInterval>(
+  INTERVAL_CATALOG.map((entry) => [`${entry.number},${entry.quality}`, entry]),
+);
+
+// Compact ＋ / − header buttons for bulk select / clear of a row or column.
+const groupBtnStyle: React.CSSProperties = {
+  width: '20px', height: '20px', lineHeight: '1', padding: 0, borderRadius: '7px',
+  cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', color: '#6b7280',
+  border: '1px solid #d1d5db', background: 'white',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+};
 
 const MODULE_LABELS: Record<string, string> = {
   notes: '单音',
@@ -34,11 +72,8 @@ export default function StageSelector() {
   const [includeSharps, setIncludeSharps] = useState(false);
   const [includeFlats, setIncludeFlats] = useState(false);
 
-  // Theory practice params
-  const [intervalType, setIntervalType] = useState('随机');
-  const [intervalDirection, setIntervalDirection] = useState('随机');
-  const [intervalClef, setIntervalClef] = useState('自动');
-  const [intervalMode, setIntervalMode] = useState('随机');
+  // Theory practice scope: a set of catalog interval IDs (Selected_Interval_Subset).
+  const [subset, setSubset] = useState<Subset>(DEFAULT_SUBSET);
 
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
   const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
@@ -62,8 +97,36 @@ export default function StageSelector() {
     navigate(`/client/practice/notes?low=${low}&high=${high}${sharp}${flat}`);
   };
 
+  const canStartTheoryPractice = isNonEmpty(subset);
+
+  // Cell toggle: flip a single interval on/off.
+  const toggleCell = (id: string, checked: boolean) => {
+    setSubset((prev) => toggleInterval(prev, id, checked));
+  };
+
+  // Header toggle: select all of a row (number) or column (quality) when any is
+  // missing, otherwise clear them all.
+  // Header actions: explicitly select all (＋) or clear all (−) of a group.
+  const setGroup = (entries: CatalogInterval[], selected: boolean) => {
+    if (entries.length === 0) return;
+    setSubset((prev) => {
+      const next = new Set(prev);
+      for (const e of entries) {
+        if (selected) next.add(e.id);
+        else next.delete(e.id);
+      }
+      return next;
+    });
+  };
+
+  const entriesOfNumber = (n: IntervalNumber) =>
+    INTERVAL_CATALOG.filter((e) => e.number === n);
+  const entriesOfQuality = (q: IntervalQuality) =>
+    INTERVAL_CATALOG.filter((e) => e.quality === q);
+
   const handleStartTheoryPractice = () => {
-    navigate(`/client/practice/intervals?type=${intervalType}&direction=${intervalDirection}&clef=${intervalClef}&mode=${intervalMode}`);
+    if (!canStartTheoryPractice) return;
+    navigate(`/client/practice/intervals?${SCOPE_PARAM}=${encodeScope(subset)}`);
   };
 
   return (
@@ -74,7 +137,7 @@ export default function StageSelector() {
       >
         ← 返回
       </button>
-      <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
+      <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '12px', marginBottom: '8px', letterSpacing: '-1px' }}>
         {moduleLabel} Trials
       </h1>
 
@@ -166,44 +229,88 @@ export default function StageSelector() {
         </div>
       )}
 
-      {/* Theory practice mode UI */}
+      {/* Theory practice mode UI — interval scope selection */}
       {isTheoryModule && (
-        <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '400px' }}>
-            系统将按所选规则随机生成音程练习题，无限循环。
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '760px' }}>
+          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
+            选择要练习的音程范围，系统将随机出题
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
-            {([
-              { label: '音程类型', value: intervalType, setter: setIntervalType, options: ['随机', '一度', '二度', '三度', '四度', '五度', '六度', '七度', '八度'] },
-              { label: '方向', value: intervalDirection, setter: setIntervalDirection, options: ['随机', '上行', '下行'] },
-              { label: '谱号', value: intervalClef, setter: setIntervalClef, options: ['自动', '高音谱号', '低音谱号'] },
-              { label: '音程模式', value: intervalMode, setter: setIntervalMode, options: ['随机', '旋律音程', '和声音程'] },
-            ] as const).map(({ label, value, setter, options }) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: '600' }}>{label}</label>
-                <select
-                  value={value}
-                  onChange={e => setter(e.target.value as never)}
-                  style={{
-                    padding: '10px 14px', borderRadius: '12px', border: '2px solid #e5e7eb',
-                    fontSize: '0.95rem', fontWeight: '600', color: '#374151',
-                    background: 'white', cursor: 'pointer', outline: 'none',
-                    appearance: 'none', paddingRight: '28px',
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
-                  }}
-                >
-                  {options.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-            ))}
+
+          {/* Interval matrix: rows = degrees 1–8, columns = 减 小 纯 大 增. Header buttons bulk-toggle a row/column. */}
+          <div style={{ width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: '1px', margin: '0 auto' }}>
+              <thead>
+                <tr>
+                  <th aria-hidden="true" />
+                  {INTERVAL_QUALITIES.map(q => (
+                    <th key={q}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: 'clamp(0.72rem, 3vw, 0.9rem)', fontWeight: '700', color: '#4b5563' }}>{QUALITY_LABELS[q]}</span>
+                        <div style={{ display: 'flex', gap: '1px' }}>
+                          <button type="button" onClick={() => setGroup(entriesOfQuality(q), true)} title="全选该性质" style={groupBtnStyle}>＋</button>
+                          <button type="button" onClick={() => setGroup(entriesOfQuality(q), false)} title="全不选该性质" style={groupBtnStyle}>－</button>
+                        </div>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {INTERVAL_NUMBERS.map(n => (
+                  <tr key={n}>
+                    <th>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <span style={{ fontSize: 'clamp(0.78rem, 3vw, 0.95rem)', fontWeight: '700', color: '#4b5563', whiteSpace: 'nowrap' }}>{NUMBER_LABELS[n]}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                          <button type="button" onClick={() => setGroup(entriesOfNumber(n), true)} title="全选该度数" style={groupBtnStyle}>＋</button>
+                          <button type="button" onClick={() => setGroup(entriesOfNumber(n), false)} title="全不选该度数" style={groupBtnStyle}>－</button>
+                        </div>
+                      </div>
+                    </th>
+                    {INTERVAL_QUALITIES.map(q => {
+                      const entry = CATALOG_CELL.get(`${n},${q}`);
+                      if (!entry) return <td key={q} />;
+                      const active = subset.has(entry.id);
+                      return (
+                        <td key={q}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCell(entry.id, !active)}
+                            style={{
+                              width: '100%', minWidth: 'clamp(26px, 7.5vw, 40px)', padding: '7px 2px',
+                              borderRadius: '8px', cursor: 'pointer',
+                              fontSize: 'clamp(0.68rem, 3vw, 0.88rem)', fontWeight: '700',
+                              fontFamily: 'monospace', transition: 'all 0.15s',
+                              border: active ? `2px solid ${moduleColor}` : '2px solid #e5e7eb',
+                              background: active ? `${moduleColor}12` : 'white',
+                              color: active ? moduleColor : '#374151',
+                            }}
+                          >
+                            {entry.abbr}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+
+          {!canStartTheoryPractice && (
+            <p style={{ color: '#f87171', fontSize: '0.85rem', margin: 0 }}>请至少选择一个音程</p>
+          )}
+
           <button
             onClick={handleStartTheoryPractice}
+            disabled={!canStartTheoryPractice}
             style={{
-              marginTop: '10px', padding: '14px 40px', borderRadius: '24px', border: 'none',
-              background: moduleColor, color: 'white', fontSize: '1.1rem', fontWeight: '700',
-              cursor: 'pointer', boxShadow: `0 8px 24px ${moduleColor}40`, transition: 'all 0.2s'
+              marginTop: '4px', padding: '14px 40px', borderRadius: '24px', border: 'none',
+              background: canStartTheoryPractice ? moduleColor : '#94a3b8',
+              color: 'white', fontSize: '1.1rem', fontWeight: '700',
+              cursor: canStartTheoryPractice ? 'pointer' : 'not-allowed',
+              boxShadow: canStartTheoryPractice ? `0 8px 24px ${moduleColor}40` : 'none',
+              transition: 'all 0.2s'
             }}
           >
             🎵 开始练习
