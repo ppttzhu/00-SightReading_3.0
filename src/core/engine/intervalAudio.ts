@@ -22,7 +22,7 @@ export function playSequentialNotes(notes: string[]) {
   });
 }
 
-/** 播放谱面上一对音（双音练习 / 乐理闯关共用）
+/** 播放谱面上一对音（旋律音程 / 乐理闯关共用）
  *  先弹 firstPitch，延迟后再弹 secondPitch（自动停掉前一个音）。
  *  调用方应保证 firstPitch 是谱面上第一个音。 */
 export function playIntervalPairAudio(firstPitch: string, secondPitch: string) {
@@ -32,4 +32,9 @@ export function playIntervalPairAudio(firstPitch: string, secondPitch: string) {
   setTimeout(() => {
     void audioEngine.playNotes([second]);
   }, STAGGER_DELAY_MS);
+}
+
+/** 同时弹响一对音（和声音程用）：两个音在同一时刻发声。 */
+export function playIntervalHarmonic(lowPitch: string, highPitch: string) {
+  void audioEngine.playNotes([pitchToToneNote(lowPitch), pitchToToneNote(highPitch)]);
 }

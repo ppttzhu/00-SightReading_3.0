@@ -5,155 +5,31 @@ import { useAppStore } from '../../core/store/useAppStore';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { useOptionsFontSize } from '../../hooks/useOptionsFontSize';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { playIntervalPairAudio, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
+import { playIntervalPairAudio, playIntervalHarmonic, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
+import { decodeScope } from '../../core/theory/scopeSerializer';
+import {
+  generateQuestion,
+  type GenerateResult,
+  type IntervalQuestion,
+} from '../../core/theory/intervalGenerator';
+import { buildOptions } from '../../core/theory/intervalOptions';
+import { displayName } from '../../core/theory/intervalCatalog';
 
 // ============================================================
-// 音程数据
+// VexFlow rendering helpers
 // ============================================================
 
-const INTERVAL_TYPE_SEMITONES: Record<string, number[]> = {
-  '一度': [0],
-  '二度': [1, 2],
-  '三度': [3, 4],
-  '四度': [5, 6],
-  '五度': [6, 7],
-  '六度': [8, 9],
-  '七度': [10, 11],
-  '八度': [12],
-};
-
-const SEMITONE_TO_NAMES: Record<number, string[]> = {
-  0: ['纯一度 (P1)'],
-  1: ['小二度 (m2)'],
-  2: ['大二度 (M2)'],
-  3: ['小三度 (m3)'],
-  4: ['大三度 (M3)'],
-  5: ['纯四度 (P4)'],
-  6: ['增四度 (A4)', '减五度 (d5)'],
-  7: ['纯五度 (P5)'],
-  8: ['小六度 (m6)'],
-  9: ['大六度 (M6)'],
-  10: ['小七度 (m7)'],
-  11: ['大七度 (M7)'],
-  12: ['纯八度 (P8)'],
-};
-
-const ALL_INTERVAL_NAMES = Object.values(SEMITONE_TO_NAMES).flat();
-
-const INTERVAL_GROUPS: Record<string, string[]> = {
-  '一度': ['纯一度 (P1)'],
-  '二度': ['小二度 (m2)', '大二度 (M2)'],
-  '三度': ['小三度 (m3)', '大三度 (M3)'],
-  '四度': ['纯四度 (P4)', '增四度 (A4)'],
-  '五度': ['纯五度 (P5)', '减五度 (d5)'],
-  '六度': ['小六度 (m6)', '大六度 (M6)'],
-  '七度': ['小七度 (m7)', '大七度 (M7)'],
-  '八度': ['纯八度 (P8)'],
-};
-
-const ADJACENT_GROUPS: Record<string, string[]> = {
-  '一度': ['二度'],
-  '二度': ['一度', '三度'],
-  '三度': ['二度', '四度'],
-  '四度': ['三度', '五度'],
-  '五度': ['四度', '六度'],
-  '六度': ['五度', '七度'],
-  '七度': ['六度', '八度'],
-  '八度': ['七度'],
-};
-
-// ============================================================
-// 音高转换工具
-// ============================================================
-
-const C2_MIDI = 36;
-const C7_MIDI = 96;
-const WHITE_KEY_MIDI_MOD = new Set([0, 2, 4, 5, 7, 9, 11]);
-const E4_MIDI = 64;
-const A3_MIDI = 57;
-const G3_MIDI = 55;
-const F4_MIDI = 65;
-
-function isWhiteKeyMidi(midi: number): boolean {
-  return WHITE_KEY_MIDI_MOD.has(((midi % 12) + 12) % 12);
-}
-
-function midiToPitch(midi: number): string {
-  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const octave = Math.floor(midi / 12) - 1;
-  const idx = ((midi % 12) + 12) % 12;
-  return `${names[idx]}${octave}`;
-}
-
-// ---- Interval spelling: degree-based enharmonic correction ----
-
-const INTERVAL_DEGREE: Record<string, number> = {
-  '纯一度 (P1)': 0,
-  '小二度 (m2)': 1, '大二度 (M2)': 1,
-  '小三度 (m3)': 2, '大三度 (M3)': 2,
-  '纯四度 (P4)': 3, '增四度 (A4)': 3,
-  '减五度 (d5)': 4, '纯五度 (P5)': 4,
-  '小六度 (m6)': 5, '大六度 (M6)': 5,
-  '小七度 (m7)': 6, '大七度 (M7)': 6,
-  '纯八度 (P8)': 7,
-};
-
-const LETTER_SEMITONES: Record<string, number> = {
-  'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
-};
-
-const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-
-const LETTER_INDEX: Record<string, number> = {
-  'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6
-};
-
-const MIDI_TO_LETTER: Record<number, string> = {
-  0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B'
-};
-
-/** Spell the target note of an interval with correct enharmonic naming.
- *  `knownMidi` is always a white-key MIDI — either the lower note (ascending)
- *  or the upper note (descending). */
-function spellTargetNote(
-  knownMidi: number,
-  knownIsUpper: boolean,
-  intervalName: string,
-  semitones: number
-): string {
-  const degree = INTERVAL_DEGREE[intervalName];
-  if (degree === undefined) {
-    return midiToPitch(knownIsUpper ? knownMidi - semitones : knownMidi + semitones);
-  }
-
-  const knownPC = ((knownMidi % 12) + 12) % 12;
-  const knownLetter = MIDI_TO_LETTER[knownPC];
-  const knownLetterIdx = LETTER_INDEX[knownLetter];
-  const knownOctave = Math.floor(knownMidi / 12) - 1;
-  const knownDiatonicStep = knownLetterIdx + knownOctave * 7;
-
-  const targetDiatonicStep = knownIsUpper
-    ? knownDiatonicStep - degree
-    : knownDiatonicStep + degree;
-
-  const targetLetterIdx = ((targetDiatonicStep % 7) + 7) % 7;
-  const targetOctave = Math.floor(targetDiatonicStep / 7);
-  const targetLetter = LETTERS[targetLetterIdx];
-  const naturalMidi = LETTER_SEMITONES[targetLetter] + (targetOctave + 1) * 12;
-
-  const actualMidi = knownIsUpper ? knownMidi - semitones : knownMidi + semitones;
-  const diff = actualMidi - naturalMidi;
-  const accidental = diff === 0 ? '' : diff > 0 ? '#'.repeat(diff) : 'b'.repeat(-diff);
-
-  return `${targetLetter}${accidental}${targetOctave}`;
-}
-
+/**
+ * Parse a spelled pitch string (letter + optional single/double accidental +
+ * octave) into a VexFlow key and accidental. Accepts `##` / `bb` since the
+ * theory spelling module can emit double accidentals.
+ */
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
-  const match = pitchStr.match(/^([A-Ga-g])(#|b)?(\d)$/);
+  const match = pitchStr.match(/^([A-Ga-g])(##|bb|#|b)?(\d)$/);
   if (!match) return { key: 'c/4', accidental: null };
   return {
     key: `${match[1].toLowerCase()}/${match[3]}`,
-    accidental: match[2] || null
+    accidental: match[2] || null,
   };
 }
 
@@ -178,167 +54,16 @@ function resolveStemDirection(keyA: string, keyB: string, clef: string): number 
   return Stem.DOWN;
 }
 
-function getClef(lowMidi: number, highMidi: number, clefPref: string): string {
-  if (clefPref === '高音谱号') return 'treble';
-  if (clefPref === '低音谱号') return 'bass';
-  const mid = (lowMidi + highMidi) / 2;
-  if (mid >= E4_MIDI) return 'treble';
-  if (mid <= A3_MIDI) return 'bass';
-  return Math.random() > 0.5 ? 'treble' : 'bass';
-}
-
-function isInSelectedClefRange(lowMidi: number, highMidi: number, clefPref: string): boolean {
-  if (clefPref === '高音谱号') return lowMidi >= G3_MIDI;
-  if (clefPref === '低音谱号') return highMidi <= F4_MIDI;
-  return true;
-}
-
 // ============================================================
-// 音程生成
+// Empty / unplaceable messages
 // ============================================================
 
-interface IntervalQuestion {
-  lowPitch: string;
-  highPitch: string;
-  lowMidi: number;
-  highMidi: number;
-  semitones: number;
-  intervalName: string;
-  clef: string;
-  isHarmonic: boolean;
-  dir: number; // 1 = 上行, -1 = 下行
-}
+type EmptyReason = Extract<GenerateResult, { ok: false }>['reason'];
 
-function generateInterval(
-  type: string,
-  direction: string,
-  clefPref: string,
-  modePref: string
-): IntervalQuestion {
-  // 1. Determine semitones
-  let semitones: number;
-  if (type === '随机') {
-    do {
-      semitones = Math.floor(Math.random() * 12) + 1;
-    } while (semitones === 6 && Math.random() > 0.5); // occasionally skip tritone for variety
-  } else {
-    const options = INTERVAL_TYPE_SEMITONES[type];
-    semitones = options[Math.floor(Math.random() * options.length)];
-  }
-
-  // 2. Pick interval name early — needed for correct enharmonic spelling
-  let namePool = SEMITONE_TO_NAMES[semitones] || [`${semitones}半音`];
-  if (type !== '随机') {
-    const typeGroup = INTERVAL_GROUPS[type] || [];
-    const filtered = namePool.filter(n => typeGroup.includes(n));
-    if (filtered.length > 0) namePool = filtered;
-  }
-  const intervalName = namePool[Math.floor(Math.random() * namePool.length)];
-
-  // 3. Determine direction
-  let dir: number;
-  if (direction === '上行') dir = 1;
-  else if (direction === '下行') dir = -1;
-  else dir = Math.random() > 0.5 ? 1 : -1;
-
-  // 4. Determine mode
-  let isHarmonic: boolean;
-  if (modePref === '和声音程') isHarmonic = true;
-  else if (modePref === '旋律音程') isHarmonic = false;
-  else isHarmonic = Math.random() > 0.5;
-
-  // 5. Compute valid starting range (ensure target stays in C2-C7)
-  const minStart = dir === 1 ? C2_MIDI : C2_MIDI + semitones;
-  const maxStart = dir === 1 ? C7_MIDI - semitones : C7_MIDI;
-
-  // 6. Pick random white-key starting MIDI that fits the selected clef range
-  const candidates: number[] = [];
-  for (let candidate = minStart; candidate <= maxStart; candidate++) {
-    if (!isWhiteKeyMidi(candidate)) continue;
-    const target = candidate + dir * semitones;
-    const low = Math.min(candidate, target);
-    const high = Math.max(candidate, target);
-    if (isInSelectedClefRange(low, high, clefPref)) {
-      candidates.push(candidate);
-    }
-  }
-
-  let startMidi = 60; // fallback C4
-  if (candidates.length > 0) {
-    startMidi = candidates[Math.floor(Math.random() * candidates.length)];
-  }
-
-  // 7. Compute target MIDI
-  const targetMidi = startMidi + dir * semitones;
-
-  // 8. Spell pitches — root is always a white key, target uses degree-based spelling
-  const startPitch = midiToPitch(startMidi);
-  const targetPitch = spellTargetNote(startMidi, dir === -1, intervalName, semitones);
-
-  const lowMidi = Math.min(startMidi, targetMidi);
-  const highMidi = Math.max(startMidi, targetMidi);
-
-  return {
-    lowPitch: lowMidi === startMidi ? startPitch : targetPitch,
-    highPitch: highMidi === startMidi ? startPitch : targetPitch,
-    lowMidi,
-    highMidi,
-    semitones,
-    intervalName,
-    clef: getClef(lowMidi, highMidi, clefPref),
-    isHarmonic,
-    dir,
-  };
-}
-
-// ============================================================
-// 选项生成
-// ============================================================
-
-function generateOptions(question: IntervalQuestion, type: string): string[] {
-  const correct = question.intervalName;
-
-  // Determine which degree group the correct answer belongs to
-  let correctDegree: string | null = null;
-  for (const [degree, names] of Object.entries(INTERVAL_GROUPS)) {
-    if (names.includes(correct)) {
-      correctDegree = degree;
-      break;
-    }
-  }
-
-  const distractors: string[] = [];
-
-  if (type === '随机') {
-    // Force at least one distractor to share the same degree, so the user
-    // must discriminate quality (e.g. 大三度 vs 小三度), not just degree.
-    if (correctDegree) {
-      const siblings = (INTERVAL_GROUPS[correctDegree] || []).filter(n => n !== correct);
-      if (siblings.length > 0) {
-        distractors.push(siblings[Math.floor(Math.random() * siblings.length)]);
-      }
-    }
-    const remaining = ALL_INTERVAL_NAMES.filter(n => n !== correct && !distractors.includes(n));
-    distractors.push(...remaining.sort(() => Math.random() - 0.5).slice(0, 3 - distractors.length));
-  } else {
-    const group = INTERVAL_GROUPS[type] || [];
-    const adjacentNames = (ADJACENT_GROUPS[type] || []).flatMap(g => INTERVAL_GROUPS[g] || []);
-    const pool = [...new Set([...group, ...adjacentNames])];
-    distractors.push(...pool
-      .filter(p => p !== correct)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3));
-  }
-
-  // Fallback
-  while (distractors.length < 3) {
-    const fallback = ALL_INTERVAL_NAMES.filter(n => n !== correct && !distractors.includes(n));
-    if (fallback.length === 0) break;
-    distractors.push(fallback[Math.floor(Math.random() * fallback.length)]);
-  }
-
-  return [correct, ...distractors.slice(0, 3)].sort(() => Math.random() - 0.5);
-}
+const EMPTY_MESSAGES: Record<EmptyReason, string> = {
+  'empty-selection': '当前没有可练习的音程，请返回重新选择音程范围。',
+  'no-placeable-interval': '所选音程无法在谱面上生成，请返回调整选择。',
+};
 
 // ============================================================
 // 组件
@@ -349,22 +74,21 @@ export default function IntervalPractice() {
   const [searchParams] = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const type = searchParams.get('type') || '随机';
-  const direction = searchParams.get('direction') || '随机';
-  const clefPref = searchParams.get('clef') || '自动';
-  const modePref = searchParams.get('mode') || '随机';
+  // Parse the scope from the query string once per URL change.
+  const subset = useMemo(() => decodeScope(searchParams), [searchParams]);
+
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
 
-  const [currentQuestion, setCurrentQuestion] = useState(() =>
-    generateInterval(type, direction, clefPref, modePref)
-  );
+  const [result, setResult] = useState<GenerateResult>(() => generateQuestion(subset));
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
+
+  const question: IntervalQuestion | null = result.ok ? result.question : null;
 
   useEffect(() => {
     setTipFading(false);
@@ -374,18 +98,19 @@ export default function IntervalPractice() {
   }, [showAudioTip]);
 
   const nextQuestion = useCallback(() => {
-    setCurrentQuestion(generateInterval(type, direction, clefPref, modePref));
+    setResult(generateQuestion(subset));
     questionStartedRef.current = Date.now();
-  }, [type, direction, clefPref, modePref]);
+  }, [subset]);
 
-  const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, currentQuestion);
+  const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, result);
 
   // VexFlow rendering
   useEffect(() => {
     if (!containerRef.current) return;
     containerRef.current.innerHTML = '';
+    if (!question) return;
 
-    const q = currentQuestion;
+    const q = question;
     const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
     const width = Math.min(500, containerRef.current.clientWidth - 20);
     renderer.resize(width, 200);
@@ -434,12 +159,16 @@ export default function IntervalPractice() {
           voice.draw(context, stave);
         }
       } else {
-        // --- 旋律音程：两音并排 ---
+        // --- 旋律音程：两音并排（按方向排序：上行低→高，下行高→低）---
+        const firstPitch = q.dir === 1 ? q.lowPitch : q.highPitch;
+        const secondPitch = q.dir === 1 ? q.highPitch : q.lowPitch;
+        const firstParsed = parsePitchForVexflow(firstPitch);
+        const secondParsed = parsePitchForVexflow(secondPitch);
         const lowParsed = parsePitchForVexflow(q.lowPitch);
         const highParsed = parsePitchForVexflow(q.highPitch);
         const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
 
-        const vfNotes = [lowParsed, highParsed].map(p => {
+        const vfNotes = [firstParsed, secondParsed].map(p => {
           const n = new StaveNote({ keys: [p.key], duration: 'h', clef: q.clef, stemDirection: stemDir });
           if (p.accidental) n.addModifier(new Accidental(p.accidental));
           return n;
@@ -453,37 +182,42 @@ export default function IntervalPractice() {
     } catch (e) {
       console.error('VexFlow error:', e);
     }
-  }, [currentQuestion]);
+  }, [question]);
 
   // 题目出现时自动播放音程（和声/上行=低→高, 下行=高→低）— 等待采样器就绪后播放
   useEffect(() => {
-    if (!audioEnabled || !currentQuestion.lowPitch || !currentQuestion.highPitch) return;
+    if (!audioEnabled || !question) return;
+    const q = question;
     let cancelled = false;
     (async () => {
       while (!audioEngine.isReady && !cancelled) {
         await new Promise<void>(r => setTimeout(r, 100));
       }
       if (cancelled) return;
-      const first = currentQuestion.isHarmonic || currentQuestion.dir === 1
-        ? currentQuestion.lowPitch : currentQuestion.highPitch;
-      const second = currentQuestion.isHarmonic || currentQuestion.dir === 1
-        ? currentQuestion.highPitch : currentQuestion.lowPitch;
-      playIntervalPairAudio(first, second);
+      if (q.isHarmonic) {
+        // 和声音程：两个音同时发声
+        playIntervalHarmonic(q.lowPitch, q.highPitch);
+      } else {
+        // 旋律音程：先后发声（上行低→高，下行高→低）
+        const first = q.dir === 1 ? q.lowPitch : q.highPitch;
+        const second = q.dir === 1 ? q.highPitch : q.lowPitch;
+        playIntervalPairAudio(first, second);
+      }
     })();
     return () => { cancelled = true; };
-  }, [currentQuestion, audioEnabled]);
+  }, [question, audioEnabled]);
 
   const options = useMemo(() => {
-    return generateOptions(currentQuestion, type);
-  }, [currentQuestion, type]);
+    return question ? buildOptions(question.interval, subset) : [];
+  }, [question, subset]);
 
   // Use a uniform font size based on the longest option text
   const optionsFontSize = useOptionsFontSize(options);
 
   const handleAnswer = (answer: string) => {
-    if (feedback !== 'none') return;
+    if (feedback !== 'none' || !question) return;
     resetBlink();
-    const correct = currentQuestion.intervalName;
+    const correct = displayName(question.correctAnswer);
     const isCorrect = answer === correct;
 
     const timeSpentMs = Date.now() - questionStartedRef.current;
@@ -512,13 +246,6 @@ export default function IntervalPractice() {
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
-  const paramLabel = [
-    type !== '随机' ? type : null,
-    direction !== '随机' ? direction : null,
-    clefPref !== '自动' ? clefPref : null,
-    modePref !== '随机' ? modePref : null,
-  ].filter(Boolean).join(' · ');
-
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease',
       background: feedback === 'correct' ? '#ecfdf5' : feedback === 'wrong' ? '#fef2f2' : 'transparent'
@@ -531,11 +258,6 @@ export default function IntervalPractice() {
           退出练习
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {paramLabel && (
-            <span style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: '600' }}>
-              {paramLabel}
-            </span>
-          )}
           <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px 14px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem' }}>
             {score}/{total} ({accuracy}%)
           </span>
@@ -573,36 +295,63 @@ export default function IntervalPractice() {
         </div>
       </header>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div
-          className="quiz-card"
-          style={{
-            background: 'white',
-            borderRadius: '32px',
-            boxShadow: feedback === 'correct' ? '0 20px 40px rgba(16,185,129,0.15)' : feedback === 'wrong' ? '0 20px 40px rgba(239,68,68,0.15)' : '0 10px 40px rgba(0,0,0,0.04)',
-            padding: '40px',
-            marginBottom: '60px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: '500px',
-            minHeight: '180px',
-            position: 'relative',
-            transform: feedback === 'wrong' ? 'translateX(10px)' : 'none',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            border: '1px solid #f9fafb'
-          }}
-        >
-          <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+      {!result.ok ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '24px' }}>
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '32px',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
+              padding: '48px',
+              maxWidth: '520px',
+              textAlign: 'center',
+              color: '#6b7280',
+              fontSize: '1.05rem',
+              fontWeight: '600',
+              lineHeight: '1.6',
+              border: '1px solid #f9fafb',
+            }}
+          >
+            {EMPTY_MESSAGES[result.reason]}
+          </div>
+          <button
+            onClick={() => navigate(-1)}
+            style={{ background: '#8b5cf6', border: 'none', padding: '12px 28px', borderRadius: '20px', fontSize: '1rem', cursor: 'pointer', color: 'white', fontWeight: '700', boxShadow: '0 4px 15px rgba(139,92,246,0.25)' }}
+          >
+            返回选择
+          </button>
         </div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            className="quiz-card"
+            style={{
+              background: 'white',
+              borderRadius: '32px',
+              boxShadow: feedback === 'correct' ? '0 20px 40px rgba(16,185,129,0.15)' : feedback === 'wrong' ? '0 20px 40px rgba(239,68,68,0.15)' : '0 10px 40px rgba(0,0,0,0.04)',
+              padding: '40px',
+              marginBottom: '60px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '500px',
+              minHeight: '180px',
+              position: 'relative',
+              transform: feedback === 'wrong' ? 'translateX(10px)' : 'none',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              border: '1px solid #f9fafb'
+            }}
+          >
+            <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+          </div>
 
-        {/* Options */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          {/* Options */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
               {options.map((opt, i) => (
                 <button
-                  key={`${currentQuestion.semitones}_${i}_${opt}`}
+                  key={`${question!.interval.id}_${i}_${opt}`}
                   onClick={() => {
                     handleAnswer(opt);
                   }}
@@ -653,7 +402,8 @@ export default function IntervalPractice() {
               ))}
             </div>
           </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
