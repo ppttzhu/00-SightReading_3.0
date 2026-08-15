@@ -137,7 +137,7 @@ export default function StageSelector() {
       >
         ← 返回
       </button>
-      <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '30px', letterSpacing: '-1px' }}>
+      <h1 className="stage-selector-title" style={{ fontSize: '2.5rem', fontWeight: '800', color: '#111827', marginTop: '12px', marginBottom: '8px', letterSpacing: '-1px' }}>
         {moduleLabel} Trials
       </h1>
 
@@ -233,12 +233,12 @@ export default function StageSelector() {
       {isTheoryModule && (
         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '760px' }}>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
-            选择要练习的音程范围，系统将在所选范围内随机生成音程练习题
+            选择要练习的音程范围，系统将随机出题
           </p>
 
           {/* Interval matrix: rows = degrees 1–8, columns = 减 小 纯 大 增. Header buttons bulk-toggle a row/column. */}
           <div style={{ width: '100%', overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: '4px', margin: '0 auto' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: '1px', margin: '0 auto' }}>
               <thead>
                 <tr>
                   <th aria-hidden="true" />
@@ -246,7 +246,7 @@ export default function StageSelector() {
                     <th key={q}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                         <span style={{ fontSize: 'clamp(0.72rem, 3vw, 0.9rem)', fontWeight: '700', color: '#4b5563' }}>{QUALITY_LABELS[q]}</span>
-                        <div style={{ display: 'flex', gap: '2px' }}>
+                        <div style={{ display: 'flex', gap: '1px' }}>
                           <button type="button" onClick={() => setGroup(entriesOfQuality(q), true)} title="全选该性质" style={groupBtnStyle}>＋</button>
                           <button type="button" onClick={() => setGroup(entriesOfQuality(q), false)} title="全不选该性质" style={groupBtnStyle}>－</button>
                         </div>
@@ -261,7 +261,7 @@ export default function StageSelector() {
                     <th>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <span style={{ fontSize: 'clamp(0.78rem, 3vw, 0.95rem)', fontWeight: '700', color: '#4b5563', whiteSpace: 'nowrap' }}>{NUMBER_LABELS[n]}</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                           <button type="button" onClick={() => setGroup(entriesOfNumber(n), true)} title="全选该度数" style={groupBtnStyle}>＋</button>
                           <button type="button" onClick={() => setGroup(entriesOfNumber(n), false)} title="全不选该度数" style={groupBtnStyle}>－</button>
                         </div>
