@@ -6,6 +6,7 @@ import { useNotesInputMode } from '../../hooks/useNotesInputMode';
 import {
   INTERVAL_CATALOG,
   QUALITY_LABELS,
+  NUMBER_LABELS,
   type CatalogInterval,
   type IntervalNumber,
   type IntervalQuality,
@@ -35,9 +36,9 @@ const CATALOG_CELL = new Map<string, CatalogInterval>(
 
 // Compact ＋ / − header buttons for bulk select / clear of a row or column.
 const groupBtnStyle: React.CSSProperties = {
-  width: '15px', height: '15px', lineHeight: '1', padding: 0, borderRadius: '4px',
-  cursor: 'pointer', fontSize: '0.6rem', fontWeight: '700', color: '#6b7280',
-  border: '1px solid #e5e7eb', background: 'white',
+  width: '20px', height: '20px', lineHeight: '1', padding: 0, borderRadius: '7px',
+  cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', color: '#6b7280',
+  border: '1px solid #d1d5db', background: 'white',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
 };
 
@@ -245,7 +246,7 @@ export default function StageSelector() {
                     <th key={q}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                         <span style={{ fontSize: 'clamp(0.72rem, 3vw, 0.9rem)', fontWeight: '700', color: '#4b5563' }}>{QUALITY_LABELS[q]}</span>
-                        <div style={{ display: 'flex', gap: '3px' }}>
+                        <div style={{ display: 'flex', gap: '2px' }}>
                           <button type="button" onClick={() => setGroup(entriesOfQuality(q), true)} title="全选该性质" style={groupBtnStyle}>＋</button>
                           <button type="button" onClick={() => setGroup(entriesOfQuality(q), false)} title="全不选该性质" style={groupBtnStyle}>－</button>
                         </div>
@@ -259,7 +260,7 @@ export default function StageSelector() {
                   <tr key={n}>
                     <th>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <span style={{ fontSize: 'clamp(0.8rem, 3.2vw, 1rem)', fontWeight: '700', color: '#4b5563', whiteSpace: 'nowrap' }}>{n}</span>
+                        <span style={{ fontSize: 'clamp(0.78rem, 3vw, 0.95rem)', fontWeight: '700', color: '#4b5563', whiteSpace: 'nowrap' }}>{NUMBER_LABELS[n]}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <button type="button" onClick={() => setGroup(entriesOfNumber(n), true)} title="全选该度数" style={groupBtnStyle}>＋</button>
                           <button type="button" onClick={() => setGroup(entriesOfNumber(n), false)} title="全不选该度数" style={groupBtnStyle}>－</button>
@@ -276,7 +277,7 @@ export default function StageSelector() {
                             type="button"
                             onClick={() => toggleCell(entry.id, !active)}
                             style={{
-                              width: '100%', minWidth: 'clamp(32px, 9.5vw, 48px)', padding: '7px 3px',
+                              width: '100%', minWidth: 'clamp(26px, 7.5vw, 40px)', padding: '7px 2px',
                               borderRadius: '8px', cursor: 'pointer',
                               fontSize: 'clamp(0.68rem, 3vw, 0.88rem)', fontWeight: '700',
                               fontFamily: 'monospace', transition: 'all 0.15s',

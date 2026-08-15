@@ -19,12 +19,18 @@ import {
 export type Subset = ReadonlySet<string>;
 
 /**
- * The default selection (Requirement 6.1): all 27 catalog intervals. The
- * learner starts with the full RCM6 pool and narrows down, which also makes the
- * coarse dropdowns start fully selected.
+ * The default selection: the common diatonic intervals — excludes the
+ * augmented and diminished qualities and the unison (1st degree). This leaves
+ * m2/M2, m3/M3, P4, P5, m6/M6, m7/M7, and P8 selected by default; the learner
+ * can add the rarer qualities/unison as needed.
  */
 export const DEFAULT_SUBSET: Subset = new Set(
-  INTERVAL_CATALOG.map((entry) => entry.id),
+  INTERVAL_CATALOG.filter(
+    (entry) =>
+      entry.number !== 1 &&
+      entry.quality !== 'augmented' &&
+      entry.quality !== 'diminished',
+  ).map((entry) => entry.id),
 );
 
 /**
