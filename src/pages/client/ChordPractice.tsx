@@ -5,15 +5,20 @@ import { useAppStore } from '../../core/store/useAppStore';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { useOptionsFontSize } from '../../hooks/useOptionsFontSize';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { playIntervalPairAudio, playIntervalHarmonic, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
-import { decodeScope } from '../../core/theory/scopeSerializer';
+import { decodeScope } from '../../core/chords/chordScopeSerializer';
 import {
   generateQuestion,
   type GenerateResult,
-  type IntervalQuestion,
-} from '../../core/theory/intervalGenerator';
-import { buildOptions } from '../../core/theory/intervalOptions';
-import { displayName } from '../../core/theory/intervalCatalog';
+  type ChordQuestion,
+} from '../../core/chords/chordGenerator';
+import { buildOptions } from '../../core/chords/chordOptions';
+import { displayLabel } from '../../core/chords/chordCatalog';
+import { playSequentialNotes } from '../../core/engine/intervalAudio';
+
+/** How long the red "wrong" feedback stays before resetting. */
+const WRONG_FEEDBACK_RESET_MS = 1200;
+/** How long the score is revealed after a correct answer in speakers-only mode. */
+const REVEAL_MS = 1000;
 
 // ============================================================
 // VexFlow rendering helpers
@@ -22,7 +27,7 @@ import { displayName } from '../../core/theory/intervalCatalog';
 /**
  * Parse a spelled pitch string (letter + optional single/double accidental +
  * octave) into a VexFlow key and accidental. Accepts `##` / `bb` since the
- * theory spelling module can emit double accidentals.
+ * chord spelling module can emit double accidentals (e.g. a Dim7 `Bbb`).
  */
 function parsePitchForVexflow(pitchStr: string): { key: string; accidental: string | null } {
   const match = pitchStr.match(/^([A-Ga-g])(##|bb|#|b)?(\d)$/);
@@ -41,17 +46,22 @@ function getDiatonicStep(key: string): number {
   return NOTE_STEP[note] + parseInt(octave) * 7;
 }
 
-function resolveStemDirection(keyA: string, keyB: string, clef: string): number {
+function resolveStemDirection(lowKey: string, highKey: string, clef: string): number {
   const middleNote = clef === 'bass' ? 'd' : 'b';
   const middleOctave = clef === 'bass' ? 3 : 4;
   const middleStep = NOTE_STEP[middleNote] + middleOctave * 7;
-  const stepA = getDiatonicStep(keyA);
-  const stepB = getDiatonicStep(keyB);
-  if (stepA > middleStep) return Stem.DOWN;
-  if (stepA < middleStep) return Stem.UP;
-  if (stepB > middleStep) return Stem.DOWN;
-  if (stepB < middleStep) return Stem.UP;
+  const lowStep = getDiatonicStep(lowKey);
+  const highStep = getDiatonicStep(highKey);
+  if (lowStep > middleStep) return Stem.DOWN;
+  if (highStep < middleStep) return Stem.UP;
   return Stem.DOWN;
+}
+
+/** Choose the clef by the chord's average MIDI (bass for low chords). */
+function clefForMidis(midis: number[]): 'treble' | 'bass' {
+  if (midis.length === 0) return 'treble';
+  const avg = midis.reduce((sum, m) => sum + m, 0) / midis.length;
+  return avg < 60 ? 'bass' : 'treble';
 }
 
 // ============================================================
@@ -61,34 +71,42 @@ function resolveStemDirection(keyA: string, keyB: string, clef: string): number 
 type EmptyReason = Extract<GenerateResult, { ok: false }>['reason'];
 
 const EMPTY_MESSAGES: Record<EmptyReason, string> = {
-  'empty-selection': '当前没有可练习的音程，请返回重新选择音程范围。',
-  'no-placeable-interval': '所选音程无法在谱面上生成，请返回调整选择。',
+  'empty-selection': '当前没有可练习的和弦，请返回重新选择和弦类型。',
+  'no-placeable-chord': '所选和弦无法在谱面上生成，请返回调整选择。',
 };
 
 // ============================================================
 // 组件
 // ============================================================
 
-export default function IntervalPractice() {
+export default function ChordPractice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Parse the scope from the query string once per URL change.
-  const subset = useMemo(() => decodeScope(searchParams), [searchParams]);
+  const selection = useMemo(() => decodeScope(searchParams), [searchParams]);
+  // Whether to show the score. Default off → speakers-only practice; the score
+  // is only revealed for REVEAL_MS after a correct answer.
+  const showScore = searchParams.get('score') === '1';
 
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
 
-  const [result, setResult] = useState<GenerateResult>(() => generateQuestion(subset));
+  const [result, setResult] = useState<GenerateResult>(() => generateQuestion(selection));
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [score, setScore] = useState(0);
   const [total, setTotal] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
+  // Speakers-only mode: briefly reveal the score after a correct answer.
+  const [revealing, setRevealing] = useState(false);
 
-  const question: IntervalQuestion | null = result.ok ? result.question : null;
+  const question: ChordQuestion | null = result.ok ? result.question : null;
+
+  // Guards playback so each question sounds exactly once per presentation.
+  const playedRef = useRef<ChordQuestion | null>(null);
 
   useEffect(() => {
     setTipFading(false);
@@ -98,96 +116,65 @@ export default function IntervalPractice() {
   }, [showAudioTip]);
 
   const nextQuestion = useCallback(() => {
-    setResult(generateQuestion(subset));
+    setResult(generateQuestion(selection));
     questionStartedRef.current = Date.now();
-  }, [subset]);
+  }, [selection]);
 
   const { noteVisible, resetBlink } = useBlinkTimer(3000, 6000, result);
 
-  // VexFlow rendering
+  // VexFlow rendering — a single stacked whole note with per-tone accidentals.
   useEffect(() => {
     if (!containerRef.current) return;
     containerRef.current.innerHTML = '';
     if (!question) return;
 
     const q = question;
-    const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
-    const width = Math.min(500, containerRef.current.clientWidth - 20);
-    renderer.resize(width, 200);
-    const context = renderer.getContext();
-
-    const stave = new Stave(10, 40, width - 40);
-    stave.addClef(q.clef);
-    stave.setContext(context).draw();
-
     try {
-      if (q.isHarmonic) {
-        // --- 和声音程 ---
-        const lowParsed = parsePitchForVexflow(q.lowPitch);
-        const highParsed = parsePitchForVexflow(q.highPitch);
+      const clef = clefForMidis(q.midis);
+      const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
+      const width = Math.min(500, containerRef.current.clientWidth - 20);
+      renderer.resize(width, 200);
+      const context = renderer.getContext();
 
-        if (q.lowPitch === q.highPitch) {
-          // 同音：和不同音一样，渲染单个全音符
-          const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
-          const note = new StaveNote({
-            keys: [lowParsed.key],
-            duration: 'w',
-            clef: q.clef,
-            stemDirection: stemDir,
-          });
-          if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental));
-          const voice = new Voice({ numBeats: 4, beatValue: 4 });
-          voice.setMode(2);
-          voice.addTickables([note]);
-          new Formatter().joinVoices([voice]).format([voice], 200);
-          voice.draw(context, stave);
-        } else {
-          const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
-          const note = new StaveNote({
-            keys: [lowParsed.key, highParsed.key],
-            duration: 'w',
-            clef: q.clef,
-            stemDirection: stemDir,
-          });
-          if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental), 0);
-          if (highParsed.accidental) note.addModifier(new Accidental(highParsed.accidental), 1);
+      const stave = new Stave(10, 40, width - 40);
+      stave.addClef(clef);
+      stave.setContext(context).draw();
 
-          const voice = new Voice({ numBeats: 4, beatValue: 4 });
-          voice.setMode(2);
-          voice.addTickables([note]);
-          new Formatter().joinVoices([voice]).format([voice], 200);
-          voice.draw(context, stave);
-        }
-      } else {
-        // --- 旋律音程：两音并排（按方向排序：上行低→高，下行高→低）---
-        const firstPitch = q.dir === 1 ? q.lowPitch : q.highPitch;
-        const secondPitch = q.dir === 1 ? q.highPitch : q.lowPitch;
-        const firstParsed = parsePitchForVexflow(firstPitch);
-        const secondParsed = parsePitchForVexflow(secondPitch);
-        const lowParsed = parsePitchForVexflow(q.lowPitch);
-        const highParsed = parsePitchForVexflow(q.highPitch);
-        const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
+      const parsed = q.pitches.map(parsePitchForVexflow);
+      const lowKey = parsed[0].key;
+      const highKey = parsed[parsed.length - 1].key;
+      const stemDir = resolveStemDirection(lowKey, highKey, clef);
 
-        const vfNotes = [firstParsed, secondParsed].map(p => {
-          const n = new StaveNote({ keys: [p.key], duration: 'h', clef: q.clef, stemDirection: stemDir });
-          if (p.accidental) n.addModifier(new Accidental(p.accidental));
-          return n;
-        });
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
-        voice.setMode(2);
-        voice.addTickables(vfNotes);
-        new Formatter().joinVoices([voice]).format([voice], 160);
-        voice.draw(context, stave);
-      }
+      const note = new StaveNote({
+        keys: parsed.map((p) => p.key),
+        duration: 'w',
+        clef,
+        stemDirection: stemDir,
+      });
+      parsed.forEach((p, i) => {
+        if (p.accidental) note.addModifier(new Accidental(p.accidental), i);
+      });
+
+      const voice = new Voice({ numBeats: 4, beatValue: 4 });
+      voice.setMode(2);
+      voice.addTickables([note]);
+      new Formatter().joinVoices([voice]).format([voice], 200);
+      voice.draw(context, stave);
     } catch (e) {
       console.error('VexFlow error:', e);
     }
   }, [question]);
 
-  // 题目出现时自动播放音程（和声=同时，旋律=先后：上行低→高，下行高→低）。
-  // 依赖 audioEnabled，所以「静音再取消静音」会重新播放一遍当前题目。
+  // Auto-play the blocked (harmonic) chord once when a new question appears — in
+  // both modes. Muting clears the guard so toggling mute off→on replays it; the
+  // two speakers (speakers-only mode) let the learner replay blocked/arpeggiated.
   useEffect(() => {
-    if (!audioEnabled || !question) return;
+    if (!audioEnabled) {
+      playedRef.current = null;
+      return;
+    }
+    if (!question) return;
+    if (playedRef.current === question) return;
     const q = question;
     let cancelled = false;
     (async () => {
@@ -195,34 +182,55 @@ export default function IntervalPractice() {
         await new Promise<void>(r => setTimeout(r, 100));
       }
       if (cancelled) return;
-      if (q.isHarmonic) {
-        playIntervalHarmonic(q.lowPitch, q.highPitch);
-      } else {
-        const first = q.dir === 1 ? q.lowPitch : q.highPitch;
-        const second = q.dir === 1 ? q.highPitch : q.lowPitch;
-        playIntervalPairAudio(first, second);
-      }
+      if (playedRef.current === q) return;
+      playedRef.current = q;
+      audioEngine.playNotes(q.pitches);
     })();
     return () => { cancelled = true; };
   }, [question, audioEnabled]);
 
-  const options = useMemo(() => {
-    return question ? buildOptions(question.interval, subset) : [];
-  }, [question, subset]);
+  // Ensure audio is on for an explicit play request (speaker click).
+  const ensureAudioOn = () => {
+    if (!audioEngine.enabled) {
+      audioEngine.setEnabled(true);
+      setAudioEnabled(true);
+    }
+    void audioEngine.prime();
+  };
 
-  // Use a uniform font size based on the longest option text
+  // Left speaker: play the chord as a blocked/harmonic chord (all tones at once).
+  const playHarmonic = () => {
+    if (!question) return;
+    ensureAudioOn();
+    audioEngine.stop();
+    audioEngine.playNotes(question.pitches);
+  };
+
+  // Right speaker: play the chord arpeggiated/melodic (tones in sequence).
+  const playMelodic = () => {
+    if (!question) return;
+    ensureAudioOn();
+    audioEngine.stop();
+    playSequentialNotes(question.pitches);
+  };
+
+  const options = useMemo(() => {
+    return question ? buildOptions(question.chordType, selection) : [];
+  }, [question, selection]);
+
+  // Use a uniform font size based on the longest option text.
   const optionsFontSize = useOptionsFontSize(options);
 
   const handleAnswer = (answer: string) => {
     if (feedback !== 'none' || !question) return;
     resetBlink();
-    const correct = displayName(question.correctAnswer);
+    const correct = displayLabel(question.correctAnswer);
     const isCorrect = answer === correct;
 
     const timeSpentMs = Date.now() - questionStartedRef.current;
     recordPractice({
-      quizId: `prac_theory_${correct}`,
-      module: 'theory',
+      quizId: `prac_chord_${question.chordType.id}`,
+      module: 'patterns',
       isCorrect,
       answeredWrong: isCorrect ? undefined : answer,
       timeSpentMs,
@@ -232,11 +240,15 @@ export default function IntervalPractice() {
     if (isCorrect) {
       setScore(s => s + 1);
       setFeedback('correct');
+      // Speakers-only mode: reveal the score for REVEAL_MS before advancing.
+      if (!showScore) setRevealing(true);
+      const delay = showScore ? 600 : REVEAL_MS;
       setTimeout(() => {
         audioEngine.stop();
         setFeedback('none');
+        if (!showScore) setRevealing(false);
         nextQuestion();
-      }, 600);
+      }, delay);
     } else {
       setFeedback('wrong');
       setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
@@ -286,7 +298,7 @@ export default function IntervalPractice() {
             </button>
             {showAudioTip && (
               <div style={{ position: 'absolute', right: 0, top: '44px', background: '#1f2937', color: 'white', borderRadius: '10px', padding: '8px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', opacity: tipFading ? 0 : 1, transition: 'opacity 0.5s ease' }}>
-                {audioEnabled ? '音效已开启，静音后再开启可重播' : '音效已关闭'}
+                {audioEnabled ? '音效已开启，出题时会同时播放和弦各音' : '音效已关闭'}
                 <div style={{ position: 'absolute', top: '-5px', right: '12px', width: '10px', height: '10px', background: '#1f2937', transform: 'rotate(45deg)' }} />
               </div>
             )}
@@ -342,7 +354,38 @@ export default function IntervalPractice() {
               border: '1px solid #f9fafb'
             }}
           >
-            <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+            <div ref={containerRef} data-testid="chord-notation" style={{ opacity: (showScore ? noteVisible : revealing) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+
+            {/* Speakers-only mode: two speakers to hear the chord (blocked / arpeggiated) */}
+            {!showScore && !revealing && (
+              <div data-testid="chord-speakers" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '56px' }}>
+                {([
+                  { key: 'harmonic', label: '柱式', title: '播放柱式和弦（同时）', onClick: playHarmonic, color: '#8b5cf6' },
+                  { key: 'melodic', label: '分解', title: '播放分解和弦（先后）', onClick: playMelodic, color: '#10b981' },
+                ] as const).map(({ key, label, title, onClick, color }) => (
+                  <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      title={title}
+                      aria-label={title}
+                      style={{ background: `${color}12`, border: `2px solid ${color}`, borderRadius: '50%', width: '72px', height: '72px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color, transition: 'all 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+                      onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                    >
+                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                      </svg>
+                    </button>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Options */}
@@ -350,7 +393,7 @@ export default function IntervalPractice() {
             <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
               {options.map((opt, i) => (
                 <button
-                  key={`${question!.interval.id}_${i}_${opt}`}
+                  key={`${question!.chordType.id}_${i}_${opt}`}
                   onClick={() => {
                     handleAnswer(opt);
                   }}

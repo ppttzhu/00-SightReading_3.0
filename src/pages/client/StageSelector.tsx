@@ -18,6 +18,17 @@ import {
   isNonEmpty,
 } from '../../core/theory/intervalSelection';
 import { SCOPE_PARAM, encodeScope } from '../../core/theory/scopeSerializer';
+import { CHORD_CATALOG, displayLabel } from '../../core/chords/chordCatalog';
+import {
+  type SelectedChordTypes,
+  DEFAULT_SELECTION,
+  toggleType,
+  isNonEmpty as isChordSelectionNonEmpty,
+} from '../../core/chords/chordSelection';
+import {
+  SCOPE_PARAM as CHORD_SCOPE_PARAM,
+  encodeScope as encodeChordScope,
+} from '../../core/chords/chordScopeSerializer';
 
 // Catalog interval numbers (1..8) — table rows.
 const INTERVAL_NUMBERS: IntervalNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -75,11 +86,19 @@ export default function StageSelector() {
   // Theory practice scope: a set of catalog interval IDs (Selected_Interval_Subset).
   const [subset, setSubset] = useState<Subset>(DEFAULT_SUBSET);
 
+  // Patterns (和弦) random-practice scope: a set of chord catalog IDs.
+  const [chordSelection, setChordSelection] = useState<SelectedChordTypes>(DEFAULT_SELECTION);
+  // Whether to show the score during chord practice. Default off: the practice
+  // screen shows two speakers (blocked / arpeggiated) and only reveals the score
+  // for 1s after a correct answer.
+  const [showChordScore, setShowChordScore] = useState(false);
+
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
   const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
 
   const isNotesModule = moduleId === 'notes';
   const isTheoryModule = moduleId === 'theory';
+  const isPatternsModule = moduleId === 'patterns';
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
   const getAllStages = useAppStore(state => state.getAllStages);
@@ -127,6 +146,19 @@ export default function StageSelector() {
   const handleStartTheoryPractice = () => {
     if (!canStartTheoryPractice) return;
     navigate(`/client/practice/intervals?${SCOPE_PARAM}=${encodeScope(subset)}`);
+  };
+
+  // Chord random-practice scope (Selected_Chord_Types) — toggle, guard, start.
+  const canStartChordPractice = isChordSelectionNonEmpty(chordSelection);
+
+  const toggleChord = (id: string, checked: boolean) => {
+    setChordSelection((prev) => toggleType(prev, id, checked));
+  };
+
+  const handleStartChordPractice = () => {
+    if (!canStartChordPractice) return;
+    const scoreParam = showChordScore ? '&score=1' : '';
+    navigate(`/client/practice/chords?${CHORD_SCOPE_PARAM}=${encodeChordScope(chordSelection)}${scoreParam}`);
   };
 
   return (
@@ -317,8 +349,71 @@ export default function StageSelector() {
           </button>
         </div>
       )}
-      {/* Stages grid for modules without practice config (symbols, patterns) */}
-      {!isNotesModule && !isTheoryModule && (
+      {/* Patterns (和弦) random-practice scope selector */}
+      {isPatternsModule && (
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '620px' }}>
+          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
+            选择要练习的和弦类型，系统将随机出题
+          </p>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+            {CHORD_CATALOG.map((entry) => {
+              const active = chordSelection.has(entry.id);
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => toggleChord(entry.id, !active)}
+                  aria-pressed={active}
+                  style={{
+                    padding: '10px 18px', borderRadius: '20px', cursor: 'pointer',
+                    fontSize: '0.95rem', fontWeight: '700', fontFamily: 'monospace',
+                    transition: 'all 0.15s',
+                    border: active ? `2px solid ${moduleColor}` : '2px solid #e5e7eb',
+                    background: active ? `${moduleColor}12` : 'white',
+                    color: active ? moduleColor : '#374151',
+                  }}
+                >
+                  {displayLabel(entry)}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Show-score toggle (default off → speakers-only practice) */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#374151', fontSize: '0.95rem', fontWeight: 600 }}>
+            <input
+              type="checkbox"
+              checked={showChordScore}
+              onChange={(e) => setShowChordScore(e.target.checked)}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+            显示乐谱
+          </label>
+
+          {!canStartChordPractice && (
+            <p style={{ color: '#f87171', fontSize: '0.85rem', margin: 0 }}>请至少选择一个和弦</p>
+          )}
+
+          <button
+            onClick={handleStartChordPractice}
+            disabled={!canStartChordPractice}
+            style={{
+              marginTop: '4px', padding: '14px 40px', borderRadius: '24px', border: 'none',
+              background: canStartChordPractice ? moduleColor : '#94a3b8',
+              color: 'white', fontSize: '1.1rem', fontWeight: '700',
+              cursor: canStartChordPractice ? 'pointer' : 'not-allowed',
+              boxShadow: canStartChordPractice ? `0 8px 24px ${moduleColor}40` : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            🎵 开始练习
+          </button>
+        </div>
+      )}
+
+      {/* Stages grid for modules without practice config (symbols) */}
+      {!isNotesModule && !isTheoryModule && !isPatternsModule && (
         <>
           {stages.length === 0 ? (
             <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>

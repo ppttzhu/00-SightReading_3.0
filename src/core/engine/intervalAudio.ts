@@ -15,9 +15,8 @@ export function playSequentialNotes(notes: string[]) {
     if (i === 0) {
       void audioEngine.playNote(toneNote);
     } else {
-      setTimeout(() => {
-        void audioEngine.playNotes([toneNote]);
-      }, STAGGER_DELAY_MS * i);
+      // Tracked so stop() can cancel pending notes when advancing questions.
+      audioEngine.scheduleNotes([toneNote], STAGGER_DELAY_MS * i, false);
     }
   });
 }
@@ -28,10 +27,11 @@ export function playSequentialNotes(notes: string[]) {
 export function playIntervalPairAudio(firstPitch: string, secondPitch: string) {
   const first = pitchToToneNote(firstPitch);
   const second = pitchToToneNote(secondPitch);
-  void audioEngine.playNote(first);
-  setTimeout(() => {
-    void audioEngine.playNotes([second]);
-  }, STAGGER_DELAY_MS);
+  void audioEngine.playNotes([first]);
+  // 叠加触发第二个音，不释放第一个音 —— 两个音自然衰减到相同长度，使旋律音程与
+  // 和声音程/和弦的音效长度一致。通过 scheduleNotes 计划，以便切换到下一题时
+  // （stop()）能取消尚未响起的第二个音。
+  audioEngine.scheduleNotes([second], STAGGER_DELAY_MS, true);
 }
 
 /** 同时弹响一对音（和声音程用）：两个音在同一时刻发声。 */

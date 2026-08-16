@@ -35,6 +35,8 @@ class AudioEngine {
   private activeNotes: string[] = [];
   private endTimer: ReturnType<typeof setTimeout> | null = null;
   private fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Pending delayed-note timers (e.g. the melodic stagger), cancelled on stop. */
+  private scheduledTimers = new Set<ReturnType<typeof setTimeout>>();
   private listeners = new Set<NoteListener>();
   private silentUnlockAudio: HTMLAudioElement | null = null;
   private silentUnlockUrl: string | null = null;
@@ -88,6 +90,7 @@ class AudioEngine {
   }
 
   private releaseAudioSession() {
+    this.clearScheduledTimers();
     if (this.activeNotes.length && this.sampler) {
       const now = Tone.now();
       for (const note of this.activeNotes) {
@@ -137,6 +140,29 @@ class AudioEngine {
       clearTimeout(this.fadeTimer);
       this.fadeTimer = null;
     }
+  }
+
+  /** Cancel every pending delayed-note timer (used when cutting playback). */
+  private clearScheduledTimers() {
+    for (const timer of this.scheduledTimers) {
+      clearTimeout(timer);
+    }
+    this.scheduledTimers.clear();
+  }
+
+  /**
+   * Schedule a group of notes to play after `delayMs`. When `additive` is true
+   * the notes are added without releasing what is already ringing (melodic
+   * stagger). The timer is tracked so `stop()` cancels it — this prevents a
+   * previous question's delayed note from sounding over the next question.
+   */
+  public scheduleNotes(notes: string[], delayMs: number, additive = false) {
+    const timer = setTimeout(() => {
+      this.scheduledTimers.delete(timer);
+      if (additive) void this.playNotesAdditive(notes);
+      else void this.playNotes(notes);
+    }, delayMs);
+    this.scheduledTimers.add(timer);
   }
 
   private scheduleActiveClear() {
@@ -249,6 +275,9 @@ class AudioEngine {
   }
 
   public stop(opts?: StopOptions) {
+    // Always cancel pending delayed notes so nothing from the previous question
+    // sounds after we cut playback — even if nothing is currently ringing.
+    this.clearScheduledTimers();
     if (this.activeNotes.length === 0) {
       this.clearEndTimer();
       this.clearFadeTimer();
@@ -333,6 +362,32 @@ class AudioEngine {
       this.sampler.triggerAttack(n, now);
     }
     this.activeNotes = unique;
+    this.scheduleActiveClear();
+  }
+
+  /**
+   * 叠加触发多个音，而不释放当前正在响的音（用于旋律音程：先弹的音继续保持，
+   * 后弹的音加进来，两个音都自然衰减到相同长度，听感一致）。
+   */
+  public async playNotesAdditive(notes: string[]) {
+    if (!this.enabled) return;
+    const unique = [...new Set(notes.filter(Boolean))];
+    if (unique.length === 0) return;
+
+    await this.prime();
+    if (Tone.context.state !== 'running') {
+      await Tone.start();
+    }
+    if (!this.isReady || !this.sampler) return;
+
+    const now = Tone.now();
+    this.clearFadeTimer();
+
+    // 不释放已有的音，直接叠加触发。
+    for (const n of unique) {
+      this.sampler.triggerAttack(n, now);
+    }
+    this.activeNotes = [...new Set([...this.activeNotes, ...unique])];
     this.scheduleActiveClear();
   }
 }
