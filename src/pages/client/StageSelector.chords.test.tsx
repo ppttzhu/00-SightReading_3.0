@@ -31,7 +31,7 @@ import { DEFAULT_SELECTION } from '../../core/chords/chordSelection';
 // useParams sees moduleId='patterns'.
 function renderPatterns() {
   return render(
-    <MemoryRouter initialEntries={['/client/free/patterns']}>
+    <MemoryRouter initialEntries={['/client/free/chords']}>
       <Routes>
         <Route path="/client/free/:moduleId" element={<StageSelector />} />
       </Routes>
