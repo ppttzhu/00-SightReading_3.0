@@ -119,7 +119,7 @@ describe('ChordPractice component', () => {
     expect(recordPractice).toHaveBeenCalledTimes(1);
     expect(recordPractice.mock.calls[0][0]).toMatchObject({
       quizId: 'prac_chord_maj',
-      module: 'patterns',
+      module: 'chords',
       isCorrect: true,
     });
 
@@ -140,7 +140,7 @@ describe('ChordPractice component', () => {
     expect(recordPractice).toHaveBeenCalledTimes(1);
     expect(recordPractice.mock.calls[0][0]).toMatchObject({
       quizId: 'prac_chord_maj',
-      module: 'patterns',
+      module: 'chords',
       isCorrect: false,
       answeredWrong: 'min',
     });
