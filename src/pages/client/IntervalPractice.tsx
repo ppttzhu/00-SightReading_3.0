@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
-import { useOptionsFontSize } from '../../hooks/useOptionsFontSize';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { playIntervalPairAudio, playIntervalHarmonic, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
 import { decodeScope } from '../../core/theory/scopeSerializer';
@@ -12,8 +11,19 @@ import {
   type GenerateResult,
   type IntervalQuestion,
 } from '../../core/theory/intervalGenerator';
-import { buildOptions } from '../../core/theory/intervalOptions';
-import { displayName } from '../../core/theory/intervalCatalog';
+import {
+  CATALOG_BY_ID,
+  displayName,
+  QUALITY_LABELS,
+  NUMBER_LABELS,
+  type IntervalNumber,
+  type IntervalQuality,
+} from '../../core/theory/intervalCatalog';
+
+/** Quality answer options, in fixed display order (减 小 纯 大 增). */
+const QUALITY_ORDER: IntervalQuality[] = ['diminished', 'minor', 'perfect', 'major', 'augmented'];
+/** Number answer options, in fixed display order (1–8). */
+const NUMBER_ORDER: IntervalNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
 // ============================================================
 // VexFlow rendering helpers
@@ -65,6 +75,9 @@ const EMPTY_MESSAGES: Record<EmptyReason, string> = {
   'no-placeable-interval': '所选音程无法在谱面上生成，请返回调整选择。',
 };
 
+/** How long the score is revealed after a correct answer in speakers-only mode. */
+const REVEAL_MS = 1000;
+
 // ============================================================
 // 组件
 // ============================================================
@@ -76,6 +89,9 @@ export default function IntervalPractice() {
 
   // Parse the scope from the query string once per URL change.
   const subset = useMemo(() => decodeScope(searchParams), [searchParams]);
+  // Whether to show the score. Default off → speakers-only practice; the score
+  // is only revealed for REVEAL_MS after a correct answer.
+  const showScore = searchParams.get('score') === '1';
 
   const { recordPractice } = useAppStore();
   const questionStartedRef = useRef(Date.now());
@@ -87,8 +103,25 @@ export default function IntervalPractice() {
   const [audioEnabled, setAudioEnabled] = useState(audioEngine.enabled);
   const [showAudioTip, setShowAudioTip] = useState(true);
   const [tipFading, setTipFading] = useState(false);
+  // Speakers-only mode: briefly reveal the score after a correct answer.
+  const [revealing, setRevealing] = useState(false);
+  // Two-click answer: the learner picks one quality and one number.
+  const [selectedQuality, setSelectedQuality] = useState<IntervalQuality | null>(null);
+  const [selectedNumber, setSelectedNumber] = useState<IntervalNumber | null>(null);
 
   const question: IntervalQuestion | null = result.ok ? result.question : null;
+
+  // Answer options are fixed and derived from the practice scope: only the
+  // qualities / numbers that actually occur among the selected intervals.
+  const { qualityOptions, numberOptions } = useMemo(() => {
+    const entries = [...subset]
+      .map((id) => CATALOG_BY_ID.get(id))
+      .filter((e): e is NonNullable<typeof e> => e !== undefined);
+    return {
+      qualityOptions: QUALITY_ORDER.filter((q) => entries.some((e) => e.quality === q)),
+      numberOptions: NUMBER_ORDER.filter((n) => entries.some((e) => e.number === n)),
+    };
+  }, [subset]);
 
   useEffect(() => {
     setTipFading(false);
@@ -99,6 +132,8 @@ export default function IntervalPractice() {
 
   const nextQuestion = useCallback(() => {
     setResult(generateQuestion(subset));
+    setSelectedQuality(null);
+    setSelectedNumber(null);
     questionStartedRef.current = Date.now();
   }, [subset]);
 
@@ -206,25 +241,46 @@ export default function IntervalPractice() {
     return () => { cancelled = true; };
   }, [question, audioEnabled]);
 
-  const options = useMemo(() => {
-    return question ? buildOptions(question.interval, subset) : [];
-  }, [question, subset]);
+  // Ensure audio is on for an explicit play request (speaker click).
+  const ensureAudioOn = () => {
+    if (!audioEngine.enabled) {
+      audioEngine.setEnabled(true);
+      setAudioEnabled(true);
+    }
+    void audioEngine.prime();
+  };
 
-  // Use a uniform font size based on the longest option text
-  const optionsFontSize = useOptionsFontSize(options);
+  // Left speaker: play the interval harmonically (both notes at once).
+  const playHarmonic = () => {
+    if (!question) return;
+    ensureAudioOn();
+    audioEngine.stop();
+    playIntervalHarmonic(question.lowPitch, question.highPitch);
+  };
 
-  const handleAnswer = (answer: string) => {
-    if (feedback !== 'none' || !question) return;
+  // Right speaker: play the interval melodically (先后：上行低→高，下行高→低).
+  const playMelodic = () => {
+    if (!question) return;
+    ensureAudioOn();
+    audioEngine.stop();
+    const first = question.dir === 1 ? question.lowPitch : question.highPitch;
+    const second = question.dir === 1 ? question.highPitch : question.lowPitch;
+    playIntervalPairAudio(first, second);
+  };
+
+  // Evaluate once both a quality and a number have been picked.
+  const evaluateAnswer = (q: IntervalQuality, n: IntervalNumber) => {
+    if (!question) return;
     resetBlink();
-    const correct = displayName(question.correctAnswer);
-    const isCorrect = answer === correct;
+    const isCorrect =
+      question.interval.quality === q && question.interval.number === n;
 
     const timeSpentMs = Date.now() - questionStartedRef.current;
     recordPractice({
-      quizId: `prac_theory_${correct}`,
+      quizId: `prac_theory_${displayName(question.correctAnswer)}`,
       module: 'theory',
       isCorrect,
-      answeredWrong: isCorrect ? undefined : answer,
+      answeredWrong: isCorrect ? undefined : `${QUALITY_LABELS[q]}${NUMBER_LABELS[n]}`,
       timeSpentMs,
     });
 
@@ -232,15 +288,37 @@ export default function IntervalPractice() {
     if (isCorrect) {
       setScore(s => s + 1);
       setFeedback('correct');
+      // Speakers-only mode: reveal the score for REVEAL_MS before advancing.
+      if (!showScore) setRevealing(true);
+      const delay = showScore ? 600 : REVEAL_MS;
       setTimeout(() => {
         audioEngine.stop();
         setFeedback('none');
+        if (!showScore) setRevealing(false);
         nextQuestion();
-      }, 600);
+      }, delay);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
+      setTimeout(() => {
+        setFeedback('none');
+        setSelectedQuality(null);
+        setSelectedNumber(null);
+      }, WRONG_FEEDBACK_RESET_MS);
     }
+  };
+
+  // Pick a quality; if a number is already picked, evaluate the pair.
+  const chooseQuality = (q: IntervalQuality) => {
+    if (feedback !== 'none') return;
+    setSelectedQuality(q);
+    if (selectedNumber !== null) evaluateAnswer(q, selectedNumber);
+  };
+
+  // Pick a number; if a quality is already picked, evaluate the pair.
+  const chooseNumber = (n: IntervalNumber) => {
+    if (feedback !== 'none') return;
+    setSelectedNumber(n);
+    if (selectedQuality !== null) evaluateAnswer(selectedQuality, n);
   };
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -342,63 +420,83 @@ export default function IntervalPractice() {
               border: '1px solid #f9fafb'
             }}
           >
-            <div ref={containerRef} style={{ opacity: noteVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+            <div ref={containerRef} data-testid="interval-notation" style={{ opacity: (showScore ? noteVisible : revealing) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+
+            {/* Speakers-only mode: two speakers to hear the interval (harmonic / melodic) */}
+            {!showScore && !revealing && (
+              <div data-testid="interval-speakers" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '56px' }}>
+                {([
+                  { key: 'harmonic', label: '柱式', title: '播放和声音程（同时）', onClick: playHarmonic, color: '#8b5cf6' },
+                  { key: 'melodic', label: '分解', title: '播放旋律音程（先后）', onClick: playMelodic, color: '#10b981' },
+                ] as const).map(({ key, label, title, onClick, color }) => (
+                  <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      title={title}
+                      aria-label={title}
+                      style={{ background: `${color}12`, border: `2px solid ${color}`, borderRadius: '50%', width: '72px', height: '72px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color, transition: 'all 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+                      onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                    >
+                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                      </svg>
+                    </button>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Options */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-            <div className="quiz-options" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px' }}>
-              {options.map((opt, i) => (
-                <button
-                  key={`${question!.interval.id}_${i}_${opt}`}
-                  onClick={() => {
-                    handleAnswer(opt);
-                  }}
-                  style={{
-                    minWidth: '140px',
-                    maxWidth: '260px',
-                    padding: '14px 20px',
-                    borderRadius: '20px',
-                    border: '1px solid #f3f4f6',
-                    background: 'white',
-                    fontSize: optionsFontSize,
-                    fontWeight: '700',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.03)',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    lineHeight: '1.4',
-                    textAlign: 'center'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = '0 12px 20px rgba(0,0,0,0.06)';
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                  }}
-                  onMouseDown={e => {
-                    if (audioEnabled) void audioEngine.prime();
-                    e.currentTarget.style.transform = 'translateY(2px) scale(0.96)';
-                    e.currentTarget.style.background = '#f8fafc';
-                    e.currentTarget.style.color = '#8b5cf6';
-                  }}
-                  onMouseUp={e => {
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.color = '#374151';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.background = 'white';
-                    e.currentTarget.style.color = '#374151';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.03)';
-                    e.currentTarget.style.borderColor = '#f3f4f6';
-                  }}
-                >
-                  {opt}
-                </button>
-              ))}
+          {/* Two-click answer: pick a quality (row 1) and a number (row 2) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {qualityOptions.map((q) => {
+                const active = selectedQuality === q;
+                return (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => chooseQuality(q)}
+                    style={{
+                      minWidth: '56px', padding: '12px 18px', borderRadius: '16px', cursor: 'pointer',
+                      fontSize: '1.05rem', fontWeight: '700', transition: 'all 0.15s',
+                      border: active ? '2px solid #8b5cf6' : '2px solid #e5e7eb',
+                      background: active ? '#8b5cf612' : 'white',
+                      color: active ? '#8b5cf6' : '#374151',
+                    }}
+                  >
+                    {QUALITY_LABELS[q]}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {numberOptions.map((n) => {
+                const active = selectedNumber === n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => chooseNumber(n)}
+                    style={{
+                      minWidth: '48px', padding: '12px 16px', borderRadius: '16px', cursor: 'pointer',
+                      fontSize: '1.05rem', fontWeight: '700', fontFamily: 'monospace', transition: 'all 0.15s',
+                      border: active ? '2px solid #8b5cf6' : '2px solid #e5e7eb',
+                      background: active ? '#8b5cf612' : 'white',
+                      color: active ? '#8b5cf6' : '#374151',
+                    }}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
