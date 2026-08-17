@@ -85,6 +85,9 @@ export default function StageSelector() {
 
   // Theory practice scope: a set of catalog interval IDs (Selected_Interval_Subset).
   const [subset, setSubset] = useState<Subset>(DEFAULT_SUBSET);
+  // Whether to show the score during interval practice. Default off → two
+  // speakers, score revealed 1s after a correct answer.
+  const [showIntervalScore, setShowIntervalScore] = useState(false);
 
   // Patterns (和弦) random-practice scope: a set of chord catalog IDs.
   const [chordSelection, setChordSelection] = useState<SelectedChordTypes>(DEFAULT_SELECTION);
@@ -145,7 +148,8 @@ export default function StageSelector() {
 
   const handleStartTheoryPractice = () => {
     if (!canStartTheoryPractice) return;
-    navigate(`/client/practice/intervals?${SCOPE_PARAM}=${encodeScope(subset)}`);
+    const scoreParam = showIntervalScore ? '&score=1' : '';
+    navigate(`/client/practice/intervals?${SCOPE_PARAM}=${encodeScope(subset)}${scoreParam}`);
   };
 
   // Chord random-practice scope (Selected_Chord_Types) — toggle, guard, start.
@@ -328,6 +332,17 @@ export default function StageSelector() {
               </tbody>
             </table>
           </div>
+
+          {/* Show-score toggle (default off → speakers-only practice) */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#374151', fontSize: '0.95rem', fontWeight: 600 }}>
+            <input
+              type="checkbox"
+              checked={showIntervalScore}
+              onChange={(e) => setShowIntervalScore(e.target.checked)}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+            显示乐谱
+          </label>
 
           {!canStartTheoryPractice && (
             <p style={{ color: '#f87171', fontSize: '0.85rem', margin: 0 }}>请至少选择一个音程</p>
