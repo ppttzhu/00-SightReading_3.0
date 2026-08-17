@@ -230,7 +230,7 @@ export default function ChordPractice() {
     const timeSpentMs = Date.now() - questionStartedRef.current;
     recordPractice({
       quizId: `prac_chord_${question.chordType.id}`,
-      module: 'patterns',
+      module: 'chords',
       isCorrect,
       answeredWrong: isCorrect ? undefined : answer,
       timeSpentMs,

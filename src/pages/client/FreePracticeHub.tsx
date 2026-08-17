@@ -27,11 +27,11 @@ const freeModules = [
     id: 'chords',
     title: '和弦识别练习',
     label: 'Chord',
-    detail: '从老师出好的和弦题库中随机抽题，认出和弦名。',
+    detail: '选择和弦类型，系统随机出题，听音辨认和弦。',
     color: '#d97706',
     bg: '#fffbeb',
     icon: Guitar,
-    action: '/client/free/patterns',  // 和弦题存在 patterns 模块
+    action: '/client/free/chords',
   },
   {
     id: 'symbols',

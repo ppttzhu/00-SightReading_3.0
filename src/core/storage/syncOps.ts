@@ -230,7 +230,7 @@ export async function syncRewriteStageOrder(
 export async function syncRecordPractice(params: {
   stageId?: string;
   quizId: string;
-  module: 'notes' | 'symbols' | 'theory' | 'patterns';
+  module: 'notes' | 'symbols' | 'theory' | 'chords' | 'patterns';
   isCorrect: boolean;
   answeredWrong?: string;
   timeSpentMs?: number;

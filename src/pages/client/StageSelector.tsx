@@ -57,6 +57,7 @@ const MODULE_LABELS: Record<string, string> = {
   notes: '单音',
   symbols: '音乐表情记号',
   theory: '双音/音程关系',
+  chords: '和弦识别',
   patterns: '音型',
 };
 
@@ -64,6 +65,7 @@ const MODULE_COLORS: Record<string, string> = {
   notes: '#3b82f6',
   symbols: '#ec4899',
   theory: '#8b5cf6',
+  chords: '#d97706',
   patterns: '#10b981',
 };
 
@@ -101,7 +103,7 @@ export default function StageSelector() {
 
   const isNotesModule = moduleId === 'notes';
   const isTheoryModule = moduleId === 'theory';
-  const isPatternsModule = moduleId === 'patterns';
+  const isChordsModule = moduleId === 'chords';
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
   const getAllStages = useAppStore(state => state.getAllStages);
@@ -364,8 +366,8 @@ export default function StageSelector() {
           </button>
         </div>
       )}
-      {/* Patterns (和弦) random-practice scope selector */}
-      {isPatternsModule && (
+      {/* Chord (和弦识别) random-practice scope selector */}
+      {isChordsModule && (
         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '620px' }}>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
             选择要练习的和弦类型，系统将随机出题
@@ -427,8 +429,8 @@ export default function StageSelector() {
         </div>
       )}
 
-      {/* Stages grid for modules without practice config (symbols) */}
-      {!isNotesModule && !isTheoryModule && !isPatternsModule && (
+      {/* Stages grid for modules without practice config (symbols, 音型 patterns) */}
+      {!isNotesModule && !isTheoryModule && !isChordsModule && (
         <>
           {stages.length === 0 ? (
             <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
