@@ -16,6 +16,7 @@ import InteractiveQuiz from './pages/client/InteractiveQuiz';
 import PracticeQuiz from './pages/client/PracticeQuiz';
 import IntervalPractice from './pages/client/IntervalPractice';
 import ChordPractice from './pages/client/ChordPractice';
+import ProgressionPractice from './pages/client/ProgressionPractice';
 import ProfilePage from './pages/client/ProfilePage';
 import AdventureMap from './pages/client/AdventureMap';
 import FreePracticeHub from './pages/client/FreePracticeHub';
@@ -42,6 +43,7 @@ function App() {
           <Route path="quiz/:stageId" element={<InteractiveQuiz />} />
           <Route path="practice/intervals" element={<IntervalPractice />} />
           <Route path="practice/chords" element={<ChordPractice />} />
+          <Route path="practice/progression" element={<ProgressionPractice />} />
           <Route path="practice/:moduleId" element={<PracticeQuiz />} />
           <Route path="profile" element={<Navigate to="/client/profile/ranking" replace />} />
           <Route path="profile/ranking" element={<ProfilePage />} />

@@ -29,6 +29,25 @@ import {
   SCOPE_PARAM as CHORD_SCOPE_PARAM,
   encodeScope as encodeChordScope,
 } from '../../core/chords/chordScopeSerializer';
+import { LEVEL6_PROGRESSIONS, type ProgressionId } from '../../core/progression/progressions';
+import {
+  type SelectedProgressions,
+  DEFAULT_SELECTION as DEFAULT_PROGRESSION_SELECTION,
+  toggleProgression,
+  isNonEmpty as isProgressionSelectionNonEmpty,
+} from '../../core/progression/progressionSelection';
+import {
+  SCOPE_PARAM as PROGRESSION_SCOPE_PARAM,
+  encodeScope as encodeProgressionScope,
+} from '../../core/progression/progressionScopeSerializer';
+
+/** Display labels for the four progressions in the scope selector — Roman numerals only (case conveys major/minor). */
+const PROGRESSION_LABELS: Record<ProgressionId, string> = {
+  maj_sub: 'I – IV – I',
+  maj_dom: 'I – V – I',
+  min_sub: 'i – iv – i',
+  min_dom: 'i – V – i',
+};
 
 // Catalog interval numbers (1..8) — table rows.
 const INTERVAL_NUMBERS: IntervalNumber[] = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -98,12 +117,19 @@ export default function StageSelector() {
   // for 1s after a correct answer.
   const [showChordScore, setShowChordScore] = useState(false);
 
+  // Patterns (和声进行) RCM6 progression scope: a set of ProgressionIds.
+  const [progressionSelection, setProgressionSelection] = useState<SelectedProgressions>(DEFAULT_PROGRESSION_SELECTION);
+  // Whether to show the score during progression practice. Default off → one
+  // speaker, score revealed 1s after a correct answer.
+  const [showProgressionScore, setShowProgressionScore] = useState(false);
+
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
   const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
 
   const isNotesModule = moduleId === 'notes';
   const isTheoryModule = moduleId === 'theory';
   const isChordsModule = moduleId === 'chords';
+  const isPatternsModule = moduleId === 'patterns';
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
   const getAllStages = useAppStore(state => state.getAllStages);
@@ -165,6 +191,19 @@ export default function StageSelector() {
     if (!canStartChordPractice) return;
     const scoreParam = showChordScore ? '&score=1' : '';
     navigate(`/client/practice/chords?${CHORD_SCOPE_PARAM}=${encodeChordScope(chordSelection)}${scoreParam}`);
+  };
+
+  // Progression (和声进行) scope selection — toggle, guard, start.
+  const canStartProgressionPractice = isProgressionSelectionNonEmpty(progressionSelection);
+
+  const toggleProgressionOption = (id: ProgressionId, checked: boolean) => {
+    setProgressionSelection((prev) => toggleProgression(prev, id, checked));
+  };
+
+  const handleStartProgressionPractice = () => {
+    if (!canStartProgressionPractice) return;
+    const scoreParam = showProgressionScore ? '&score=1' : '';
+    navigate(`/client/practice/progression?${PROGRESSION_SCOPE_PARAM}=${encodeProgressionScope(progressionSelection)}${scoreParam}`);
   };
 
   return (
@@ -429,8 +468,87 @@ export default function StageSelector() {
         </div>
       )}
 
-      {/* Stages grid for modules without practice config (symbols, 音型 patterns) */}
-      {!isNotesModule && !isTheoryModule && !isChordsModule && (
+      {/* Patterns (音型): the RCM Level 6 chord-progression exercise with its own
+          scope selector. The database-authored 音型 stages grid is intentionally
+          hidden here — this page serves the progression exercise only. */}
+      {isPatternsModule && (
+        <>
+          {moduleId === 'patterns' && (
+            <div style={{ marginTop: '24px', marginBottom: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '620px' }}>
+              <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
+                选择要练习的和声进行，系统将随机出题
+              </p>
+
+              {/* Two rows: 大调 (major) progressions on top, 小调 (minor) below. */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                {([
+                  { mode: 'major' as const, label: '大调' },
+                  { mode: 'minor' as const, label: '小调' },
+                ]).map(({ mode: rowMode, label }) => (
+                  <div key={rowMode} style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#4b5563', minWidth: '32px', textAlign: 'right' }}>{label}</span>
+                    {LEVEL6_PROGRESSIONS.filter((p) => p.mode === rowMode).map((p) => {
+                      const active = progressionSelection.has(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => toggleProgressionOption(p.id, !active)}
+                          aria-pressed={active}
+                          style={{
+                            padding: '10px 18px', borderRadius: '20px', cursor: 'pointer',
+                            fontSize: '0.95rem', fontWeight: '700', fontFamily: 'monospace',
+                            transition: 'all 0.15s',
+                            border: active ? `2px solid ${moduleColor}` : '2px solid #e5e7eb',
+                            background: active ? `${moduleColor}12` : 'white',
+                            color: active ? moduleColor : '#374151',
+                          }}
+                        >
+                          {PROGRESSION_LABELS[p.id]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* Show-score toggle (default off → speaker-only practice) */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#374151', fontSize: '0.95rem', fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={showProgressionScore}
+                  onChange={(e) => setShowProgressionScore(e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+                显示乐谱
+              </label>
+
+              {!canStartProgressionPractice && (
+                <p style={{ color: '#f87171', fontSize: '0.85rem', margin: 0 }}>请至少选择一个和声进行</p>
+              )}
+
+              <button
+                onClick={handleStartProgressionPractice}
+                disabled={!canStartProgressionPractice}
+                style={{
+                  marginTop: '4px', padding: '14px 40px', borderRadius: '24px', border: 'none',
+                  background: canStartProgressionPractice ? moduleColor : '#94a3b8',
+                  color: 'white', fontSize: '1.1rem', fontWeight: '700',
+                  cursor: canStartProgressionPractice ? 'pointer' : 'not-allowed',
+                  boxShadow: canStartProgressionPractice ? `0 8px 24px ${moduleColor}40` : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                🎵 开始练习
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Stages grid for modules without practice config (e.g. symbols). Patterns
+          is excluded — it shows the progression selector above instead. */}
+      {!isNotesModule && !isTheoryModule && !isChordsModule && !isPatternsModule && (
         <>
           {stages.length === 0 ? (
             <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
