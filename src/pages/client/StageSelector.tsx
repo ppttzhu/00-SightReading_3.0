@@ -40,6 +40,20 @@ import {
   SCOPE_PARAM as PROGRESSION_SCOPE_PARAM,
   encodeScope as encodeProgressionScope,
 } from '../../core/progression/progressionScopeSerializer';
+import { PLAYBACK_KEYS, type PlaybackKey } from '../../core/playback/playbackTypes';
+import {
+  type SelectedKeys as SelectedPlaybackKeys,
+  type PlaybackMode,
+  DEFAULT_KEYS as DEFAULT_PLAYBACK_KEYS,
+  DEFAULT_MODE as DEFAULT_PLAYBACK_MODE,
+  toggleKey as togglePlaybackKey,
+  isNonEmpty as isPlaybackSelectionNonEmpty,
+} from '../../core/playback/playbackSelection';
+import {
+  KEYS_PARAM as PLAYBACK_KEYS_PARAM,
+  MODE_PARAM as PLAYBACK_MODE_PARAM,
+  encodeKeys as encodePlaybackKeys,
+} from '../../core/playback/playbackScopeSerializer';
 
 /** Display labels for the four progressions in the scope selector — Roman numerals only (case conveys major/minor). */
 const PROGRESSION_LABELS: Record<ProgressionId, string> = {
@@ -78,6 +92,7 @@ const MODULE_LABELS: Record<string, string> = {
   theory: '双音/音程关系',
   chords: '和弦识别',
   patterns: '音型',
+  playback: '旋律回放',
 };
 
 const MODULE_COLORS: Record<string, string> = {
@@ -86,6 +101,15 @@ const MODULE_COLORS: Record<string, string> = {
   theory: '#8b5cf6',
   chords: '#d97706',
   patterns: '#10b981',
+  playback: '#0ea5e9',
+};
+
+/** Display labels for the four RCM6 Playback keys in the setup selector. */
+const PLAYBACK_KEY_LABELS: Record<PlaybackKey, string> = {
+  'G major': 'G Major',
+  'E major': 'E Major',
+  'G minor': 'G minor',
+  'E minor': 'E minor',
 };
 
 export const NOTES_INPUT_MODE_KEY = 'notes_input_mode';
@@ -123,6 +147,10 @@ export default function StageSelector() {
   // speaker, score revealed 1s after a correct answer.
   const [showProgressionScore, setShowProgressionScore] = useState(false);
 
+  // Playback (RCM6 旋律回放): selected keys + mode (bank vs random).
+  const [playbackKeys, setPlaybackKeys] = useState<SelectedPlaybackKeys>(DEFAULT_PLAYBACK_KEYS);
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>(DEFAULT_PLAYBACK_MODE);
+
   const moduleLabel = MODULE_LABELS[moduleId || ''] || moduleId;
   const moduleColor = MODULE_COLORS[moduleId || ''] || '#3b82f6';
 
@@ -130,6 +158,7 @@ export default function StageSelector() {
   const isTheoryModule = moduleId === 'theory';
   const isChordsModule = moduleId === 'chords';
   const isPatternsModule = moduleId === 'patterns';
+  const isPlaybackModule = moduleId === 'playback';
   const canStartPractice = isValidPitch(lowPitch) && isValidPitch(highPitch);
 
   const getAllStages = useAppStore(state => state.getAllStages);
@@ -204,6 +233,18 @@ export default function StageSelector() {
     if (!canStartProgressionPractice) return;
     const scoreParam = showProgressionScore ? '&score=1' : '';
     navigate(`/client/practice/progression?${PROGRESSION_SCOPE_PARAM}=${encodeProgressionScope(progressionSelection)}${scoreParam}`);
+  };
+
+  // Playback (RCM6 旋律回放) — key multi-select, mode, start.
+  const canStartPlayback = isPlaybackSelectionNonEmpty(playbackKeys);
+
+  const togglePlaybackKeyOption = (key: PlaybackKey, checked: boolean) => {
+    setPlaybackKeys((prev) => togglePlaybackKey(prev, key, checked));
+  };
+
+  const handleStartPlayback = () => {
+    if (!canStartPlayback) return;
+    navigate(`/client/practice/playback?${PLAYBACK_KEYS_PARAM}=${encodePlaybackKeys(playbackKeys)}&${PLAYBACK_MODE_PARAM}=${playbackMode}`);
   };
 
   return (
@@ -468,6 +509,78 @@ export default function StageSelector() {
         </div>
       )}
 
+      {/* Playback (RCM6 旋律回放) setup: choose keys + mode, then start. */}
+      {isPlaybackModule && (
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '100%', maxWidth: '560px' }}>
+          <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
+            选择要练习的调，老师先弹主和弦再弹旋律，你来回放
+          </p>
+
+          {/* Key multi-select */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+            {PLAYBACK_KEYS.map((key) => {
+              const active = playbackKeys.has(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => togglePlaybackKeyOption(key, !active)}
+                  aria-pressed={active}
+                  style={{
+                    padding: '10px 18px', borderRadius: '20px', cursor: 'pointer',
+                    fontSize: '0.95rem', fontWeight: '700', transition: 'all 0.15s',
+                    border: active ? `2px solid ${moduleColor}` : '2px solid #e5e7eb',
+                    background: active ? `${moduleColor}12` : 'white',
+                    color: active ? moduleColor : '#374151',
+                  }}
+                >
+                  {PLAYBACK_KEY_LABELS[key]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mode toggle: 题库 / 随机出题 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '6px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            {([{ key: 'bank', label: '题库' }, { key: 'random', label: '随机出题' }] as const).map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setPlaybackMode(m.key)}
+                style={{
+                  padding: '8px 22px', borderRadius: '14px', border: 'none', cursor: 'pointer',
+                  fontWeight: '700', fontSize: '0.95rem',
+                  background: playbackMode === m.key ? moduleColor : 'transparent',
+                  color: playbackMode === m.key ? 'white' : '#6b7280',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {!canStartPlayback && (
+            <p style={{ color: '#f87171', fontSize: '0.85rem', margin: 0 }}>请至少选择一个调</p>
+          )}
+
+          <button
+            onClick={handleStartPlayback}
+            disabled={!canStartPlayback}
+            style={{
+              marginTop: '4px', padding: '14px 40px', borderRadius: '24px', border: 'none',
+              background: canStartPlayback ? moduleColor : '#94a3b8',
+              color: 'white', fontSize: '1.1rem', fontWeight: '700',
+              cursor: canStartPlayback ? 'pointer' : 'not-allowed',
+              boxShadow: canStartPlayback ? `0 8px 24px ${moduleColor}40` : 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            🎵 开始练习
+          </button>
+        </div>
+      )}
+
       {/* Patterns (音型): the RCM Level 6 chord-progression exercise with its own
           scope selector. The database-authored 音型 stages grid is intentionally
           hidden here — this page serves the progression exercise only. */}
@@ -547,8 +660,8 @@ export default function StageSelector() {
       )}
 
       {/* Stages grid for modules without practice config (e.g. symbols). Patterns
-          is excluded — it shows the progression selector above instead. */}
-      {!isNotesModule && !isTheoryModule && !isChordsModule && !isPatternsModule && (
+          and playback are excluded — they show their own selectors above. */}
+      {!isNotesModule && !isTheoryModule && !isChordsModule && !isPatternsModule && !isPlaybackModule && (
         <>
           {stages.length === 0 ? (
             <div style={{ marginTop: '100px', textAlign: 'center', color: '#9ca3af' }}>
