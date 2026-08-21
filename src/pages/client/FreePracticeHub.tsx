@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import { Activity, Hash, LibraryBig, Music, SlidersHorizontal, Guitar } from 'lucide-react';
+import { Activity, Hash, LibraryBig, Music, SlidersHorizontal, Guitar, Headphones } from 'lucide-react';
 
 const freeModules = [
   {
@@ -52,6 +52,16 @@ const freeModules = [
     bg: '#ecfdf5',
     icon: Activity,
     action: '/client/free/patterns',
+  },
+  {
+    id: 'playback',
+    title: '旋律回放练习',
+    label: 'Playback',
+    detail: '听主和弦与旋律，跟弹练习。',
+    color: '#0ea5e9',
+    bg: '#f0f9ff',
+    icon: Headphones,
+    action: '/client/free/playback',
   },
 ];
 
