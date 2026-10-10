@@ -165,12 +165,21 @@ describe('Property 8: chord building blocks are reusable across progressions', (
 });
 
 // ============================================================
-// Property 9 — progression bass line ascends from the tonic
+// Property 9 — grand-staff voicing: LH bass root + RH triad, returning home
 // ============================================================
 
-describe('Property 9: progression bass line ascends from the tonic', () => {
-  // Feature: rcm6-chord-progression, Property 9: For any generated progression, chord Bass_Notes satisfy bass[0] < bass[1] < bass[2] (middle strictly above starting tonic, never below) and bass[2] === bass[0] + 12 (Upper_Tonic); octave-stripped spellings match resolveChord at the default octave
-  it('voices the three chords with an ascending bass: tonic → middle above tonic → upper tonic', () => {
+/** Comfortable left-hand bass register (octave 2–3): C2..B3 inclusive. */
+const BASS_MIN_MIDI = 36;
+const BASS_MAX_MIDI = 59;
+
+/** Sort a triad's letter set (ignoring octave) for order-independent compare. */
+function letterSet(spelled: string[]): string[] {
+  return [...spelled].sort();
+}
+
+describe('Property 9: grand-staff voicing — left-hand bass root + right-hand triad, returning to the start', () => {
+  // Feature: rcm6-chord-progression, Property 9: For any generated progression, every chord has a single left-hand bass root (the chord root, in the bass register) and a full three-tone right-hand triad; the right-hand triad's letter set matches resolveChord's, and the final tonic reuses the first chord's exact voicing (no octave jump).
+  it('voices each chord as a bass root + triad, and returns to the exact starting voicing', () => {
     fc.assert(
       fc.property(keyModeArb, progressionArb, ({ key, mode }, progression) => {
         // Only exercise progressions whose mode matches the generated key pool,
@@ -180,26 +189,26 @@ describe('Property 9: progression bass line ascends from the tonic', () => {
         const chords = resolveProgression(key, mode, progression.specs);
         expect(chords).toHaveLength(3);
 
-        const bass = chords.map((c) => c.midis[0]);
+        chords.forEach((chord, i) => {
+          // Left hand: a single bass note = the chord root, in the bass register.
+          const rootLetter = resolveChord(key, mode, progression.specs[i]).spelled[0];
+          expect(chord.leftHand.spelled).toBe(rootLetter);
+          expect(chord.leftHand.midi).toBeGreaterThanOrEqual(BASS_MIN_MIDI);
+          expect(chord.leftHand.midi).toBeLessThanOrEqual(BASS_MAX_MIDI);
 
-        // Non-decreasing and strictly ascending first → last (Req 15.6).
-        expect(bass[0]).toBeLessThan(bass[1]);
-        expect(bass[1]).toBeLessThan(bass[2]);
-
-        // Middle chord's root strictly above the starting tonic (Req 15.3, 15.4).
-        expect(bass[1]).toBeGreaterThan(bass[0]);
-
-        // Final tonic is the Upper_Tonic — exactly one octave above the start
-        // (Req 15.5).
-        expect(bass[2]).toBe(bass[0] + 12);
-
-        // Voicing shifts octaves only: octave-stripped spellings equal the
-        // single-chord resolver at the default octave (Req 15.7).
-        progression.specs.forEach((spec, i) => {
-          expect(chords[i].spelled).toEqual(
-            resolveChord(key, mode, spec).spelled,
+          // Right hand: the full three-tone triad, strictly ascending, with the
+          // same tone letters as the single-chord resolver (any inversion).
+          expect(chord.rightHand.pitches).toHaveLength(3);
+          expect(chord.rightHand.midis[0]).toBeLessThan(chord.rightHand.midis[1]);
+          expect(chord.rightHand.midis[1]).toBeLessThan(chord.rightHand.midis[2]);
+          expect(letterSet(chord.rightHand.spelled)).toEqual(
+            letterSet(resolveChord(key, mode, progression.specs[i]).spelled),
           );
         });
+
+        // The final tonic reuses the first chord's exact voicing (no octave jump).
+        expect(chords[2].rightHand.pitches).toEqual(chords[0].rightHand.pitches);
+        expect(chords[2].leftHand.pitch).toBe(chords[0].leftHand.pitch);
       }),
       { numRuns: 100 },
     );

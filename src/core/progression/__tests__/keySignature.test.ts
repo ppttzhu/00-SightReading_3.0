@@ -31,15 +31,23 @@ function splitTone(spelled: string): { letter: string; accidental: string } {
   return { letter: spelled.charAt(0), accidental: spelled.slice(1) };
 }
 
-/** The accidentals the notation would draw for each tone of a progression. */
+/**
+ * The accidentals the notation would draw for each hand of a progression,
+ * mirroring the grand-staff renderer: the left hand draws its single bass root
+ * on the bass clef, the right hand draws its three triad tones on the treble
+ * clef. Each entry is `{ bass, rightHand }` where `bass` is a single symbol
+ * (or null) and `rightHand` is a three-element array of symbols (or null).
+ */
 function drawnAccidentals(key: string, mode: 'major' | 'minor', specs: readonly (typeof CHORD_SPECS)[keyof typeof CHORD_SPECS][]) {
   const sig = keySignatureFor(key, mode);
-  return resolveProgression(key, mode, specs).map((chord) =>
-    chord.spelled.map((tone) => {
-      const { letter, accidental } = splitTone(tone);
-      return accidentalToDraw(letter, accidental, sig.perLetter);
-    }),
-  );
+  const draw = (tone: string) => {
+    const { letter, accidental } = splitTone(tone);
+    return accidentalToDraw(letter, accidental, sig.perLetter);
+  };
+  return resolveProgression(key, mode, specs).map((chord) => ({
+    bass: draw(chord.leftHand.spelled),
+    rightHand: chord.rightHand.spelled.map(draw),
+  }));
 }
 
 describe('keySignatureFor', () => {
@@ -70,37 +78,50 @@ describe('keySignatureFor', () => {
   });
 });
 
+/** Non-null accidental symbols the right hand draws for a chord (order-free). */
+function rightHandDrawn(chord: { rightHand: (string | null)[] }): string[] {
+  return chord.rightHand.filter((a): a is string => a !== null);
+}
+
 describe('note-level accidental suppression (key_signature_rules_for_ai.md §10)', () => {
+  // The bass root is always a diatonic degree root, so the left hand never
+  // draws a local accidental; the altered leading tone lives in the right-hand
+  // triad. Right-hand order can vary by inversion, so assert the drawn set.
   it('Eb major I–IV–I draws NO local accidentals (all covered by the key signature)', () => {
     const drawn = drawnAccidentals('Eb', 'major', [CHORD_SPECS.I, CHORD_SPECS.IV, CHORD_SPECS.I]);
     // Eb-G-Bb → Ab-C-Eb → Eb-G-Bb: every flat is in the 3-flat signature.
     for (const chord of drawn) {
-      expect(chord).toEqual([null, null, null]);
+      expect(chord.bass).toBeNull();
+      expect(rightHandDrawn(chord)).toEqual([]);
     }
   });
 
   it('C minor i–V–i draws only B-natural in the V chord', () => {
     const drawn = drawnAccidentals('C', 'minor', [CHORD_SPECS.i, CHORD_SPECS.V, CHORD_SPECS.i]);
     // i = C-Eb-G → nothing drawn (Eb covered by signature).
-    expect(drawn[0]).toEqual([null, null, null]);
+    expect(rightHandDrawn(drawn[0])).toEqual([]);
     // V = G-B-D → B must show a natural (signature expects Bb).
-    expect(drawn[1]).toEqual([null, 'n', null]);
+    expect(rightHandDrawn(drawn[1])).toEqual(['n']);
     // final i = C-Eb-G → nothing drawn.
-    expect(drawn[2]).toEqual([null, null, null]);
+    expect(rightHandDrawn(drawn[2])).toEqual([]);
+    // The left-hand bass never draws an accidental.
+    drawn.forEach((chord) => expect(chord.bass).toBeNull());
   });
 
   it('A minor i–V–i draws only G# in the V chord', () => {
     const drawn = drawnAccidentals('A', 'minor', [CHORD_SPECS.i, CHORD_SPECS.V, CHORD_SPECS.i]);
     // i = A-C-E → nothing (no signature).
-    expect(drawn[0]).toEqual([null, null, null]);
+    expect(rightHandDrawn(drawn[0])).toEqual([]);
     // V = E-G#-B → G# is a local sharp (raised leading tone).
-    expect(drawn[1]).toEqual([null, '#', null]);
-    expect(drawn[2]).toEqual([null, null, null]);
+    expect(rightHandDrawn(drawn[1])).toEqual(['#']);
+    expect(rightHandDrawn(drawn[2])).toEqual([]);
+    drawn.forEach((chord) => expect(chord.bass).toBeNull());
   });
 
   it('G minor V draws F# (raised leading tone) and nothing else', () => {
     const drawn = drawnAccidentals('G', 'minor', [CHORD_SPECS.i, CHORD_SPECS.V, CHORD_SPECS.i]);
     // V = D-F#-A → F# local sharp; D and A are natural in the 2-flat signature.
-    expect(drawn[1]).toEqual([null, '#', null]);
+    expect(rightHandDrawn(drawn[1])).toEqual(['#']);
+    expect(drawn[1].bass).toBeNull();
   });
 });

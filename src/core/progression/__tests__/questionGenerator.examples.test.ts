@@ -1,74 +1,81 @@
 /**
  * Example-based unit tests for full Level 6 progressions (task 4.5).
  *
- * These anchors verify the three-chord ASCENDING-BASS voicing deterministically
- * by resolving each progression's Chord_Specs with `resolveProgression` in a
- * fixed Key/Mode — exactly what the Question_Generator does. The pitch arrays
- * (with octaves) are compared against the concrete voicing from the
- * requirements/spec §2 table, and the bass line is asserted to ascend
- * (tonic → middle above tonic → upper tonic).
+ * These anchors verify the three-chord GRAND-STAFF voicing deterministically by
+ * resolving each progression's Chord_Specs with `resolveProgression` in a fixed
+ * Key/Mode — exactly what the Question_Generator does. Each chord is a
+ * left-hand bass root (in the bass register) plus a right-hand triad; the
+ * right-hand triad's letters match the single-chord resolver, and the final
+ * tonic returns to the exact starting voicing (no octave jump).
  */
 
 import { describe, it, expect } from 'vitest';
 
 import { CHORD_SPECS } from '../progressions';
-import { resolveProgression } from '../chordResolver';
+import { resolveChord, resolveProgression } from '../chordResolver';
 
-/** Resolve a progression's specs in a Key/Mode to per-chord pitch arrays (with octaves). */
-function voiceProgression(
-  key: string,
-  mode: 'major' | 'minor',
-  specs: (typeof CHORD_SPECS)[keyof typeof CHORD_SPECS][],
-): string[][] {
-  return resolveProgression(key, mode, specs).map((c) => c.pitches);
+/** A fixed rng that always returns 0, for deterministic voicing in examples. */
+const zeroRng = () => 0;
+
+/** Comfortable left-hand bass register (octave 2–3): C2..B3 inclusive. */
+const BASS_MIN_MIDI = 36;
+const BASS_MAX_MIDI = 59;
+/** Right-hand register floor (G3). The bass must stay strictly below this. */
+const RIGHT_HAND_MIN_MIDI = 55;
+
+/** Sort a triad's letter set (ignoring octave) for order-independent compare. */
+function letterSet(spelled: string[]): string[] {
+  return [...spelled].sort();
 }
 
-/** Assert the bass line ascends: bass[0] < bass[1] < bass[2] and bass[2] === bass[0] + 12. */
-function expectAscendingBass(key: string, mode: 'major' | 'minor', specs: (typeof CHORD_SPECS)[keyof typeof CHORD_SPECS][]) {
-  const bass = resolveProgression(key, mode, specs).map((c) => c.midis[0]);
-  expect(bass[0]).toBeLessThan(bass[1]);
-  expect(bass[1]).toBeLessThan(bass[2]);
-  expect(bass[2]).toBe(bass[0] + 12);
-}
+const PROGRESSIONS: Array<{
+  name: string;
+  key: string;
+  mode: 'major' | 'minor';
+  specs: (typeof CHORD_SPECS)[keyof typeof CHORD_SPECS][];
+}> = [
+  { name: 'C major I–V–I', key: 'C', mode: 'major', specs: [CHORD_SPECS.I, CHORD_SPECS.V, CHORD_SPECS.I] },
+  { name: 'C major I–IV–I', key: 'C', mode: 'major', specs: [CHORD_SPECS.I, CHORD_SPECS.IV, CHORD_SPECS.I] },
+  { name: 'C minor i–iv–i', key: 'C', mode: 'minor', specs: [CHORD_SPECS.i, CHORD_SPECS.iv, CHORD_SPECS.i] },
+  { name: 'A minor i–V–i', key: 'A', mode: 'minor', specs: [CHORD_SPECS.i, CHORD_SPECS.V, CHORD_SPECS.i] },
+];
 
-describe('full progressions — ascending-bass voicing (Requirements 2.4, 2.5, 2.6, 2.7, 15.5, 15.6)', () => {
-  it('C major I–V–I = C4-E4-G4 → G4-B4-D5 → C5-E5-G5', () => {
-    const specs = [CHORD_SPECS.I, CHORD_SPECS.V, CHORD_SPECS.I];
-    expect(voiceProgression('C', 'major', specs)).toEqual([
-      ['C4', 'E4', 'G4'],
-      ['G4', 'B4', 'D5'],
-      ['C5', 'E5', 'G5'],
-    ]);
-    expectAscendingBass('C', 'major', specs);
-  });
+describe('full progressions — grand-staff voicing (Requirements 2.4–2.7)', () => {
+  for (const { name, key, mode, specs } of PROGRESSIONS) {
+    describe(name, () => {
+      const chords = resolveProgression(key, mode, specs, zeroRng);
 
-  it('C major I–IV–I = C4-E4-G4 → F4-A4-C5 → C5-E5-G5', () => {
-    const specs = [CHORD_SPECS.I, CHORD_SPECS.IV, CHORD_SPECS.I];
-    expect(voiceProgression('C', 'major', specs)).toEqual([
-      ['C4', 'E4', 'G4'],
-      ['F4', 'A4', 'C5'],
-      ['C5', 'E5', 'G5'],
-    ]);
-    expectAscendingBass('C', 'major', specs);
-  });
+      it('resolves three grand-staff chords', () => {
+        expect(chords).toHaveLength(3);
+      });
 
-  it('C minor i–iv–i = C4-Eb4-G4 → F4-Ab4-C5 → C5-Eb5-G5', () => {
-    const specs = [CHORD_SPECS.i, CHORD_SPECS.iv, CHORD_SPECS.i];
-    expect(voiceProgression('C', 'minor', specs)).toEqual([
-      ['C4', 'Eb4', 'G4'],
-      ['F4', 'Ab4', 'C5'],
-      ['C5', 'Eb5', 'G5'],
-    ]);
-    expectAscendingBass('C', 'minor', specs);
-  });
+      it('plays a single bass root per chord, in the bass register below the right hand', () => {
+        chords.forEach((chord, i) => {
+          const rootLetter = resolveChord(key, mode, specs[i]).spelled[0];
+          expect(chord.leftHand.spelled).toBe(rootLetter);
+          expect(chord.leftHand.midi).toBeGreaterThanOrEqual(BASS_MIN_MIDI);
+          expect(chord.leftHand.midi).toBeLessThanOrEqual(BASS_MAX_MIDI);
+          // Strictly below the right-hand floor, so the hands never overlap.
+          expect(chord.leftHand.midi).toBeLessThan(RIGHT_HAND_MIN_MIDI);
+          expect(chord.leftHand.midi).toBeLessThan(chord.rightHand.midis[0]);
+        });
+      });
 
-  it('A minor i–V–i = A4-C5-E5 → E5-G#5-B5 → A5-C6-E6 (raised leading tone, ascending bass)', () => {
-    const specs = [CHORD_SPECS.i, CHORD_SPECS.V, CHORD_SPECS.i];
-    expect(voiceProgression('A', 'minor', specs)).toEqual([
-      ['A4', 'C5', 'E5'],
-      ['E5', 'G#5', 'B5'],
-      ['A5', 'C6', 'E6'],
-    ]);
-    expectAscendingBass('A', 'minor', specs);
-  });
+      it('plays the full triad in the right hand, letters matching the resolved triad', () => {
+        chords.forEach((chord, i) => {
+          expect(chord.rightHand.pitches).toHaveLength(3);
+          expect(chord.rightHand.midis[0]).toBeLessThan(chord.rightHand.midis[1]);
+          expect(chord.rightHand.midis[1]).toBeLessThan(chord.rightHand.midis[2]);
+          expect(letterSet(chord.rightHand.spelled)).toEqual(
+            letterSet(resolveChord(key, mode, specs[i]).spelled),
+          );
+        });
+      });
+
+      it('returns to the exact starting voicing on the final tonic (no octave jump)', () => {
+        expect(chords[2].rightHand.pitches).toEqual(chords[0].rightHand.pitches);
+        expect(chords[2].leftHand.pitch).toBe(chords[0].leftHand.pitch);
+      });
+    });
+  }
 });

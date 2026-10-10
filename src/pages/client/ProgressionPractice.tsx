@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from 'vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem, StaveConnector } from 'vexflow';
 import { useAppStore } from '../../core/store/useAppStore';
 import { audioEngine } from '../../core/engine/AudioEngine';
 import { generateQuestion, type ProgressionQuestion } from '../../core/progression/questionGenerator';
@@ -80,11 +80,36 @@ function resolveStemDirection(lowKey: string, highKey: string, clef: string): nu
   return Stem.DOWN;
 }
 
-/** Choose the clef by the average MIDI across all tones (bass for low chords). */
-function clefForMidis(midis: number[]): 'treble' | 'bass' {
-  if (midis.length === 0) return 'treble';
-  const avg = midis.reduce((sum, m) => sum + m, 0) / midis.length;
-  return avg < 60 ? 'bass' : 'treble';
+/**
+ * Build the VexFlow notes for one hand's row of chords on a single clef. Each
+ * entry in `chordPitches` is that hand's spelled pitches for one chord (one or
+ * more tones, low→high); it becomes one whole note (a stacked chord when it has
+ * several tones), with per-tone accidentals drawn only when they differ from
+ * the key signature.
+ */
+function buildHandNotes(
+  chordPitches: string[][],
+  clef: 'treble' | 'bass',
+  sig: { perLetter: Record<string, string> },
+): StaveNote[] {
+  return chordPitches.map((pitches) => {
+    const parsed = pitches.map(parsePitchForVexflow);
+    const lowKey = parsed[0].key;
+    const highKey = parsed[parsed.length - 1].key;
+    const stemDir = resolveStemDirection(lowKey, highKey, clef);
+
+    const note = new StaveNote({
+      keys: parsed.map((p) => p.key),
+      duration: 'w',
+      clef,
+      stemDirection: stemDir,
+    });
+    parsed.forEach((p, i) => {
+      const acc = accidentalToDraw(p.letter, p.accidental, sig.perLetter);
+      if (acc) note.addModifier(new Accidental(acc), i);
+    });
+    return note;
+  });
 }
 
 // ============================================================
@@ -147,47 +172,67 @@ export default function ProgressionPractice() {
 
     try {
       const chords = question.chords;
-      const allMidis = chords.flatMap((c) => c.midis);
-      const clef = clefForMidis(allMidis);
       const sig = keySignatureFor(question.key, question.mode);
 
       const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
       const width = Math.min(500, containerRef.current.clientWidth - 20);
-      renderer.resize(width, 200);
+      renderer.resize(width, 260);
       const context = renderer.getContext();
 
-      const stave = new Stave(10, 40, width - 40);
-      stave.addClef(clef);
-      // Render the key signature after the clef; note-level accidentals are
-      // then only drawn for tones that differ from it (e.g. a minor-V leading
-      // tone). See key_signature_rules_for_ai.md.
-      stave.addKeySignature(sig.vexKeySpec);
-      stave.setContext(context).draw();
+      const staveW = width - 20;
 
-      const notes = chords.map((chord) => {
-        const parsed = chord.pitches.map(parsePitchForVexflow);
-        const lowKey = parsed[0].key;
-        const highKey = parsed[parsed.length - 1].key;
-        const stemDir = resolveStemDirection(lowKey, highKey, clef);
+      // Grand staff: treble (right hand) on top, bass (left hand) below, joined
+      // by a brace and a left bar line — this keeps the left-hand bass root in
+      // the bass clef instead of hanging on ledger lines below a treble staff.
+      const staveTop = new Stave(10, 10, staveW);
+      staveTop.addClef('treble');
+      staveTop.addKeySignature(sig.vexKeySpec);
+      staveTop.setContext(context).draw();
 
-        const note = new StaveNote({
-          keys: parsed.map((p) => p.key),
-          duration: 'w',
-          clef,
-          stemDirection: stemDir,
-        });
-        parsed.forEach((p, i) => {
-          const acc = accidentalToDraw(p.letter, p.accidental, sig.perLetter);
-          if (acc) note.addModifier(new Accidental(acc), i);
-        });
-        return note;
-      });
+      const staveBottom = new Stave(10, 110, staveW);
+      staveBottom.addClef('bass');
+      staveBottom.addKeySignature(sig.vexKeySpec);
+      staveBottom.setContext(context).draw();
 
-      const voice = new Voice({ numBeats: chords.length * 4, beatValue: 4 });
-      voice.setMode(2);
-      voice.addTickables(notes);
-      new Formatter().joinVoices([voice]).format([voice], width - 80);
-      voice.draw(context, stave);
+      new StaveConnector(staveTop, staveBottom)
+        .setType(StaveConnector.type.BRACE)
+        .setContext(context)
+        .draw();
+      new StaveConnector(staveTop, staveBottom)
+        .setType(StaveConnector.type.SINGLE_LEFT)
+        .setContext(context)
+        .draw();
+
+      // Right hand → treble; left hand → bass. Note-level accidentals are only
+      // drawn for tones that differ from the key signature (e.g. a minor-V
+      // leading tone). See key_signature_rules_for_ai.md.
+      const trebleNotes = buildHandNotes(
+        chords.map((c) => c.rightHand.pitches),
+        'treble',
+        sig,
+      );
+      const bassNotes = buildHandNotes(
+        chords.map((c) => [c.leftHand.pitch]),
+        'bass',
+        sig,
+      );
+
+      const numBeats = chords.length * 4;
+      const trebleVoice = new Voice({ numBeats, beatValue: 4 });
+      trebleVoice.setMode(2);
+      trebleVoice.addTickables(trebleNotes);
+      const bassVoice = new Voice({ numBeats, beatValue: 4 });
+      bassVoice.setMode(2);
+      bassVoice.addTickables(bassNotes);
+
+      // Format both voices together so each chord's right-hand and left-hand
+      // notes line up vertically across the two staves.
+      new Formatter()
+        .joinVoices([trebleVoice])
+        .joinVoices([bassVoice])
+        .format([trebleVoice, bassVoice], staveW - 90);
+      trebleVoice.draw(context, staveTop);
+      bassVoice.draw(context, staveBottom);
     } catch (e) {
       console.error('VexFlow error:', e);
     }
@@ -372,8 +417,8 @@ export default function ProgressionPractice() {
                 <button
                   type="button"
                   onClick={toggleShowAnswer}
-                  title="查看谱面答案"
-                  aria-label="查看谱面答案"
+                  title="查看乐谱"
+                  aria-label="查看乐谱"
                   style={{ background: '#f59e0b12', border: '2px solid #f59e0b', borderRadius: '50%', width: '72px', height: '72px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', transition: 'all 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
@@ -385,7 +430,7 @@ export default function ProgressionPractice() {
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 </button>
-                <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>答案</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>乐谱</span>
               </div>
             </div>
           )}
@@ -395,8 +440,8 @@ export default function ProgressionPractice() {
             <button
               type="button"
               onClick={toggleShowAnswer}
-              title="隐藏答案，返回听音练习"
-              aria-label="隐藏答案，返回听音练习"
+              title="隐藏乐谱，返回听音练习"
+              aria-label="隐藏乐谱，返回听音练习"
               style={{
                 position: 'absolute', top: '10px', right: '10px',
                 background: 'white', border: '1px solid #e5e7eb', borderRadius: '14px',
@@ -404,7 +449,7 @@ export default function ProgressionPractice() {
                 cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
               }}
             >
-              隐藏答案
+              隐藏乐谱
             </button>
           )}
 

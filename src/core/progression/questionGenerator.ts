@@ -85,9 +85,9 @@ function selectedDefs(selection: SelectedProgressions): ProgressionDef[] {
  *    question is always within the practiced scope.
  * 2. Pick a Key from the pool for that Mode — {@link MAJOR_KEYS} or
  *    {@link MINOR_KEYS} (Requirements 2.2, 6.1, 6.2).
- * 3. `resolveProgression(key, mode, specs)` → three {@link ResolvedChord}s
- *    voiced with the ascending bass line (tonic → middle root above the tonic →
- *    upper tonic, Requirement 15).
+ * 3. `resolveProgression(key, mode, specs, rng)` → three {@link ResolvedChord}s
+ *    voiced grand-staff style (left-hand bass root + right-hand triad with
+ *    voice leading, returning to the starting voicing on the final tonic).
  * 4. Assemble the {@link ProgressionQuestion} with answer metadata: the
  *    `progression` and `correctAnswer` are the Progression's `answer`
  *    (Requirement 2.8), voicing is root position, presentation is blocked.
@@ -107,10 +107,11 @@ export function generateQuestion(
   const keyPool = def.mode === 'major' ? MAJOR_KEYS : MINOR_KEYS;
   const key = pick(keyPool, rng);
 
-  // Voice the three chords with the RCM Level 6 ascending bass line (tonic →
-  // middle root above the tonic → upper tonic), NOT independent per-chord
-  // resolution at a fixed octave.
-  const chords = resolveProgression(key, def.mode, def.specs);
+  // Voice the three chords grand-staff style: a left-hand bass root per chord
+  // plus a right-hand triad voiced for smooth voice leading, returning to the
+  // exact starting voicing on the final tonic. The same `rng` is threaded
+  // through so the whole question is deterministic under a seeded source.
+  const chords = resolveProgression(key, def.mode, def.specs, rng);
 
   return {
     level: 6,
