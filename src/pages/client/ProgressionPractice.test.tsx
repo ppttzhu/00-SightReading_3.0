@@ -72,11 +72,27 @@ const Q1: ProgressionQuestion = {
   mode: 'major',
   function: 'subdominant',
   specs: MAJOR_SUBDOMINANT.specs,
-  // Ascending-bass voicing (Req 15): tonic → subdominant above tonic → upper tonic.
+  // Grand-staff voicing: left-hand bass root + right-hand triad; the final
+  // tonic reuses the first chord's exact voicing (no octave jump).
   chords: [
-    { pitches: ['C4', 'E4', 'G4'], midis: [60, 64, 67], spelled: ['C', 'E', 'G'] },
-    { pitches: ['F4', 'A4', 'C5'], midis: [65, 69, 72], spelled: ['F', 'A', 'C'] },
-    { pitches: ['C5', 'E5', 'G5'], midis: [72, 76, 79], spelled: ['C', 'E', 'G'] },
+    {
+      rightHand: { pitches: ['C4', 'E4', 'G4'], midis: [60, 64, 67], spelled: ['C', 'E', 'G'] },
+      leftHand: { pitch: 'C3', midi: 48, spelled: 'C' },
+      inversion: 0,
+      pitches: ['C3', 'C4', 'E4', 'G4'], midis: [48, 60, 64, 67], spelled: ['C', 'C', 'E', 'G'],
+    },
+    {
+      rightHand: { pitches: ['F4', 'A4', 'C5'], midis: [65, 69, 72], spelled: ['F', 'A', 'C'] },
+      leftHand: { pitch: 'F3', midi: 53, spelled: 'F' },
+      inversion: 0,
+      pitches: ['F3', 'F4', 'A4', 'C5'], midis: [53, 65, 69, 72], spelled: ['F', 'F', 'A', 'C'],
+    },
+    {
+      rightHand: { pitches: ['C4', 'E4', 'G4'], midis: [60, 64, 67], spelled: ['C', 'E', 'G'] },
+      leftHand: { pitch: 'C3', midi: 48, spelled: 'C' },
+      inversion: 0,
+      pitches: ['C3', 'C4', 'E4', 'G4'], midis: [48, 60, 64, 67], spelled: ['C', 'C', 'E', 'G'],
+    },
   ],
   progression: 'I – IV – I',
   correctAnswer: 'I – IV – I',
@@ -91,11 +107,27 @@ const Q2: ProgressionQuestion = {
   mode: 'minor',
   function: 'dominant',
   specs: MINOR_DOMINANT.specs,
-  // Ascending-bass voicing (Req 15): tonic → dominant above tonic → upper tonic.
+  // Grand-staff voicing: left-hand bass root + right-hand triad; the final
+  // tonic reuses the first chord's exact voicing (no octave jump).
   chords: [
-    { pitches: ['A4', 'C5', 'E5'], midis: [69, 72, 76], spelled: ['A', 'C', 'E'] },
-    { pitches: ['E5', 'G#5', 'B5'], midis: [76, 80, 83], spelled: ['E', 'G#', 'B'] },
-    { pitches: ['A5', 'C6', 'E6'], midis: [81, 84, 88], spelled: ['A', 'C', 'E'] },
+    {
+      rightHand: { pitches: ['A4', 'C5', 'E5'], midis: [69, 72, 76], spelled: ['A', 'C', 'E'] },
+      leftHand: { pitch: 'A2', midi: 45, spelled: 'A' },
+      inversion: 0,
+      pitches: ['A2', 'A4', 'C5', 'E5'], midis: [45, 69, 72, 76], spelled: ['A', 'A', 'C', 'E'],
+    },
+    {
+      rightHand: { pitches: ['E4', 'G#4', 'B4'], midis: [64, 68, 71], spelled: ['E', 'G#', 'B'] },
+      leftHand: { pitch: 'E3', midi: 52, spelled: 'E' },
+      inversion: 0,
+      pitches: ['E3', 'E4', 'G#4', 'B4'], midis: [52, 64, 68, 71], spelled: ['E', 'E', 'G#', 'B'],
+    },
+    {
+      rightHand: { pitches: ['A4', 'C5', 'E5'], midis: [69, 72, 76], spelled: ['A', 'C', 'E'] },
+      leftHand: { pitch: 'A2', midi: 45, spelled: 'A' },
+      inversion: 0,
+      pitches: ['A2', 'A4', 'C5', 'E5'], midis: [45, 69, 72, 76], spelled: ['A', 'A', 'C', 'E'],
+    },
   ],
   progression: 'i – V – i',
   correctAnswer: 'i – V – i',
@@ -171,6 +203,22 @@ describe('ProgressionPractice audio integration', () => {
   });
 });
 
+describe('ProgressionPractice peek-at-answer (speaker-only mode)', () => {
+  it('reveals the notation when 乐谱 is clicked, and hides it again via 隐藏乐谱', () => {
+    renderScreen();
+
+    expect(screen.getByTestId('progression-speaker')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '查看乐谱' }));
+
+    // The speaker/answer row hides while peeking, and the notation shows.
+    expect(screen.queryByTestId('progression-speaker')).toBeNull();
+    expect(screen.getByTestId('progression-notation')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '隐藏乐谱，返回听音练习' }));
+    expect(screen.getByTestId('progression-speaker')).toBeTruthy();
+  });
+});
+
 describe('ProgressionPractice options', () => {
   // 9.1 — exactly four Answer_Choices rendered in fixed order.
   it('renders exactly the four Answer_Choices in fixed order', () => {
@@ -200,10 +248,15 @@ describe('ProgressionPractice grading', () => {
       isCorrect: true,
     });
 
-    // nextQuestion regenerates after the correct-feedback delay.
-    await waitFor(() => {
-      expect(mockedGenerate.mock.calls.length).toBeGreaterThan(callsBefore);
-    });
+    // nextQuestion regenerates after the correct-feedback delay (REVEAL_MS =
+    // 1000ms in speaker-only mode); allow headroom over the default 1s timeout
+    // so the assertion doesn't race the reveal delay under parallel test load.
+    await waitFor(
+      () => {
+        expect(mockedGenerate.mock.calls.length).toBeGreaterThan(callsBefore);
+      },
+      { timeout: 2000 },
+    );
   });
 
   // 9.3, 9.4, 10.x — a wrong answer records, keeps the question, and ignores

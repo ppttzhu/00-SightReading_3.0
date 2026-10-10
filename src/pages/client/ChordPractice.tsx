@@ -102,6 +102,8 @@ export default function ChordPractice() {
   const [tipFading, setTipFading] = useState(false);
   // Speakers-only mode: briefly reveal the score after a correct answer.
   const [revealing, setRevealing] = useState(false);
+  // Speakers-only mode: learner explicitly asked to peek at the notation.
+  const [showingAnswer, setShowingAnswer] = useState(false);
 
   const question: ChordQuestion | null = result.ok ? result.question : null;
 
@@ -117,6 +119,7 @@ export default function ChordPractice() {
 
   const nextQuestion = useCallback(() => {
     setResult(generateQuestion(selection));
+    setShowingAnswer(false);
     questionStartedRef.current = Date.now();
   }, [selection]);
 
@@ -251,8 +254,17 @@ export default function ChordPractice() {
       }, delay);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
+      setTimeout(() => {
+        setFeedback('none');
+        setShowingAnswer(false);
+      }, WRONG_FEEDBACK_RESET_MS);
     }
+  };
+
+  // Toggle the "peek at the answer" notation reveal (speakers-only mode).
+  const toggleShowAnswer = () => {
+    if (!question) return;
+    setShowingAnswer(v => !v);
   };
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -354,14 +366,15 @@ export default function ChordPractice() {
               border: '1px solid #f9fafb'
             }}
           >
-            <div ref={containerRef} data-testid="chord-notation" style={{ opacity: (showScore ? noteVisible : revealing) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+            <div ref={containerRef} data-testid="chord-notation" style={{ opacity: (showScore ? noteVisible : (revealing || showingAnswer)) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
 
-            {/* Speakers-only mode: two speakers to hear the chord (blocked / arpeggiated) */}
-            {!showScore && !revealing && (
+            {/* Speakers-only mode: two speakers to hear the chord (blocked / arpeggiated), plus a peek-at-answer toggle */}
+            {!showScore && !revealing && !showingAnswer && (
               <div data-testid="chord-speakers" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '56px' }}>
                 {([
                   { key: 'harmonic', label: '柱式', title: '播放柱式和弦（同时）', onClick: playHarmonic, color: '#8b5cf6' },
                   { key: 'melodic', label: '分解', title: '播放分解和弦（先后）', onClick: playMelodic, color: '#10b981' },
+                  { key: 'answer', label: '乐谱', title: '查看乐谱', onClick: toggleShowAnswer, color: '#f59e0b' },
                 ] as const).map(({ key, label, title, onClick, color }) => (
                   <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                     <button
@@ -375,16 +388,41 @@ export default function ChordPractice() {
                       onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
                       onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
                     >
-                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-                      </svg>
+                      {key === 'answer' ? (
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      ) : (
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                        </svg>
+                      )}
                     </button>
                     <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>{label}</span>
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* "Hide answer" affordance while peeking, so the learner can return to the speakers */}
+            {!showScore && !revealing && showingAnswer && (
+              <button
+                type="button"
+                onClick={toggleShowAnswer}
+                title="隐藏乐谱，返回听音练习"
+                aria-label="隐藏乐谱，返回听音练习"
+                style={{
+                  position: 'absolute', top: '10px', right: '10px',
+                  background: 'white', border: '1px solid #e5e7eb', borderRadius: '14px',
+                  padding: '6px 12px', fontSize: '0.8rem', fontWeight: '700', color: '#6b7280',
+                  cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                }}
+              >
+                隐藏乐谱
+              </button>
             )}
           </div>
 

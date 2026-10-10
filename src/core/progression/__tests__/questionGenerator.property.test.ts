@@ -51,9 +51,9 @@ const seedArb = fc.integer({ min: 0, max: 2 ** 31 - 1 });
 // Property 4 — every chord is a root-position triad of three tones
 // ============================================================
 
-describe('Property 4: every chord is a root-position triad of three tones', () => {
-  // Feature: rcm6-chord-progression, Property 4: For any generated ProgressionQuestion, every resolved chord has exactly three tones in root position (midis strictly ascending, midis[0] minimal), no sevenths or inversions
-  it('produces three chords, each a three-tone root-position triad', () => {
+describe('Property 4: every chord is a grand-staff voicing (left-hand bass root + right-hand triad)', () => {
+  // Feature: rcm6-chord-progression, Property 4: For any generated ProgressionQuestion, every resolved chord has a single left-hand bass root plus a three-tone right-hand triad; the combined sounding tones are the bass note followed by the triad, with the bass as the lowest note.
+  it('produces three chords, each a bass root + three-tone triad', () => {
     fc.assert(
       fc.property(seedArb, (seed) => {
         const q = generateQuestion(DEFAULT_SELECTION, makeRng(seed));
@@ -62,17 +62,21 @@ describe('Property 4: every chord is a root-position triad of three tones', () =
         expect(q.chords).toHaveLength(3);
 
         for (const chord of q.chords) {
-          // Exactly three tones across every parallel representation.
-          expect(chord.midis).toHaveLength(3);
-          expect(chord.pitches).toHaveLength(3);
-          expect(chord.spelled).toHaveLength(3);
+          // Right hand: a full three-tone triad, strictly ascending.
+          expect(chord.rightHand.pitches).toHaveLength(3);
+          expect(chord.rightHand.midis).toHaveLength(3);
+          expect(chord.rightHand.midis[0]).toBeLessThan(chord.rightHand.midis[1]);
+          expect(chord.rightHand.midis[1]).toBeLessThan(chord.rightHand.midis[2]);
 
-          // Root position: midis strictly ascending.
-          expect(chord.midis[0]).toBeLessThan(chord.midis[1]);
-          expect(chord.midis[1]).toBeLessThan(chord.midis[2]);
+          // Combined sounding tones = left-hand bass + right-hand triad (4 tones).
+          expect(chord.midis).toHaveLength(4);
+          expect(chord.pitches).toHaveLength(4);
+          expect(chord.spelled).toHaveLength(4);
 
-          // Root is the lowest note.
-          expect(chord.midis[0]).toBe(Math.min(...chord.midis));
+          // The left-hand bass is the lowest sounding note.
+          expect(chord.midis[0]).toBe(chord.leftHand.midi);
+          expect(chord.leftHand.midi).toBe(Math.min(...chord.midis));
+          expect(chord.leftHand.midi).toBeLessThan(chord.rightHand.midis[0]);
         }
       }),
       { numRuns: 100 },
