@@ -38,3 +38,22 @@ export function playIntervalPairAudio(firstPitch: string, secondPitch: string) {
 export function playIntervalHarmonic(lowPitch: string, highPitch: string) {
   void audioEngine.playNotes([pitchToToneNote(lowPitch), pitchToToneNote(highPitch)]);
 }
+
+/** 分解接柱式之间的停顿（毫秒），让听者分辨出两个阶段 */
+export const MELODIC_TO_HARMONIC_DELAY_MS = STAGGER_DELAY_MS * 2;
+
+/**
+ * 先分解（先后弹响 firstPitch、secondPitch），再柱式（两音同时再弹一次）。
+ * 用于音程练习：每道题先播放旋律音程，再播放和声音程。
+ */
+export function playIntervalMelodicThenHarmonic(firstPitch: string, secondPitch: string) {
+  const first = pitchToToneNote(firstPitch);
+  const second = pitchToToneNote(secondPitch);
+  void audioEngine.playNotes([first]);
+  audioEngine.scheduleNotes([second], STAGGER_DELAY_MS, true);
+  audioEngine.scheduleNotes(
+    [first, second],
+    MELODIC_TO_HARMONIC_DELAY_MS,
+    false,
+  );
+}
