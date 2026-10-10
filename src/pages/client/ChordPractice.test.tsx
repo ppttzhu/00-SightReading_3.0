@@ -216,14 +216,14 @@ describe('ChordPractice speakers-only mode (default, no score)', () => {
 
     const speakers = screen.getByTestId('chord-speakers');
     const btns = within(speakers).getAllByRole('button');
-    fireEvent.click(btns[2]); // 答案 / peek at notation
+    fireEvent.click(btns[2]); // 乐谱 / peek at notation
 
     // Speakers hide while peeking, and the notation becomes visible.
     expect(screen.queryByTestId('chord-speakers')).toBeNull();
     expect(screen.getByTestId('chord-notation')).toBeTruthy();
 
-    // The "隐藏答案" button returns to the speakers view.
-    fireEvent.click(screen.getByRole('button', { name: '隐藏答案，返回听音练习' }));
+    // The "隐藏乐谱" button returns to the speakers view.
+    fireEvent.click(screen.getByRole('button', { name: '隐藏乐谱，返回听音练习' }));
     expect(screen.getByTestId('chord-speakers')).toBeTruthy();
   });
 

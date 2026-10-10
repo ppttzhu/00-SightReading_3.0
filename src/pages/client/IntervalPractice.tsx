@@ -420,7 +420,7 @@ export default function IntervalPractice() {
                 {([
                   { key: 'melodic', label: '分解', title: '播放旋律音程（先后）', onClick: playMelodic, color: '#10b981' },
                   { key: 'harmonic', label: '柱式', title: '播放和声音程（同时）', onClick: playHarmonic, color: '#8b5cf6' },
-                  { key: 'answer', label: '答案', title: '查看谱面答案', onClick: toggleShowAnswer, color: '#f59e0b' },
+                  { key: 'answer', label: '乐谱', title: '查看乐谱', onClick: toggleShowAnswer, color: '#f59e0b' },
                 ] as const).map(({ key, label, title, onClick, color }) => (
                   <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                     <button
@@ -458,8 +458,8 @@ export default function IntervalPractice() {
               <button
                 type="button"
                 onClick={toggleShowAnswer}
-                title="隐藏答案，返回听音练习"
-                aria-label="隐藏答案，返回听音练习"
+                title="隐藏乐谱，返回听音练习"
+                aria-label="隐藏乐谱，返回听音练习"
                 style={{
                   position: 'absolute', top: '10px', right: '10px',
                   background: 'white', border: '1px solid #e5e7eb', borderRadius: '14px',
@@ -467,7 +467,7 @@ export default function IntervalPractice() {
                   cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
                 }}
               >
-                隐藏答案
+                隐藏乐谱
               </button>
             )}
           </div>
