@@ -20,14 +20,15 @@ export type Subset = ReadonlySet<string>;
 
 /**
  * The default selection: the common diatonic intervals — excludes the
- * augmented and diminished qualities and the unison (1st degree). This leaves
- * m2/M2, m3/M3, P4, P5, m6/M6, m7/M7, and P8 selected by default; the learner
- * can add the rarer qualities/unison as needed.
+ * augmented and diminished qualities, the unison (1st degree), and the 7th
+ * degree (m7/M7). This leaves m2/M2, m3/M3, P4, P5, m6/M6, and P8 selected by
+ * default; the learner can add the rarer qualities/unison/7ths as needed.
  */
 export const DEFAULT_SUBSET: Subset = new Set(
   INTERVAL_CATALOG.filter(
     (entry) =>
       entry.number !== 1 &&
+      entry.number !== 7 &&
       entry.quality !== 'augmented' &&
       entry.quality !== 'diminished',
   ).map((entry) => entry.id),

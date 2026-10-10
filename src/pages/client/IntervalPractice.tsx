@@ -4,7 +4,12 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Stem } from '
 import { useAppStore } from '../../core/store/useAppStore';
 import { useBlinkTimer } from '../../hooks/useBlinkTimer';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { playIntervalPairAudio, playIntervalHarmonic, WRONG_FEEDBACK_RESET_MS } from '../../core/engine/intervalAudio';
+import {
+  playIntervalPairAudio,
+  playIntervalHarmonic,
+  playIntervalMelodicThenHarmonic,
+  WRONG_FEEDBACK_RESET_MS,
+} from '../../core/engine/intervalAudio';
 import { decodeScope } from '../../core/theory/scopeSerializer';
 import {
   generateQuestion,
@@ -105,9 +110,14 @@ export default function IntervalPractice() {
   const [tipFading, setTipFading] = useState(false);
   // Speakers-only mode: briefly reveal the score after a correct answer.
   const [revealing, setRevealing] = useState(false);
+  // Speakers-only mode: learner explicitly asked to peek at the notation.
+  const [showingAnswer, setShowingAnswer] = useState(false);
   // Two-click answer: the learner picks one quality and one number.
   const [selectedQuality, setSelectedQuality] = useState<IntervalQuality | null>(null);
   const [selectedNumber, setSelectedNumber] = useState<IntervalNumber | null>(null);
+  // Which pitch sounds first in the melodic phase (random per question,
+  // independent of the staff's ascending/descending spelling direction).
+  const [playFirst, setPlayFirst] = useState<'low' | 'high'>(() => (Math.random() < 0.5 ? 'low' : 'high'));
 
   const question: IntervalQuestion | null = result.ok ? result.question : null;
 
@@ -134,6 +144,8 @@ export default function IntervalPractice() {
     setResult(generateQuestion(subset));
     setSelectedQuality(null);
     setSelectedNumber(null);
+    setPlayFirst(Math.random() < 0.5 ? 'low' : 'high');
+    setShowingAnswer(false);
     questionStartedRef.current = Date.now();
   }, [subset]);
 
@@ -156,71 +168,49 @@ export default function IntervalPractice() {
     stave.setContext(context).draw();
 
     try {
-      if (q.isHarmonic) {
-        // --- 和声音程 ---
-        const lowParsed = parsePitchForVexflow(q.lowPitch);
-        const highParsed = parsePitchForVexflow(q.highPitch);
+      // 谱面显示三个音符组：先分解（两个单音，按本题随机的先后顺序排列），
+      // 再柱式（两音叠在一起），与「先分解、再柱式」的自动播放顺序一致。
+      const firstPitch = playFirst === 'low' ? q.lowPitch : q.highPitch;
+      const secondPitch = playFirst === 'low' ? q.highPitch : q.lowPitch;
+      const firstParsed = parsePitchForVexflow(firstPitch);
+      const secondParsed = parsePitchForVexflow(secondPitch);
+      const lowParsed = parsePitchForVexflow(q.lowPitch);
+      const highParsed = parsePitchForVexflow(q.highPitch);
+      const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
 
+      // 分解的两个音各占一拍（四分音符），柱式和弦占两拍（二分音符），凑成 4/4 一小节。
+      const melodicNotes = [firstParsed, secondParsed].map(p => {
+        const n = new StaveNote({ keys: [p.key], duration: 'q', clef: q.clef, stemDirection: stemDir });
+        if (p.accidental) n.addModifier(new Accidental(p.accidental));
+        return n;
+      });
+
+      const chordNote = (() => {
         if (q.lowPitch === q.highPitch) {
-          // 同音：和不同音一样，渲染单个全音符
-          const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
-          const note = new StaveNote({
-            keys: [lowParsed.key],
-            duration: 'w',
-            clef: q.clef,
-            stemDirection: stemDir,
-          });
-          if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental));
-          const voice = new Voice({ numBeats: 4, beatValue: 4 });
-          voice.setMode(2);
-          voice.addTickables([note]);
-          new Formatter().joinVoices([voice]).format([voice], 200);
-          voice.draw(context, stave);
-        } else {
-          const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
-          const note = new StaveNote({
-            keys: [lowParsed.key, highParsed.key],
-            duration: 'w',
-            clef: q.clef,
-            stemDirection: stemDir,
-          });
-          if (lowParsed.accidental) note.addModifier(new Accidental(lowParsed.accidental), 0);
-          if (highParsed.accidental) note.addModifier(new Accidental(highParsed.accidental), 1);
-
-          const voice = new Voice({ numBeats: 4, beatValue: 4 });
-          voice.setMode(2);
-          voice.addTickables([note]);
-          new Formatter().joinVoices([voice]).format([voice], 200);
-          voice.draw(context, stave);
-        }
-      } else {
-        // --- 旋律音程：两音并排（按方向排序：上行低→高，下行高→低）---
-        const firstPitch = q.dir === 1 ? q.lowPitch : q.highPitch;
-        const secondPitch = q.dir === 1 ? q.highPitch : q.lowPitch;
-        const firstParsed = parsePitchForVexflow(firstPitch);
-        const secondParsed = parsePitchForVexflow(secondPitch);
-        const lowParsed = parsePitchForVexflow(q.lowPitch);
-        const highParsed = parsePitchForVexflow(q.highPitch);
-        const stemDir = resolveStemDirection(lowParsed.key, highParsed.key, q.clef);
-
-        const vfNotes = [firstParsed, secondParsed].map(p => {
-          const n = new StaveNote({ keys: [p.key], duration: 'h', clef: q.clef, stemDirection: stemDir });
-          if (p.accidental) n.addModifier(new Accidental(p.accidental));
+          // 同音：单音符渲染，持续时间仍占两拍。
+          const n = new StaveNote({ keys: [lowParsed.key], duration: 'h', clef: q.clef, stemDirection: stemDir });
+          if (lowParsed.accidental) n.addModifier(new Accidental(lowParsed.accidental));
           return n;
-        });
-        const voice = new Voice({ numBeats: 4, beatValue: 4 });
-        voice.setMode(2);
-        voice.addTickables(vfNotes);
-        new Formatter().joinVoices([voice]).format([voice], 160);
-        voice.draw(context, stave);
-      }
+        }
+        const n = new StaveNote({ keys: [lowParsed.key, highParsed.key], duration: 'h', clef: q.clef, stemDirection: stemDir });
+        if (lowParsed.accidental) n.addModifier(new Accidental(lowParsed.accidental), 0);
+        if (highParsed.accidental) n.addModifier(new Accidental(highParsed.accidental), 1);
+        return n;
+      })();
+
+      const vfNotes = [...melodicNotes, chordNote];
+      const voice = new Voice({ numBeats: 4, beatValue: 4 });
+      voice.setMode(2);
+      voice.addTickables(vfNotes);
+      new Formatter().joinVoices([voice]).format([voice], 200);
+      voice.draw(context, stave);
     } catch (e) {
       console.error('VexFlow error:', e);
     }
-  }, [question]);
+  }, [question, playFirst]);
 
-  // 题目出现时自动播放音程（和声=同时，旋律=先后：上行低→高，下行高→低）。
-  // 依赖 audioEnabled，所以「静音再取消静音」会重新播放一遍当前题目。
+  // 题目出现时自动播放音程：先分解（先后，顺序随机：高音先或低音先），
+  // 再柱式（同时）。依赖 audioEnabled，所以「静音再取消静音」会重新播放一遍当前题目。
   useEffect(() => {
     if (!audioEnabled || !question) return;
     const q = question;
@@ -230,16 +220,12 @@ export default function IntervalPractice() {
         await new Promise<void>(r => setTimeout(r, 100));
       }
       if (cancelled) return;
-      if (q.isHarmonic) {
-        playIntervalHarmonic(q.lowPitch, q.highPitch);
-      } else {
-        const first = q.dir === 1 ? q.lowPitch : q.highPitch;
-        const second = q.dir === 1 ? q.highPitch : q.lowPitch;
-        playIntervalPairAudio(first, second);
-      }
+      const first = playFirst === 'low' ? q.lowPitch : q.highPitch;
+      const second = playFirst === 'low' ? q.highPitch : q.lowPitch;
+      playIntervalMelodicThenHarmonic(first, second);
     })();
     return () => { cancelled = true; };
-  }, [question, audioEnabled]);
+  }, [question, playFirst, audioEnabled]);
 
   // Ensure audio is on for an explicit play request (speaker click).
   const ensureAudioOn = () => {
@@ -250,7 +236,7 @@ export default function IntervalPractice() {
     void audioEngine.prime();
   };
 
-  // Left speaker: play the interval harmonically (both notes at once).
+  // Left speaker: replay just the harmonic form (both notes at once).
   const playHarmonic = () => {
     if (!question) return;
     ensureAudioOn();
@@ -258,13 +244,13 @@ export default function IntervalPractice() {
     playIntervalHarmonic(question.lowPitch, question.highPitch);
   };
 
-  // Right speaker: play the interval melodically (先后：上行低→高，下行高→低).
+  // Right speaker: replay just the melodic form (先后，顺序与本题自动播放一致).
   const playMelodic = () => {
     if (!question) return;
     ensureAudioOn();
     audioEngine.stop();
-    const first = question.dir === 1 ? question.lowPitch : question.highPitch;
-    const second = question.dir === 1 ? question.highPitch : question.lowPitch;
+    const first = playFirst === 'low' ? question.lowPitch : question.highPitch;
+    const second = playFirst === 'low' ? question.highPitch : question.lowPitch;
     playIntervalPairAudio(first, second);
   };
 
@@ -305,6 +291,12 @@ export default function IntervalPractice() {
         setSelectedNumber(null);
       }, WRONG_FEEDBACK_RESET_MS);
     }
+  };
+
+  // Toggle the "peek at the answer" notation reveal (speakers-only mode).
+  const toggleShowAnswer = () => {
+    if (!question) return;
+    setShowingAnswer(v => !v);
   };
 
   // Pick a quality; if a number is already picked, evaluate the pair.
@@ -420,14 +412,15 @@ export default function IntervalPractice() {
               border: '1px solid #f9fafb'
             }}
           >
-            <div ref={containerRef} data-testid="interval-notation" style={{ opacity: (showScore ? noteVisible : revealing) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+            <div ref={containerRef} data-testid="interval-notation" style={{ opacity: (showScore ? noteVisible : (revealing || showingAnswer)) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
 
-            {/* Speakers-only mode: two speakers to hear the interval (harmonic / melodic) */}
-            {!showScore && !revealing && (
+            {/* Speakers-only mode: two speakers to hear the interval (harmonic / melodic), plus a peek-at-answer toggle */}
+            {!showScore && !revealing && !showingAnswer && (
               <div data-testid="interval-speakers" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '56px' }}>
                 {([
-                  { key: 'harmonic', label: '柱式', title: '播放和声音程（同时）', onClick: playHarmonic, color: '#8b5cf6' },
                   { key: 'melodic', label: '分解', title: '播放旋律音程（先后）', onClick: playMelodic, color: '#10b981' },
+                  { key: 'harmonic', label: '柱式', title: '播放和声音程（同时）', onClick: playHarmonic, color: '#8b5cf6' },
+                  { key: 'answer', label: '答案', title: '查看谱面答案', onClick: toggleShowAnswer, color: '#f59e0b' },
                 ] as const).map(({ key, label, title, onClick, color }) => (
                   <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                     <button
@@ -441,16 +434,41 @@ export default function IntervalPractice() {
                       onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
                       onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
                     >
-                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-                      </svg>
+                      {key === 'answer' ? (
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      ) : (
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                        </svg>
+                      )}
                     </button>
                     <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>{label}</span>
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* "Hide answer" affordance while peeking, so the learner can return to the speakers */}
+            {!showScore && !revealing && showingAnswer && (
+              <button
+                type="button"
+                onClick={toggleShowAnswer}
+                title="隐藏答案，返回听音练习"
+                aria-label="隐藏答案，返回听音练习"
+                style={{
+                  position: 'absolute', top: '10px', right: '10px',
+                  background: 'white', border: '1px solid #e5e7eb', borderRadius: '14px',
+                  padding: '6px 12px', fontSize: '0.8rem', fontWeight: '700', color: '#6b7280',
+                  cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                }}
+              >
+                隐藏答案
+              </button>
             )}
           </div>
 
