@@ -19,8 +19,10 @@ vi.mock('../../core/engine/AudioEngine', () => {
 vi.mock('../../core/engine/playbackAudio', () => ({
   playTonic: vi.fn(),
   playMelody: vi.fn(),
+  playTonicThenMelody: vi.fn(),
   PLAYBACK_BPM: 90,
   MS_PER_BEAT: 60000 / 90,
+  TONIC_TO_MELODY_GAP_MS: 3000,
 }));
 
 // Capture the useMidi onNoteOn callback so tests can simulate MIDI input.
@@ -54,7 +56,7 @@ vi.mock('../../core/playback/playbackSource', () => ({
 }));
 
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { playTonic, playMelody } from '../../core/engine/playbackAudio';
+import { playTonic, playMelody, playTonicThenMelody } from '../../core/engine/playbackAudio';
 import PlaybackPractice from './PlaybackPractice';
 
 function renderAt(qs = 'keys=gM&mode=bank') {
@@ -71,6 +73,7 @@ beforeEach(() => {
   audioEngine.enabled = true;
   vi.mocked(playTonic).mockClear();
   vi.mocked(playMelody).mockClear();
+  vi.mocked(playTonicThenMelody).mockClear();
 });
 
 afterEach(() => cleanup());
@@ -98,6 +101,11 @@ describe('PlaybackPractice', () => {
     expect(playTonic).toHaveBeenCalledWith(FIXED.tonic);
     fireEvent.click(screen.getByRole('button', { name: '播放旋律' }));
     expect(playMelody).toHaveBeenCalledWith(FIXED.melody);
+  });
+
+  it('auto-plays the tonic-then-melody cue when a question loads', () => {
+    renderAt();
+    expect(playTonicThenMelody).toHaveBeenCalledWith(FIXED.tonic, FIXED.melody);
   });
 
   it('toggles the answer sheet', () => {

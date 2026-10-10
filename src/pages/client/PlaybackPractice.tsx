@@ -2,13 +2,14 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Renderer, Stave, StaveNote, BarNote, Voice, Formatter, Accidental, Beam, Dot, Stem } from 'vexflow';
 import { audioEngine } from '../../core/engine/AudioEngine';
-import { playTonic, playMelody } from '../../core/engine/playbackAudio';
+import { playTonic, playMelody, playTonicThenMelody } from '../../core/engine/playbackAudio';
 import { useMidi } from '../../hooks/useMidi';
 import MidiStatus from '../../components/MidiStatus';
 import { decodeKeys, decodeMode } from '../../core/playback/playbackScopeSerializer';
 import { nextQuestion as pickNextQuestion } from '../../core/playback/playbackSource';
 import { keyInfo, pitchToMidi } from '../../core/playback/playbackKeys';
 import { targetSequence, pitchClassOf, evaluateSequence } from '../../core/playback/melodyMatch';
+import { beamIndexGroups } from '../../core/playback/beaming';
 import type { PlaybackQuestion, MelodyNote } from '../../core/playback/playbackTypes';
 
 /** Accent color for the playback module. */
@@ -58,23 +59,12 @@ function beatsToDuration(beats: number): { duration: string; dots: number } {
 }
 
 /**
- * Group consecutive eighth notes (beats === 0.5) into beam runs, so eighths
- * beam together and other durations break the beam. Parallel arrays: `notes`
- * are the VexFlow StaveNotes and `melody` the source notes (for durations).
+ * Group consecutive eighth notes into beam runs using {@link beamIndexGroups}
+ * (beat-aware, metric grouping), returning the VexFlow StaveNotes per run.
+ * Parallel arrays: `notes` are the StaveNotes and `melody` the source notes.
  */
 function groupEighthRuns(notes: StaveNote[], melody: MelodyNote[]): StaveNote[][] {
-  const groups: StaveNote[][] = [];
-  let run: StaveNote[] = [];
-  notes.forEach((note, i) => {
-    if (melody[i].beats === 0.5) {
-      run.push(note);
-    } else {
-      if (run.length) groups.push(run);
-      run = [];
-    }
-  });
-  if (run.length) groups.push(run);
-  return groups;
+  return beamIndexGroups(melody.map((n) => n.beats)).map((idxs) => idxs.map((i) => notes[i]));
 }
 
 /** Split the melody into measures by beat capacity. */
@@ -167,6 +157,19 @@ export default function PlaybackPractice() {
 
   const onPlayTonic = () => { ensureAudioOn(); playTonic(question.tonic); };
   const onPlayMelody = () => { ensureAudioOn(); playMelody(question.melody); };
+
+  // Auto-play cue on every new question: tonic chord once → 3s gap → melody
+  // once. Browser autoplay policy means this only makes sound once audio has
+  // been unlocked by a prior interaction (e.g. a button tap); before that it
+  // schedules silently, which matches how the manual buttons behave. The
+  // scheduled melody is cancelled by `audioEngine.stop()` when the next
+  // question loads or the student replays, so sequences never overlap.
+  useEffect(() => {
+    if (!audioEngine.enabled) return;
+    void audioEngine.prime();
+    playTonicThenMelody(question.tonic, question.melody);
+    return () => { audioEngine.stop(); };
+  }, [question]);
 
   // How many melody notes are visible: the full melody once the answer is
   // revealed, otherwise just the notes matched so far via MIDI (progressive
