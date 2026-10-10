@@ -1,5 +1,5 @@
 /**
- * Playback helper for the RCM Level 6 Playback exercise. Plays the tonic chord
+ * Playback helper for the Playback exercise. Plays the tonic chord
  * (blocked) and the melody (sequential, timed by each note's beat duration)
  * through the shared AudioEngine. Relies on `AudioEngine.stop()` to cancel
  * pending scheduled notes when replaying or advancing. Mirrors intervalAudio.ts.

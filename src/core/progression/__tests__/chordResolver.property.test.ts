@@ -1,6 +1,6 @@
 /**
- * Property-based tests for the Chord_Resolver (`resolveChord`) of the RCM
- * Level 6 chord-progression exercise.
+ * Property-based tests for the Chord_Resolver (`resolveChord`) of the
+ * chord-progression exercise.
  *
  * Covers design Correctness Properties 1, 2, 3, 5, and 8 (tasks 3.2–3.6). Each
  * property runs a minimum of 100 fast-check iterations and is tagged with its
@@ -61,7 +61,7 @@ function offsetsFromRoot(midis: number[]): number[] {
 // ============================================================
 
 describe('Property 1: chord quality matches the Chord_Spec', () => {
-  // Feature: rcm6-chord-progression, Property 1: For any supported Key, Mode, and Chord_Spec, resolveChord tones have semitone offsets from the root equal to [0,4,7] when quality is 'major' and [0,3,7] when 'minor'
+  // Feature: chord-progression, Property 1: For any supported Key, Mode, and Chord_Spec, resolveChord tones have semitone offsets from the root equal to [0,4,7] when quality is 'major' and [0,3,7] when 'minor'
   it('produces [0,4,7] offsets for major specs and [0,3,7] for minor specs', () => {
     fc.assert(
       fc.property(keyModeArb, chordSpecArb, ({ key, mode }, spec) => {
@@ -80,7 +80,7 @@ describe('Property 1: chord quality matches the Chord_Spec', () => {
 // ============================================================
 
 describe('Property 2: minor-key dominant is a major triad on the raised leading tone', () => {
-  // Feature: rcm6-chord-progression, Property 2: For any minor Key, resolveChord of the V spec produces a major triad (offsets [0,4,7]) whose third is the raised seventh, never a minor triad
+  // Feature: chord-progression, Property 2: For any minor Key, resolveChord of the V spec produces a major triad (offsets [0,4,7]) whose third is the raised seventh, never a minor triad
   it('resolves the V spec in any minor key to a major triad, never minor', () => {
     fc.assert(
       fc.property(fc.constantFrom(...MINOR_KEYS), (key) => {
@@ -99,7 +99,7 @@ describe('Property 2: minor-key dominant is a major triad on the raised leading 
 // ============================================================
 
 describe('Property 3: enharmonically correct spelling (letters stacked in thirds)', () => {
-  // Feature: rcm6-chord-progression, Property 3: For any supported Key, Mode, and Chord_Spec, the three Spelled_Pitches have letter names stacked in thirds from the root with key-correct accidentals, so enharmonic keys yield distinct spellings
+  // Feature: chord-progression, Property 3: For any supported Key, Mode, and Chord_Spec, the three Spelled_Pitches have letter names stacked in thirds from the root with key-correct accidentals, so enharmonic keys yield distinct spellings
   it('spells three tones whose letters are stacked in thirds from the root', () => {
     fc.assert(
       fc.property(keyModeArb, chordSpecArb, ({ key, mode }, spec) => {
@@ -122,7 +122,7 @@ describe('Property 3: enharmonically correct spelling (letters stacked in thirds
 // ============================================================
 
 describe('Property 5: determinism of resolution', () => {
-  // Feature: rcm6-chord-progression, Property 5: For any supported Key, Mode, and Chord_Spec, resolving the same triple repeatedly yields identical Spelled_Pitches
+  // Feature: chord-progression, Property 5: For any supported Key, Mode, and Chord_Spec, resolving the same triple repeatedly yields identical Spelled_Pitches
   it('yields identical pitches/midis/spelled when resolved twice', () => {
     fc.assert(
       fc.property(keyModeArb, chordSpecArb, ({ key, mode }, spec) => {
@@ -142,7 +142,7 @@ describe('Property 5: determinism of resolution', () => {
 // ============================================================
 
 describe('Property 8: chord building blocks are reusable across progressions', () => {
-  // Feature: rcm6-chord-progression, Property 8: For any Chord_Spec appearing in more than one ProgressionDef, resolving that spec in the same Key/Mode yields identical tones regardless of which Progression references it
+  // Feature: chord-progression, Property 8: For any Chord_Spec appearing in more than one ProgressionDef, resolving that spec in the same Key/Mode yields identical tones regardless of which Progression references it
   it('resolves a shared spec identically regardless of progression context', () => {
     fc.assert(
       fc.property(keyModeArb, ({ key, mode }) => {
@@ -178,7 +178,7 @@ function letterSet(spelled: string[]): string[] {
 }
 
 describe('Property 9: grand-staff voicing — left-hand bass root + right-hand triad, returning to the start', () => {
-  // Feature: rcm6-chord-progression, Property 9: For any generated progression, every chord has a single left-hand bass root (the chord root, in the bass register) and a full three-tone right-hand triad; the right-hand triad's letter set matches resolveChord's, and the final tonic reuses the first chord's exact voicing (no octave jump).
+  // Feature: chord-progression, Property 9: For any generated progression, every chord has a single left-hand bass root (the chord root, in the bass register) and a full three-tone right-hand triad; the right-hand triad's letter set matches resolveChord's, and the final tonic reuses the first chord's exact voicing (no octave jump).
   it('voices each chord as a bass root + triad, and returns to the exact starting voicing', () => {
     fc.assert(
       fc.property(keyModeArb, progressionArb, ({ key, mode }, progression) => {

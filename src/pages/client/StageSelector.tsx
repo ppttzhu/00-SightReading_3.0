@@ -104,7 +104,7 @@ const MODULE_COLORS: Record<string, string> = {
   playback: '#0ea5e9',
 };
 
-/** Display labels for the four RCM6 Playback keys in the setup selector. */
+/** Display labels for the four Playback keys in the setup selector. */
 const PLAYBACK_KEY_LABELS: Record<PlaybackKey, string> = {
   'G major': 'G Major',
   'E major': 'E Major',
@@ -141,13 +141,13 @@ export default function StageSelector() {
   // for 1s after a correct answer.
   const [showChordScore, setShowChordScore] = useState(false);
 
-  // Patterns (和声进行) RCM6 progression scope: a set of ProgressionIds.
+  // Patterns (和声进行) progression scope: a set of ProgressionIds.
   const [progressionSelection, setProgressionSelection] = useState<SelectedProgressions>(DEFAULT_PROGRESSION_SELECTION);
   // Whether to show the score during progression practice. Default off → one
   // speaker, score revealed 1s after a correct answer.
   const [showProgressionScore, setShowProgressionScore] = useState(false);
 
-  // Playback (RCM6 旋律回放): selected keys + mode (bank vs random).
+  // Playback (旋律回放): selected keys + mode (bank vs random).
   const [playbackKeys, setPlaybackKeys] = useState<SelectedPlaybackKeys>(DEFAULT_PLAYBACK_KEYS);
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>(DEFAULT_PLAYBACK_MODE);
 
@@ -235,7 +235,7 @@ export default function StageSelector() {
     navigate(`/client/practice/progression?${PROGRESSION_SCOPE_PARAM}=${encodeProgressionScope(progressionSelection)}${scoreParam}`);
   };
 
-  // Playback (RCM6 旋律回放) — key multi-select, mode, start.
+  // Playback (旋律回放) — key multi-select, mode, start.
   const canStartPlayback = isPlaybackSelectionNonEmpty(playbackKeys);
 
   const togglePlaybackKeyOption = (key: PlaybackKey, checked: boolean) => {
@@ -509,7 +509,7 @@ export default function StageSelector() {
         </div>
       )}
 
-      {/* Playback (RCM6 旋律回放) setup: choose keys + mode, then start. */}
+      {/* Playback (旋律回放) setup: choose keys + mode, then start. */}
       {isPlaybackModule && (
         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '100%', maxWidth: '560px' }}>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', textAlign: 'center', maxWidth: '460px', margin: 0 }}>
@@ -581,7 +581,7 @@ export default function StageSelector() {
         </div>
       )}
 
-      {/* Patterns (音型): the RCM Level 6 chord-progression exercise with its own
+      {/* Patterns (音型): the chord-progression exercise with its own
           scope selector. The database-authored 音型 stages grid is intentionally
           hidden here — this page serves the progression exercise only. */}
       {isPatternsModule && (

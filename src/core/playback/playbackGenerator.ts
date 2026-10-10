@@ -1,5 +1,5 @@
 /**
- * RCM Level 6 Playback random question generator.
+ * Playback random question generator.
  *
  * Produces a short, tonal, SINGABLE melody in scale degrees, then converts to
  * spelled pitches for the chosen key. "Singable" is enforced structurally, not
@@ -79,7 +79,7 @@ interface RhythmSlot {
   startsMeasure: boolean;
 }
 
-/** Maximum notes in a complete melody (RCM Level 6 Playback upper bound). */
+/** Maximum notes in a complete melody (Playback upper bound). */
 const MAX_MELODY_NOTES = 9;
 
 // ------------------------------------------------------------
@@ -902,7 +902,7 @@ function buildCandidate(
 }
 
 /**
- * Generate one RCM Level 6 Playback question drawn from the allowed `keys`.
+ * Generate one Playback question drawn from the allowed `keys`.
  *
  * Builds a pool of candidate melodies (plan-then-build contour, not a Markov
  * chain), discards hard-invalid ones, scores the rest for musicality, and

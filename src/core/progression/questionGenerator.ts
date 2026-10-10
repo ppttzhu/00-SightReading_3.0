@@ -1,5 +1,5 @@
 /**
- * The Question_Generator for the RCM Level 6 chord-progression exercise.
+ * The Question_Generator for the chord-progression exercise.
  *
  * {@link generateQuestion} randomly selects a Mode, Key, and Harmonic_Function,
  * derives the matching supported Progression, resolves its three chords in the
@@ -30,7 +30,7 @@ import { resolveProgression } from './chordResolver';
  * needs to play the Progression and grade an answer.
  */
 export interface ProgressionQuestion {
-  /** RCM level; fixed at 6 for this exercise. */
+  /** Difficulty level; fixed at 6 for this exercise. */
   level: 6;
   /** The selected Key, spelled as a letter plus optional accidental. */
   key: KeyName;

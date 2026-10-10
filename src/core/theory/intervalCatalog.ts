@@ -1,5 +1,5 @@
 /**
- * The canonical RCM6 interval catalog and its validation.
+ * The canonical interval catalog and its validation.
  *
  * This module is the single source of truth for interval facts (number,
  * quality, semitones, English abbreviation, Chinese display name). Every other
@@ -34,7 +34,7 @@ export interface CatalogInterval {
   chineseName: string;
 }
 
-/** Result of validating a catalog against the RCM6 invariants. */
+/** Result of validating a catalog against the catalog invariants. */
 export interface CatalogValidationResult {
   valid: boolean;
   /** e.g. "missing d5", "duplicate (3,perfect)", "expected 27 got 28". */
@@ -42,7 +42,7 @@ export interface CatalogValidationResult {
 }
 
 /**
- * The RCM6 interval catalog: exactly 27 entries, ordered by `number` then by
+ * The interval catalog: exactly 27 entries, ordered by `number` then by
  * the requirements-table order. Each entry's `id` equals its English
  * abbreviation and is unique across the catalog.
  */
@@ -157,7 +157,7 @@ function requiredPairKeys(): Set<string> {
 }
 
 /**
- * Validate a catalog against the RCM6 invariants (Requirement 2):
+ * Validate a catalog against the catalog invariants (Requirement 2):
  * - exactly 27 entries
  * - every required `(number, quality)` pair present exactly once
  * - no extra `(number, quality)` pairs

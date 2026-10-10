@@ -1,5 +1,5 @@
 /**
- * Rhythm-focused tests for the RCM Level 6 Playback generator. These lock in
+ * Rhythm-focused tests for the Playback generator. These lock in
  * the refactored rhythm engine (2-beat cell building blocks + a question-level
  * optional-dotted flag) without re-checking the melodic rules already covered
  * by playbackGenerator.property.test.ts.

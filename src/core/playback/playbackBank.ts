@@ -1,5 +1,5 @@
 /**
- * Static RCM Level 6 Playback question bank — 22 exercises re-transcribed
+ * Static Playback question bank — 22 exercises re-transcribed
  * directly from the supplied high-resolution score image.
  */
 

@@ -1,5 +1,5 @@
 /**
- * Playback helper for the RCM Level 6 chord-progression exercise.
+ * Playback helper for the chord-progression exercise.
  *
  * Mirrors `intervalAudio.ts`: a thin Presentation-adjacent helper that schedules
  * blocked (solid) chords through the shared {@link audioEngine} and relies on

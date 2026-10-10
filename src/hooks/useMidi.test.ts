@@ -73,7 +73,7 @@ describe('useMidi', () => {
       removeRequestMIDIAccess();
       const { result } = renderHook(() => useMidi({ enabled: true, onNoteOn }));
       expect(result.current.status).toBe('unsupported');
-      expect(result.current.error).toBe('MIDI 需要电脑或安卓手机，iOS 浏览器不可用');
+      expect(result.current.error).toBe('MIDI 需要连接 MIDI 键盘');
       expect(result.current.deviceName).toBeNull();
     });
   });
@@ -111,7 +111,7 @@ describe('useMidi', () => {
       });
 
       expect(result.current.status).toBe('no-device');
-      expect(result.current.error).toBe('未检测到 MIDI 设备');
+      expect(result.current.error).toBe('未检测到 MIDI 设备，请连接键盘');
       expect(result.current.deviceName).toBeNull();
     });
   });

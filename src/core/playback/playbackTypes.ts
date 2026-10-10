@@ -1,5 +1,5 @@
 /**
- * Shared types for the RCM Level 6 Playback exercise.
+ * Shared types for the Playback exercise.
  *
  * A Playback question is a short tonal melody in one of four keys, preceded by
  * a tonic chord. The student hears the tonic chord once and the melody (played
@@ -7,7 +7,7 @@
  * framework-free.
  */
 
-/** The four supported RCM Level 6 Playback keys. */
+/** The four supported Playback keys. */
 export type PlaybackKey = 'G major' | 'E major' | 'G minor' | 'E minor';
 
 /** The four keys in canonical display order. */

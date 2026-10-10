@@ -1,5 +1,5 @@
 /**
- * Property-based tests for the RCM Level 6 Playback generator. These enforce the
+ * Property-based tests for the Playback generator. These enforce the
  * HARD syllabus rules from rule.md across many seeds: supported keys, meters,
  * melody length, allowed starting/ending degrees, measure-beat math, supported
  * rhythmic values, and bank-uniqueness.

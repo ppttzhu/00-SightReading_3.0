@@ -1,5 +1,5 @@
 /**
- * Key pools and diatonic degree spelling for the RCM Level 6 chord-progression
+ * Key pools and diatonic degree spelling for the chord-progression
  * exercise.
  *
  * This module is the Theory_Layer's source of truth for the supported major and

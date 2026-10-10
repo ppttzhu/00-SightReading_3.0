@@ -1,5 +1,5 @@
 /**
- * The Chord_Resolver for the RCM Level 6 chord-progression exercise (part of the
+ * The Chord_Resolver for the chord-progression exercise (part of the
  * Theory_Layer).
  *
  * Given a Key, Mode, and a {@link ChordSpec}, {@link resolveChord} returns the

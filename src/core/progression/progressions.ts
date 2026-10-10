@@ -1,6 +1,6 @@
 /**
- * Progression definitions and reusable Chord_Spec building blocks for the RCM
- * Level 6 chord-progression exercise (the Progression_Layer).
+ * Progression definitions and reusable Chord_Spec building blocks for the
+ * chord-progression exercise (the Progression_Layer).
  *
  * This module defines the four supported Level 6 Progressions as ordered
  * sequences of reusable {@link ChordSpec} objects, the four selectable

@@ -1,6 +1,6 @@
 /**
  * Property-based tests for the Question_Generator (`generateQuestion`) of the
- * RCM Level 6 chord-progression exercise.
+ * chord-progression exercise.
  *
  * Covers design Correctness Properties 4, 6, and 7 (tasks 4.2–4.4). Each
  * property runs a minimum of 100 fast-check iterations and is tagged with its
@@ -52,7 +52,7 @@ const seedArb = fc.integer({ min: 0, max: 2 ** 31 - 1 });
 // ============================================================
 
 describe('Property 4: every chord is a grand-staff voicing (left-hand bass root + right-hand triad)', () => {
-  // Feature: rcm6-chord-progression, Property 4: For any generated ProgressionQuestion, every resolved chord has a single left-hand bass root plus a three-tone right-hand triad; the combined sounding tones are the bass note followed by the triad, with the bass as the lowest note.
+  // Feature: chord-progression, Property 4: For any generated ProgressionQuestion, every resolved chord has a single left-hand bass root plus a three-tone right-hand triad; the combined sounding tones are the bass note followed by the triad, with the bass as the lowest note.
   it('produces three chords, each a bass root + three-tone triad', () => {
     fc.assert(
       fc.property(seedArb, (seed) => {
@@ -89,7 +89,7 @@ describe('Property 4: every chord is a grand-staff voicing (left-hand bass root 
 // ============================================================
 
 describe('Property 6: questions belong to one of four progressions with correct answer metadata', () => {
-  // Feature: rcm6-chord-progression, Property 6: For any ProgressionQuestion, the derived progression is one of the four supported per the (mode, function) mapping, the Key is from the pool for the selected Mode, and correctAnswer equals the Roman-numeral projection of the question's specs
+  // Feature: chord-progression, Property 6: For any ProgressionQuestion, the derived progression is one of the four supported per the (mode, function) mapping, the Key is from the pool for the selected Mode, and correctAnswer equals the Roman-numeral projection of the question's specs
   it('derives a supported progression with key/answer metadata consistent with the mapping', () => {
     fc.assert(
       fc.property(seedArb, (seed) => {
@@ -124,7 +124,7 @@ describe('Property 6: questions belong to one of four progressions with correct 
 // ============================================================
 
 describe('Property 7: all four progressions are reachable', () => {
-  // Feature: rcm6-chord-progression, Property 7: For any sufficiently long sequence of generateQuestion calls with varied rng, every one of the four Answer_Choices is produced at least once
+  // Feature: chord-progression, Property 7: For any sufficiently long sequence of generateQuestion calls with varied rng, every one of the four Answer_Choices is produced at least once
   it('produces every one of the four Answer_Choices across a long varied sequence', () => {
     fc.assert(
       fc.property(seedArb, (seed) => {

@@ -29,7 +29,7 @@ describe('raisedLeadingTone', () => {
 });
 
 describe('tonicChord', () => {
-  it('matches the RCM §14 voicings', () => {
+  it('matches the §14 voicings', () => {
     expect(tonicChord('G major')).toEqual(['G4', 'B4', 'D5', 'G5']);
     expect(tonicChord('E major')).toEqual(['E4', 'G#4', 'B4', 'E5']);
     expect(tonicChord('G minor')).toEqual(['G4', 'Bb4', 'D5', 'G5']);

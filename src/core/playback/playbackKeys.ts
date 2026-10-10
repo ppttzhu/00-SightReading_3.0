@@ -1,5 +1,5 @@
 /**
- * Key theory for the RCM Level 6 Playback exercise: key signatures (for
+ * Key theory for the Playback exercise: key signatures (for
  * notation), diatonic scale-degree → pitch conversion (for the generator), and
  * the tonic chord voicing. Pure and framework-free.
  *
@@ -100,7 +100,7 @@ export function raisedLeadingTone(key: PlaybackKey, octave: number): string {
 }
 
 /**
- * The tonic chord voicing (root, third, fifth, upper root) per RCM §14, in the
+ * The tonic chord voicing (root, third, fifth, upper root) per §14, in the
  * standard register from the CSV reference (root at octave 4).
  */
 export function tonicChord(key: PlaybackKey): string[] {
