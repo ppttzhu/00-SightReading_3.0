@@ -197,17 +197,34 @@ describe('ChordPractice audio integration', () => {
 });
 
 describe('ChordPractice speakers-only mode (default, no score)', () => {
-  it('shows two speakers and plays a blocked chord from the left speaker', () => {
+  it('shows two speakers plus an answer toggle, and plays a blocked chord from the left speaker', () => {
     mockedGenerate.mockReturnValue({ ok: true, question: MAJ_C });
     renderAt('maj,min'); // no score param → speakers-only
 
     const speakers = screen.getByTestId('chord-speakers');
     const btns = within(speakers).getAllByRole('button');
-    expect(btns.length).toBe(2);
+    expect(btns.length).toBe(3);
 
     vi.mocked(audioEngine.playNotes).mockClear();
     fireEvent.click(btns[0]); // left = 柱式 / harmonic
     expect(audioEngine.playNotes).toHaveBeenCalledWith(MAJ_C.pitches);
+  });
+
+  it('reveals the notation when the answer speaker is clicked, and hides it again', () => {
+    mockedGenerate.mockReturnValue({ ok: true, question: MAJ_C });
+    renderAt('maj,min');
+
+    const speakers = screen.getByTestId('chord-speakers');
+    const btns = within(speakers).getAllByRole('button');
+    fireEvent.click(btns[2]); // 答案 / peek at notation
+
+    // Speakers hide while peeking, and the notation becomes visible.
+    expect(screen.queryByTestId('chord-speakers')).toBeNull();
+    expect(screen.getByTestId('chord-notation')).toBeTruthy();
+
+    // The "隐藏答案" button returns to the speakers view.
+    fireEvent.click(screen.getByRole('button', { name: '隐藏答案，返回听音练习' }));
+    expect(screen.getByTestId('chord-speakers')).toBeTruthy();
   });
 
   it('plays an arpeggiated chord from the right speaker', () => {

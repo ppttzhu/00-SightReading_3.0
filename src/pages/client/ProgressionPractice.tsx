@@ -114,6 +114,8 @@ export default function ProgressionPractice() {
   const [tipFading, setTipFading] = useState(false);
   // Speaker-only mode: briefly reveal the score after a correct answer.
   const [revealing, setRevealing] = useState(false);
+  // Speaker-only mode: learner explicitly asked to peek at the notation.
+  const [showingAnswer, setShowingAnswer] = useState(false);
 
   // Guards playback so each question sounds exactly once per presentation.
   const playedRef = useRef<ProgressionQuestion | null>(null);
@@ -127,6 +129,7 @@ export default function ProgressionPractice() {
 
   const nextQuestion = useCallback(() => {
     setQuestion(generateQuestion(selection));
+    setShowingAnswer(false);
     questionStartedRef.current = Date.now();
   }, [selection]);
 
@@ -256,9 +259,15 @@ export default function ProgressionPractice() {
       }, delay);
     } else {
       setFeedback('wrong');
-      setTimeout(() => setFeedback('none'), WRONG_FEEDBACK_RESET_MS);
+      setTimeout(() => {
+        setFeedback('none');
+        setShowingAnswer(false);
+      }, WRONG_FEEDBACK_RESET_MS);
     }
   };
+
+  // Toggle the "peek at the answer" notation reveal (speaker-only mode).
+  const toggleShowAnswer = () => setShowingAnswer((v) => !v);
 
   const accuracy = total > 0 ? Math.round((score / total) * 100) : 0;
 
@@ -334,11 +343,11 @@ export default function ProgressionPractice() {
         >
           {/* Notation — shown in score mode, or briefly revealed after a correct
               answer in speaker-only mode. */}
-          <div ref={containerRef} data-testid="progression-notation" style={{ opacity: (showScore || revealing) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
+          <div ref={containerRef} data-testid="progression-notation" style={{ opacity: (showScore || revealing || showingAnswer) ? 1 : 0, transition: 'opacity 0.3s ease' }}></div>
 
-          {/* Speaker-only mode: a single speaker to (re)play the progression. */}
-          {!showScore && !revealing && (
-            <div data-testid="progression-speaker" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Speaker-only mode: a single speaker to (re)play the progression, plus a peek-at-answer toggle. */}
+          {!showScore && !revealing && !showingAnswer && (
+            <div data-testid="progression-speaker" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '56px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                 <button
                   type="button"
@@ -359,7 +368,44 @@ export default function ProgressionPractice() {
                 </button>
                 <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>播放</span>
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={toggleShowAnswer}
+                  title="查看谱面答案"
+                  aria-label="查看谱面答案"
+                  style={{ background: '#f59e0b12', border: '2px solid #f59e0b', borderRadius: '50%', width: '72px', height: '72px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                  onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)'; }}
+                  onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                >
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+                <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#6b7280' }}>答案</span>
+              </div>
             </div>
+          )}
+
+          {/* "Hide answer" affordance while peeking, so the learner can return to the speaker. */}
+          {!showScore && !revealing && showingAnswer && (
+            <button
+              type="button"
+              onClick={toggleShowAnswer}
+              title="隐藏答案，返回听音练习"
+              aria-label="隐藏答案，返回听音练习"
+              style={{
+                position: 'absolute', top: '10px', right: '10px',
+                background: 'white', border: '1px solid #e5e7eb', borderRadius: '14px',
+                padding: '6px 12px', fontSize: '0.8rem', fontWeight: '700', color: '#6b7280',
+                cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+              }}
+            >
+              隐藏答案
+            </button>
           )}
 
           {/* In score mode, a replay control below the notation. */}

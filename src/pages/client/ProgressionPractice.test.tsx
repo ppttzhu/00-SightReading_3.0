@@ -171,6 +171,22 @@ describe('ProgressionPractice audio integration', () => {
   });
 });
 
+describe('ProgressionPractice peek-at-answer (speaker-only mode)', () => {
+  it('reveals the notation when 答案 is clicked, and hides it again via 隐藏答案', () => {
+    renderScreen();
+
+    expect(screen.getByTestId('progression-speaker')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '查看谱面答案' }));
+
+    // The speaker/answer row hides while peeking, and the notation shows.
+    expect(screen.queryByTestId('progression-speaker')).toBeNull();
+    expect(screen.getByTestId('progression-notation')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '隐藏答案，返回听音练习' }));
+    expect(screen.getByTestId('progression-speaker')).toBeTruthy();
+  });
+});
+
 describe('ProgressionPractice options', () => {
   // 9.1 — exactly four Answer_Choices rendered in fixed order.
   it('renders exactly the four Answer_Choices in fixed order', () => {
